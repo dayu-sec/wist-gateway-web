@@ -1,5 +1,9 @@
 # wist-gateway-web
 
+[![Build & Test](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/ci.yml/badge.svg)](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/ci.yml)
+[![Release](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/release.yml/badge.svg)](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/release.yml)
+[![Version](https://img.shields.io/github/v/tag/dayu-sec/wist-gateway-web?label=version&sort=semver)](https://github.com/dayu-sec/wist-gateway-web/releases)
+
 `wist-gateway` 的 Web 前端。提供 Agent 总览、主机指标、数据采集管线、Agent 安装与升级、Gateway 初始化等管理界面，是 `wist-gateway-stack` 自托管栈的前端组件。
 
 前端与后端解耦，通过 `/api` 反向代理访问 `wist-gateway`；可独立构建、独立发布、独立升级。
