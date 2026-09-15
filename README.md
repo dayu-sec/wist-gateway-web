@@ -95,7 +95,7 @@ npx tsx generate.ts jumo-ui-model.json .
 
 ## Docker 镜像
 
-多阶段构建：`node:20-alpine` 编译 → `nginx:alpine` 托管静态产物。
+多阶段构建：`node:24-alpine` 编译 → `nginx:alpine` 托管静态产物。
 
 ```bash
 docker build --build-arg APP_VERSION=0.1.2 -t ghcr.io/dayu-sec/wist-gateway-web:latest .
