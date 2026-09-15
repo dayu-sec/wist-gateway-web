@@ -1,0 +1,211 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  gap: 12px;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.identity {
+  min-width: 0;
+}
+
+.agentId {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.instance {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badges {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge,
+.offlineBadge,
+.realBadge,
+.exampleBadge {
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge {
+  border: 1px solid var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.offlineBadge {
+  border: 1px solid var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.realBadge {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.exampleBadge {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.durationBlock {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.durationLabel {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.duration {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.item {
+  min-width: 0;
+}
+
+.label {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.value {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.metricLabel {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.metricValue {
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trend {
+  display: flex;
+  gap: 12px;
+}
+
+.trendItem {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trendLabel {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.footer {
+  margin-top: auto;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.metricsLink {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.metricsLink:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 700px) {
+  .details {
+    grid-template-columns: 1fr;
+  }
+}
