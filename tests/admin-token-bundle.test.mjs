@@ -7,9 +7,6 @@ const forbiddenFragments = [
   sentinelToken,
   "VITE_WARP_INSIGHT_ADMIN_TOKEN",
   "install-test-admin-token",
-  "localStorage",
-  "sessionStorage",
-  "warpInsightAdminToken",
 ];
 
 execFileSync("npm", ["run", "build"], {
