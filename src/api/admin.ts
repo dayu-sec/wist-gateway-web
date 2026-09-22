@@ -2,9 +2,15 @@ import type {
   AgentClassification,
   AgentFactSummary,
   AgentPurposeView,
+  AgentSoftwareEntry,
+  AgentSoftwareInventory,
   MachineClass,
   PurposeSignal,
   PurposeSuggestion,
+  SoftwareFleetInventory,
+  SoftwareHolder,
+  SoftwareKeySummary,
+  SoftwareKind,
 } from "../types";
 
 export interface AgentRuntimeStatusView {
@@ -1248,4 +1254,198 @@ export async function fetchAgentPurpose(
     `/api/v1/admin/agents/${encodeURIComponent(agentId)}/purpose`,
   );
   return normalizeAgentPurposeView(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// L1a 机械资产清单（管理面）：从事实摘要机械归并出的「这台机器上有什么」
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 键必须存在的字符串字段（`presentField` + `requiredString` 的合体，省去层层转写）。 */
+function presentStringField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): string {
+  return requiredString(presentField(record, keys, fieldName), fieldName);
+}
+
+function presentNumberField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): number {
+  return requiredNumber(presentField(record, keys, fieldName), fieldName);
+}
+
+function presentBooleanField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): boolean {
+  return requiredBoolean(presentField(record, keys, fieldName), fieldName);
+}
+
+/**
+ * 条目类别是**闭合**取值（模型里的 variant）：认不出来就抛错，
+ * 不把没见过的类别名当成第三类静默渲染（与 `requiredMachineClass` 同一口径）。
+ */
+function requiredSoftwareKind(value: unknown, fieldName: string): SoftwareKind {
+  if (value === "app" || value === "binary") return value;
+  throw new Error(`Invalid API response: invalid ${fieldName}`);
+}
+
+function normalizeSoftwareEntry(
+  value: unknown,
+  fieldName: string,
+): AgentSoftwareEntry {
+  const entry = requiredRecord(value, fieldName);
+  return {
+    softwareKey: presentStringField(
+      entry,
+      ["software_key", "softwareKey"],
+      `${fieldName}.softwareKey`,
+    ),
+    name: presentStringField(entry, ["name"], `${fieldName}.name`),
+    kind: requiredSoftwareKind(
+      presentField(entry, ["kind"], `${fieldName}.kind`),
+      `${fieldName}.kind`,
+    ),
+    matchedRule: presentStringField(
+      entry,
+      ["matched_rule", "matchedRule"],
+      `${fieldName}.matchedRule`,
+    ),
+    path: presentStringField(entry, ["path"], `${fieldName}.path`),
+  };
+}
+
+function normalizeSoftwareHolder(
+  value: unknown,
+  fieldName: string,
+): SoftwareHolder {
+  const holder = requiredRecord(value, fieldName);
+  return {
+    agentId: presentStringField(
+      holder,
+      ["agent_id", "agentId"],
+      `${fieldName}.agentId`,
+    ),
+    path: presentStringField(holder, ["path"], `${fieldName}.path`),
+  };
+}
+
+function normalizeSoftwareKeySummary(
+  value: unknown,
+  fieldName: string,
+): SoftwareKeySummary {
+  const summary = requiredRecord(value, fieldName);
+  return {
+    softwareKey: presentStringField(
+      summary,
+      ["software_key", "softwareKey"],
+      `${fieldName}.softwareKey`,
+    ),
+    name: presentStringField(summary, ["name"], `${fieldName}.name`),
+    kind: requiredSoftwareKind(
+      presentField(summary, ["kind"], `${fieldName}.kind`),
+      `${fieldName}.kind`,
+    ),
+    // 机器数由后端对 holders 的 agent_id 去重算出；前端不复算，避免两处真相。
+    agentCount: presentNumberField(
+      summary,
+      ["agent_count", "agentCount"],
+      `${fieldName}.agentCount`,
+    ),
+    holders: requiredArray(
+      presentField(summary, ["holders"], `${fieldName}.holders`),
+      `${fieldName}.holders`,
+    ).map((holder, index) =>
+      normalizeSoftwareHolder(holder, `${fieldName}.holders[${index}]`),
+    ),
+  };
+}
+
+/**
+ * 规范化「按机器看软件」的清单。
+ *
+ * `paths` / `apps` 是**行数**，由后端算好：前端**原样透出**，不按 `entries` 重算
+ * —— 重算会掩盖两侧口径漂移，而这两列的语义（行数 ≠ 软件个数）本页要显式讲清楚。
+ */
+export function normalizeAgentSoftwareInventory(
+  payload: unknown,
+): AgentSoftwareInventory {
+  const root = requiredRecord(payload, "agentSoftwareInventory");
+  return {
+    agentId: presentStringField(
+      root,
+      ["agent_id", "agentId"],
+      "agentSoftwareInventory.agentId",
+    ),
+    paths: presentNumberField(root, ["paths"], "agentSoftwareInventory.paths"),
+    apps: presentNumberField(root, ["apps"], "agentSoftwareInventory.apps"),
+    // 空清单（存在但没上报过）与「字段缺失」是两回事：数组本身必须存在。
+    entries: requiredArray(
+      presentField(root, ["entries"], "agentSoftwareInventory.entries"),
+      "agentSoftwareInventory.entries",
+    ).map((entry, index) =>
+      normalizeSoftwareEntry(
+        entry,
+        `agentSoftwareInventory.entries[${index}]`,
+      ),
+    ),
+  };
+}
+
+/** 规范化「按软件看机器」的机队清单（含 `truncated`，不能静默丢掉）。 */
+export function normalizeSoftwareFleetInventory(
+  payload: unknown,
+): SoftwareFleetInventory {
+  const root = requiredRecord(payload, "softwareFleetInventory");
+  return {
+    truncated: presentBooleanField(
+      root,
+      ["truncated"],
+      "softwareFleetInventory.truncated",
+    ),
+    software: requiredArray(
+      presentField(root, ["software"], "softwareFleetInventory.software"),
+      "softwareFleetInventory.software",
+    ).map((summary, index) =>
+      normalizeSoftwareKeySummary(
+        summary,
+        `softwareFleetInventory.software[${index}]`,
+      ),
+    ),
+  };
+}
+
+/**
+ * 某台机器的 L1a 机械资产清单（对应模型 `ViewAgentSoftware`）。
+ *
+ * 未知 agent 由后端回 404（正文 `unknown agent {id}`）：调用方要用
+ * `ApiError.status === 404` 区分「这台机器不存在」与「它存在、但还没上报过清单」
+ * —— 后者是 200 + `paths: 0` + `entries: []`。
+ */
+export async function fetchAgentSoftwareInventory(
+  agentId: string,
+): Promise<AgentSoftwareInventory> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/software`,
+  );
+  return normalizeAgentSoftwareInventory(payload);
+}
+
+/**
+ * 按软件聚合的机队清单（「按软件看机器」，按持有机器数降序）。
+ *
+ * `limit` 指定键数上限；后端把它夹到 1..500（默认 100），前端**不重复夹取**
+ * —— 夹取口径只留一处真相，页面据响应里的 `truncated` 明确提示被截断。
+ */
+export async function fetchSoftwareFleetInventory(
+  limit = 100,
+): Promise<SoftwareFleetInventory> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/software?limit=${limit}`,
+  );
+  return normalizeSoftwareFleetInventory(payload);
 }

@@ -1,0 +1,581 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  gap: 18px;
+  padding-bottom: 56px;
+}
+
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 22px 24px 0;
+}
+
+.pageTitle {
+  color: var(--text);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pageSummary,
+.pageThresholds {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+.pageSummary strong,
+.pageThresholds strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.pageThresholds {
+  color: var(--text-3);
+}
+
+/* 行内标识（`.app` / `Info.plist` / URL 参数）：等宽，避免 `.` 与 `1` 被读成别的东西。 */
+.code {
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* 视图切换：两个视图不是「筛选」，是两种读法，所以用分段控件而不是下拉框。 */
+.viewSwitch {
+  display: inline-flex;
+  gap: 4px;
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.viewTab {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.viewTab:hover {
+  color: var(--text);
+}
+
+.viewTabActive {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sectionHint {
+  color: var(--text-4);
+  font-size: 12.5px;
+}
+
+.sectionHint strong {
+  color: var(--text-2);
+}
+
+/* ---------- 选择机器 ---------- */
+
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.pickerLabel {
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.pickerInput {
+  flex: 1 1 320px;
+  min-width: 220px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.pickerInput:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.pickerButton,
+.pickerGhost,
+.widenButton,
+.moreButton {
+  padding: 7px 13px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pickerButton:disabled {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+.pickerGhost {
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text-3);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.suggestionsLabel {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.suggestionChips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+
+.chipActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+/* 状态标签用等宽之外的常规字体：它是中文词，不是标识符。 */
+.chipStatus {
+  color: var(--text-4);
+  font-family: var(--font);
+  font-size: 11px;
+}
+
+/* ---------- 卡片列表 ---------- */
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cardTitleWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cardTitle {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.kindBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.kindApp {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.cardCount {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.cardCount strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardKey {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.cardMeta {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.cardMetaHint {
+  margin-left: 6px;
+  color: var(--text-4);
+}
+
+.holderList,
+.pathList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  list-style: none;
+}
+
+.holderRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.holderLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.holderLink:hover {
+  text-decoration: underline;
+}
+
+.ledgerBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ledgerOnline {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.ledgerAbnormal {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.ledgerExample {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.ledgerUnknown {
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-3);
+}
+
+.holderPaths {
+  color: var(--text-3);
+}
+
+.pathText {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.pathRow {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.moreRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.moreHint {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.moreButton {
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+}
+
+/* ---------- 概览计数（行数 / 组数） ---------- */
+
+.summaryCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.summaryMetrics {
+  display: flex;
+  gap: 26px;
+  flex-wrap: wrap;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metricValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.metricLabel {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.summaryNote {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.summaryNote strong {
+  color: var(--text);
+}
+
+/* ---------- 状态块（彼此可区分：空 / 未选 / 未授权 / 报错） ---------- */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.emptyTitle {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.emptyText {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+.idleNotice {
+  padding: 10px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.errorBanner {
+  padding: 10px 13px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 截断提示：不是错误，但必须醒目 —— 它改变「这份清单是不是全集」的判断。 */
+.truncatedNotice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 13px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+/* 未知 Agent：不是空态，也不是普通错误条 —— 要让人一眼看出「这台机器不存在」。 */
+.unknownAgent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius);
+  background: var(--crit-soft);
+}
+
+.unknownTitle {
+  color: var(--crit);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.unknownText,
+.unknownHint {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.unknownText strong {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.unknownHint {
+  color: var(--text-3);
+}
+
+.unknownLink {
+  margin: 0 3px;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+/* ---------- 骨架 ---------- */
+
+.skeletonWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonRow {
+  height: 64px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  opacity: 0.6;
+}

@@ -106,3 +106,73 @@ export interface AgentPurposeView {
   classification: AgentClassification | null;
   generatedAt: string;
 }
+
+/**
+ * L1a 机械资产清单（管理面）。
+ *
+ * 这一层**刻意只做归并、不做识别**：网关把每台机器上报的事实摘要里的可执行路径
+ * 机械地折成「这台机器上有什么」。条目只有**名字（来自路径）**，没有版本、没有 vendor
+ * ——「识别」要在被管机器上读 `Info.plist` / 包管理器（属 L1b，未做）。
+ *
+ * 明细接口不聚合：同一个 `software_key`（例如一个 `.app` 包）会有**多条路径行**，
+ * 页面按 `software_key` 分组展示。
+ */
+
+/** 条目来源类别（模型里的闭合 variant）：`app` = macOS `.app` 包，`binary` = 其余可执行路径。 */
+export type SoftwareKind = "app" | "binary";
+
+/**
+ * 一条清单条目 = 一个可执行路径命中一条规则；**不是**一个「软件」。
+ *
+ * 清单是事实摘要的投影，随每次上报**覆盖式重建**，不保留历史。
+ */
+export interface AgentSoftwareEntry {
+  /** 归并键：`.app` 是包路径本身，其余是那条可执行路径。 */
+  softwareKey: string;
+  /** 展示名，**从路径推出来的**（不是从包元数据读的，所以没有版本）。 */
+  name: string;
+  kind: SoftwareKind;
+  /** 命中哪条归并规则（`macos-app-bundle` / `unix-path`）。 */
+  matchedRule: string;
+  path: string;
+}
+
+/** 「按机器看软件」：某台机器上的清单（模型 `ViewAgentSoftware`）。 */
+export interface AgentSoftwareInventory {
+  agentId: string;
+  /**
+   * 条目**行数**（去重后的可执行路径条数），**不是**软件个数：
+   * 同一个 `.app` 里跑了几个可执行文件就是几行。后端直接算好，前端不重算。
+   */
+  paths: number;
+  /** 其中 `kind = app` 的行数，同样不是「app 个数」。 */
+  apps: number;
+  /** 按 `kind, software_key, path` 排序；同键多行。 */
+  entries: AgentSoftwareEntry[];
+}
+
+/** 持有某个键的一台机器。只有 `agent_id` 与 `path`：主机名/状态由页面拿 Agent 台账补。 */
+export interface SoftwareHolder {
+  agentId: string;
+  path: string;
+}
+
+/** 「按软件看机器」里的一个归并键（模型 `ViewSoftwareHoldings` 的一项）。 */
+export interface SoftwareKeySummary {
+  softwareKey: string;
+  name: string;
+  kind: SoftwareKind;
+  /**
+   * 持有该键的**机器数**（对 `holders` 的 `agent_id` 去重），可能小于 `holders.length`
+   * —— 同一台机器在同一个 `.app` 下有多条可执行路径时就是这种情况。
+   */
+  agentCount: number;
+  holders: SoftwareHolder[];
+}
+
+/** 「按软件看机器」：按持有机器数降序的键列表。 */
+export interface SoftwareFleetInventory {
+  /** 实际键数多于返回条数（`limit` 被顶到上限）时为 true：页面必须明确提示被截断。 */
+  truncated: boolean;
+  software: SoftwareKeySummary[];
+}

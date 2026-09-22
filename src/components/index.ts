@@ -59,6 +59,7 @@ export { SubsystemMacOSInstallCode } from "./SubsystemMacOSInstallCode";
 export { SubsystemGatewayInitializePage } from "./SubsystemGatewayInitializePage";
 export { SubsystemAgentHostMetricsPage } from "./SubsystemAgentHostMetricsPage";
 export { SubsystemAgentHostListPage } from "./SubsystemAgentHostListPage";
+export { SubsystemSoftwareInventoryPage } from "./SubsystemSoftwareInventoryPage";
 export { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
 export { SubsystemAgentPurposePage } from "./SubsystemAgentPurposePage";
 export { AppLayout } from "./AppLayout";

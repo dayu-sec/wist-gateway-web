@@ -8,9 +8,11 @@ import {
   fetchAgentInstallPackage,
   fetchAgentOverview,
   fetchAgentPurpose,
+  fetchAgentSoftwareInventory,
   fetchAgentUplink,
   fetchAllAgentsHostMetrics,
   fetchPipelineTopology,
+  fetchSoftwareFleetInventory,
   getAdminApiToken,
   initializeGatewayViaUrl,
   setAgentInstallPackage,
@@ -206,5 +208,58 @@ export function useGatewayInitialConfig() {
   return useMutation({
     mutationFn: ({ initUrl, token }: { initUrl: string; token?: string }) =>
       initializeGatewayViaUrl(initUrl, token),
+  });
+}
+
+/**
+ * 某台机器的 L1a 机械资产清单。
+ *
+ * 不轮询：清单是事实摘要的投影，只在 Agent 重新上报摘要时**覆盖式重建**。
+ * 需要重取时用右上角「刷新」。404（未知 Agent）是确定性的，重试只是白撞。
+ */
+export function useAgentSoftwareInventory(agentId: string) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(agentId);
+  return useQuery({
+    queryKey: ["agent-software", agentId],
+    queryFn: () => fetchAgentSoftwareInventory(agentId),
+    enabled,
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+
+/**
+ * 按软件聚合的机队清单。
+ *
+ * 同样不轮询：这份视图完全由各机器的上报派生，刷新频率跟着 Agent 上报走
+ * （其余视图每 5 秒拉一次是看实时负载，这张清单没有那个语义）。
+ */
+export function useSoftwareFleetInventory(limit = 100) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["software-fleet", limit],
+    queryFn: () => fetchSoftwareFleetInventory(limit),
+    enabled,
   });
 }

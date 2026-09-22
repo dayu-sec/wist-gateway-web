@@ -104,12 +104,24 @@ function IconUplink() {
   );
 }
 
+/** 资产清单：归档箱外形 —— 「这台机器上有什么」的机械归并结果。 */
+function IconSoftware() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <rect x="1.8" y="2.2" width="12.4" height="3.2" rx="1.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M3.2 5.4v7.2a1.2 1.2 0 0 0 1.2 1.2h7.2a1.2 1.2 0 0 0 1.2-1.2V5.4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M6.2 8.6h3.6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
     items: [
       { to: "/", label: "Agent 总览", icon: <IconOverview />, end: true },
       { to: "/hosts", label: "主机指标", icon: <IconHost /> },
+      { to: "/software", label: "资产清单", icon: <IconSoftware /> },
       { to: "/pipeline", label: "数据采集", icon: <IconPipeline /> },
     ],
   },

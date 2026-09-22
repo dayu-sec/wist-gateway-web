@@ -10,6 +10,7 @@ import { SubsystemGatewayInitializePage } from "./components/SubsystemGatewayIni
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentPurposePage } from "./components/SubsystemAgentPurposePage";
 import { SubsystemAgentHostListPage } from "./components/SubsystemAgentHostListPage";
+import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareInventoryPage";
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 
 export function App() {
@@ -26,6 +27,7 @@ export function App() {
         <Route path="/uplink" element={<SubsystemAgentUplinkPage />} />
         <Route path="/init" element={<SubsystemGatewayInitializePage />} />
         <Route path="/hosts" element={<SubsystemAgentHostListPage />} />
+        <Route path="/software" element={<SubsystemSoftwareInventoryPage />} />
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route
           path="/agents/:agentId/metrics"
