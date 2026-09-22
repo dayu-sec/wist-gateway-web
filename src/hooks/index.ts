@@ -168,8 +168,8 @@ export function useSetAgentUplink() {
 /**
  * 某台 Agent 的用途（事实 / 推断 / 判定三分并列）。
  *
- * 不轮询：事实摘要在内容变化时才上报（幂等键是 content_digest，不是 revision），
- * 建议只在事实或规则册变化时重算 —— 刷得比上报更快只会重复读到同一个值。
+ * 不轮询：事实摘要由 agentd 按周期上报（`duplicate` 时只刷留痕，内容与幂等键不动），
+ * 建议只在内容或规则册变化时重算 —— 刷得比上报更快只会重复读到同一个值。
  * 需要重取时用右上角的「刷新」。
  */
 export function useAgentPurpose(agentId: string) {
