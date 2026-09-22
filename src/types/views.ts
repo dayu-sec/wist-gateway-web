@@ -34,6 +34,17 @@ export interface AgentFactSummary {
   /** 已装包名（当前只有 linux 侧采集）。 */
   packages: string[];
   listenPorts: string[];
+  /**
+   * 主机标识（发现方向 `host` 的 `host.id`）。
+   *
+   * 这是**展示用留痕**：不进内容摘要，所以改机器名、换网（DHCP）不会触发重报与重算。
+   * 空串表示这台还没上报过 —— 旧版 agentd 根本不带这些字段，不是「标识就是空」。
+   */
+  hostId: string;
+  /** 主机名（`host.name`）。同样只作留痕。 */
+  hostName: string;
+  /** 网卡地址，每块网卡一条，形如 `en0 192.168.1.5/24`。同样只作留痕。 */
+  networkAddresses: string[];
   receivedAt: string;
 }
 

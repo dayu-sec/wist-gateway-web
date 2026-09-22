@@ -19,7 +19,9 @@ import {
 //   2. 三种数据状态必须能被区分：都为 null / 只有事实 / 事实 + 建议；
 //   3. 依据逐条保留（rule_id / kind / value / weight，含**负权重**反向证据）与 confidence 原值；
 //   4. 404 仍是 404（抛 ApiError），不静默成空视图 —— 页面靠它区分「未知 Agent」；
-//   5. confidence 0 的两种含义（并列 / 无依据）必须能区分，且 nullable 分项「键缺失」抛错。
+//   5. confidence 0 的两种含义（并列 / 无依据）必须能区分，且 nullable 分项「键缺失」抛错；
+//   6. 发现方向的展示字段（host_id / host_name / network_addresses）如实转到视图模型，
+//      空值（旧版 agentd 不带这些字段）不是缺键。
 //
 // Usage: npm run test:agent-purpose
 
@@ -105,6 +107,10 @@ const factOnly = normalizeAgentPurposeView({
     process_executables: ["/usr/bin/xcodebuild", "/opt/homebrew/bin/brew"],
     packages: [],
     listen_ports: ["5432"],
+    // 发现方向的展示字段（留痕）：校验它们到得了视图模型，且不改动其它字段。
+    host_id: "machine-id-abc123",
+    host_name: "macbook-pro",
+    network_addresses: ["en0 192.168.1.5/24", "utun3 10.8.0.2/32"],
     received_at: "2026-09-22T00:00:01Z",
   },
   suggestion: null,
@@ -135,6 +141,51 @@ assert(
   fact!.listenPorts.length === 1 && fact!.listenPorts[0] === "5432",
   "listen_ports were not normalized",
 );
+assert(
+  fact!.hostId === "machine-id-abc123" && fact!.hostName === "macbook-pro",
+  "host_id / host_name were not normalized",
+);
+assert(
+  fact!.networkAddresses.length === 2 &&
+    fact!.networkAddresses[1] === "utun3 10.8.0.2/32",
+  "network_addresses were not normalized",
+);
+
+// --- 3b. 旧版 agentd：不提这三个字段，网关落空值 ----------------------------
+// 网关侧三列是 NOT NULL DEFAULT（'' / '[]'），所以「没上报」是以**空值而不是缺键**
+// 到达页面的。空值必须原样留下（不是 null/undefined）：组件靠它决定显示 EMPTY（"—"）。
+const legacyAgent = normalizeAgentPurposeView({
+  agent_id: "agent-legacy",
+  fact_summary: {
+    agent_id: "agent-legacy",
+    content_digest: "sha256:legacy",
+    revision: 1,
+    observed_at: "2026-09-22T00:00:00Z",
+    os: "macos",
+    arch: "arm64",
+    process_count: 3,
+    process_executables: ["launchd"],
+    packages: [],
+    listen_ports: [],
+    host_id: "",
+    host_name: "",
+    network_addresses: [],
+    received_at: "2026-09-22T00:00:01Z",
+  },
+  suggestion: null,
+  classification: null,
+  generated_at: "2026-09-22T00:00:02Z",
+});
+assert(
+  legacyAgent.factSummary!.hostId === "" &&
+    legacyAgent.factSummary!.hostName === "",
+  "an old agent's empty host fields must stay empty strings, not null/undefined",
+);
+assert(
+  Array.isArray(legacyAgent.factSummary!.networkAddresses) &&
+    legacyAgent.factSummary!.networkAddresses.length === 0,
+  "an old agent's empty network list must stay an empty list (not null/undefined)",
+);
 
 // --- 4. 状态三：事实 + 建议（依据逐条保留） ---------------------------------
 const both = normalizeAgentPurposeView({
@@ -150,6 +201,9 @@ const both = normalizeAgentPurposeView({
     process_executables: ["/usr/bin/xcodebuild"],
     packages: [],
     listen_ports: ["5432"],
+    host_id: "machine-id-abc123",
+    host_name: "macbook-pro",
+    network_addresses: ["en0 192.168.1.5/24"],
     received_at: "2026-09-22T00:00:01Z",
   },
   suggestion: {
@@ -397,6 +451,32 @@ const driftCases: [string, unknown][] = [
     },
   ],
   ["fact_summary is not an object", { agent_id: "a", fact_summary: "none", generated_at: "t" }],
+  // 展示字段缺键 ≠ 旧版 agentd：网关侧三列是 NOT NULL DEFAULT，旧 agent 到页面是**空值**
+  // （见 §3b）。真的少了键只能是两侧版本对不上，按契约漂移抛错。
+  [
+    "missing host_id",
+    {
+      agent_id: "a",
+      fact_summary: {
+        agent_id: "a",
+        content_digest: "sha256:abc",
+        revision: 1,
+        observed_at: "t",
+        os: "macos",
+        arch: "arm64",
+        process_count: 0,
+        process_executables: [],
+        packages: [],
+        listen_ports: [],
+        host_name: "",
+        network_addresses: [],
+        received_at: "t",
+      },
+      suggestion: null,
+      classification: null,
+      generated_at: "t",
+    },
+  ],
 ];
 for (const [label, payload] of driftCases) {
   let threw = false;
@@ -450,5 +530,5 @@ assert(unauthorized instanceof ApiError, "401 must surface as ApiError");
 assert((unauthorized as ApiError).status === 401, "401 status must be preserved");
 
 console.log(
-  "agent purpose contract ok: 3 data states + baseline/tie split + drift throws + 404 distinguished",
+  "agent purpose contract ok: 3 data states + baseline/tie split + display fields + drift throws + 404 distinguished",
 );

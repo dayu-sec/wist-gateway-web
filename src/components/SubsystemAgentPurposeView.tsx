@@ -294,6 +294,25 @@ function FactSummaryPanel({
           </dd>
         </div>
         <div className={styles.factRow}>
+          <dt>主机标识</dt>
+          <dd>
+            <span className={styles.mono}>{factSummary.hostId || EMPTY}</span>
+            <span className={styles.factMeta}>
+              发现方向 host 的 host.id；仅留痕、不参与内容摘要，改机器名或换网不触发重报与重算。
+              空值（{EMPTY}）表示这台还没上报过 —— 旧版 agentd 不带这些字段
+            </span>
+          </dd>
+        </div>
+        <div className={styles.factRow}>
+          <dt>主机名</dt>
+          <dd>
+            <span className={styles.mono}>{factSummary.hostName || EMPTY}</span>
+            <span className={styles.factMeta}>
+              host.name；同样是留痕字段，同样不进内容摘要
+            </span>
+          </dd>
+        </div>
+        <div className={styles.factRow}>
           <dt>观测时间</dt>
           <dd>
             <span className={styles.mono}>
@@ -404,6 +423,31 @@ function FactSummaryPanel({
             unit="条"
           />
         )}
+      </div>
+
+      <div className={styles.listBlock}>
+        <div className={styles.listHead}>
+          <h3 className={styles.listTitle}>网卡地址</h3>
+          <span className={styles.listCount}>
+            {factSummary.networkAddresses.length} 条
+          </span>
+        </div>
+        {factSummary.networkAddresses.length === 0 ? (
+          <p className={styles.listEmpty}>
+            这台还没上报过网卡信息 —— 旧版 agentd 不带这些字段。
+          </p>
+        ) : (
+          <CappedList
+            values={factSummary.networkAddresses}
+            listClassName={styles.chipList}
+            itemClassName={`${styles.chip} ${styles.mono}`}
+            unit="条"
+          />
+        )}
+        <p className={styles.listCaption}>
+          每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，
+          换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。
+        </p>
       </div>
     </section>
   );

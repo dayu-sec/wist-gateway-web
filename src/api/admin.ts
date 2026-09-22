@@ -1103,6 +1103,20 @@ function normalizeAgentFactSummary(payload: any): AgentFactSummary {
       payload.listen_ports ?? payload.listenPorts,
       "agentFactSummary.listenPorts",
     ),
+    // 展示字段：旧 agentd 不带它们，但网关侧是 NOT NULL DEFAULT，
+    // 所以「没上报」以空串 / 空数组到达这里，而不是缺键。
+    hostId: requiredString(
+      payload.host_id ?? payload.hostId,
+      "agentFactSummary.hostId",
+    ),
+    hostName: requiredString(
+      payload.host_name ?? payload.hostName,
+      "agentFactSummary.hostName",
+    ),
+    networkAddresses: requiredStringArray(
+      payload.network_addresses ?? payload.networkAddresses,
+      "agentFactSummary.networkAddresses",
+    ),
     receivedAt: requiredString(
       payload.received_at ?? payload.receivedAt,
       "agentFactSummary.receivedAt",
