@@ -182,6 +182,9 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+  /* agent 可控文本（进程路径 / 包名 / 命中值）：用 bidi isolate 切断双向覆盖字符
+     （U+202E 等）对相邻文本的显示欺骗，JSX 转义 HTML 挡不住这类字符。 */
+  unicode-bidi: isolate;
 }
 
 /* ---------- 结论 + 置信度 ---------- */
@@ -228,6 +231,13 @@
   border-color: var(--border-strong);
   background: var(--unknown-soft);
   color: var(--text-2);
+}
+
+/* 并列无区分度：有逐条依据但不支持任何结论，用与弱结论同一档的警示色。 */
+.badgeTie {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
 }
 
 .confidence {
@@ -280,6 +290,10 @@
   color: var(--warn);
 }
 
+.textTie {
+  color: var(--warn);
+}
+
 .textUnknown {
   color: var(--text-2);
 }
@@ -293,6 +307,10 @@
 }
 
 .barWeak {
+  background: var(--warn);
+}
+
+.barTie {
   background: var(--warn);
 }
 
@@ -363,6 +381,8 @@
   color: var(--text-2);
   font-size: 11.5px;
   line-height: 1.5;
+  /* 同上：进程可执行标识是 agent 可控文本。 */
+  unicode-bidi: isolate;
 }
 
 .chipList {
@@ -381,6 +401,31 @@
   background: var(--bg-elevated);
   color: var(--text-2);
   font-size: 11.5px;
+  /* 包名 / 端口来自 agent 上报：隔离双向覆盖字符。 */
+  unicode-bidi: isolate;
+}
+
+/* 列表被截断时的显式提示 + 展开控件：截断不能静默发生。 */
+.truncation {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.truncationButton {
+  flex: none;
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  cursor: pointer;
+  font: inherit;
 }
 
 .signalWrap {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
+  ApiError,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
   fetchAgentInstallPackage,
@@ -184,8 +185,19 @@ export function useAgentPurpose(agentId: string) {
     queryKey: ["agent-purpose", agentId],
     queryFn: () => fetchAgentPurpose(agentId),
     enabled,
-    // 未知 Agent 会回 404：重试只是白撞同一个错误，直接让页面渲染「未知 Agent」。
-    retry: false,
+    // 401（token 无效）与 404（未知 Agent）是确定性的，重试只是白撞同一个错误，
+    // 直接让页面渲染「未知 Agent / 请重新填 token」。
+    // 其它错误（500、网络抖动）沿用仓库默认的重试策略（3 次 + 指数退避），
+    // 不要把瞬时故障也变成立刻报错、必须手点刷新。
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
   });
 }
 

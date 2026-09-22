@@ -1004,12 +1004,47 @@ export async function fetchPipelineTopology(
 // Agent 用途（管理面）：事实 / 推断 / 判定三分并列
 // ─────────────────────────────────────────────────────────────────────────────
 
-function nullableRecord(
-  value: unknown,
+/**
+ * 取一个「键必须存在」的字段。
+ *
+ * `?? null` 对 `undefined` 也返回 `null`，会把**键缺失/被改名**这个契约漂移
+ * 静默成一个合法的空值 —— 而本页最忌讳的就是把「未知」与「空」混成一回事
+ * （这与 `install-package-contract.test.ts` 的 `in` 断言同一口径）。
+ */
+function presentField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): unknown {
+  const key = keys.find((candidate) =>
+    Object.prototype.hasOwnProperty.call(record, candidate),
+  );
+  if (key === undefined) {
+    throw new Error(`Invalid API response: missing ${fieldName}`);
+  }
+  return record[key];
+}
+
+/** 键必须存在、值可为 `null` 的对象字段（`null` 与「缺失」不同）。 */
+function nullableRecordField(
+  record: Record<string, unknown>,
+  keys: string[],
   fieldName: string,
 ): Record<string, unknown> | null {
-  if (value === null || value === undefined) return null;
+  const value = presentField(record, keys, fieldName);
+  if (value === null) return null;
   return requiredRecord(value, fieldName);
+}
+
+/** 键必须存在、值可为 `null` 的字符串字段（`null` 与「缺失」不同）。 */
+function nullableStringField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): string | null {
+  const value = presentField(record, keys, fieldName);
+  if (value === null) return null;
+  return requiredString(value, fieldName);
 }
 
 function requiredStringArray(value: unknown, fieldName: string): string[] {
@@ -1102,8 +1137,9 @@ function normalizePurposeSuggestion(payload: any): PurposeSuggestion {
     confidence: requiredNumber(payload.confidence, "purposeSuggestion.confidence"),
     // method 也是开放字符串（rule | model），同样不校验枚举。
     method: requiredString(payload.method, "purposeSuggestion.method"),
-    ruleSetId: nullableString(
-      payload.rule_set_id ?? payload.ruleSetId ?? null,
+    ruleSetId: nullableStringField(
+      payload,
+      ["rule_set_id", "ruleSetId"],
       "purposeSuggestion.ruleSetId",
     ),
     signals: requiredArray(payload.signals, "purposeSuggestion.signals").map(
@@ -1131,8 +1167,9 @@ function normalizeAgentClassification(payload: any): AgentClassification {
       "agentClassification.machineClass",
     ),
     // 采纳了哪次建议；人工直接判定/推翻建议时为空（不是 undefined）。
-    suggestionId: nullableString(
-      payload.suggestion_id ?? payload.suggestionId ?? null,
+    suggestionId: nullableStringField(
+      payload,
+      ["suggestion_id", "suggestionId"],
       "agentClassification.suggestionId",
     ),
     decidedBy: requiredString(
@@ -1143,7 +1180,7 @@ function normalizeAgentClassification(payload: any): AgentClassification {
       payload.decided_at ?? payload.decidedAt,
       "agentClassification.decidedAt",
     ),
-    note: nullableString(payload.note ?? null, "agentClassification.note"),
+    note: nullableStringField(payload, ["note"], "agentClassification.note"),
   };
 }
 
@@ -1154,16 +1191,19 @@ function normalizeAgentClassification(payload: any): AgentClassification {
 export function normalizeAgentPurposeView(payload: any): AgentPurposeView {
   // 后端 admin_ops.rs 直接返回**扁平**载荷（不额外包一层 `{purpose: ...}`）。
   const root = requiredRecord(payload, "agentPurpose");
-  const factSummary = nullableRecord(
-    root.fact_summary ?? root.factSummary ?? null,
+  const factSummary = nullableRecordField(
+    root,
+    ["fact_summary", "factSummary"],
     "agentPurpose.factSummary",
   );
-  const suggestion = nullableRecord(
-    root.suggestion ?? null,
+  const suggestion = nullableRecordField(
+    root,
+    ["suggestion"],
     "agentPurpose.suggestion",
   );
-  const classification = nullableRecord(
-    root.classification ?? null,
+  const classification = nullableRecordField(
+    root,
+    ["classification"],
     "agentPurpose.classification",
   );
   return {

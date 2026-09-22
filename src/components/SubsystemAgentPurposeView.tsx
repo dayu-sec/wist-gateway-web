@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   AgentClassification,
   AgentFactSummary,
@@ -6,6 +7,12 @@ import type {
   PurposeSignal,
   PurposeSuggestion,
 } from "../types";
+import {
+  CONFIDENCE_HINT,
+  CONFIDENCE_LABEL,
+  confidenceTone,
+  type ConfidenceTone,
+} from "./agentPurposeConfidence";
 import styles from "./SubsystemAgentPurposeView.module.css";
 
 interface SubsystemAgentPurposeViewProps {
@@ -37,39 +44,16 @@ const METHOD_LABEL: Record<string, string> = {
 };
 
 /**
- * 结论强度的分档。
- *
- * `confidence = 100 ×（最高分 − 次高分）/ 最高分`，总分低于规则册的 `weak_score`
- * 再打对折；**0 表示只有规则册的基线类别兜底**（没有任何有效规则命中）。
- * 0 和 100 完全不是一回事：一个是没有依据，一个是有把握，页面必须一眼看出差别。
+ * 列表渲染上限。`process_executables` / `packages` / `listen_ports` 是**被管机器上报**
+ * 的内容，可达数万条：全量 map 成 DOM 会把页面卡死。超出部分不静默丢弃 ——
+ * 明确告知被截断，并给一个显式的「显示全部」。
  */
-type ConfidenceTone = "baseline" | "weak" | "fair" | "strong";
-
-function confidenceTone(confidence: number): ConfidenceTone {
-  if (!Number.isFinite(confidence) || confidence <= 0) return "baseline";
-  if (confidence < 50) return "weak";
-  if (confidence < 80) return "fair";
-  return "strong";
-}
-
-const CONFIDENCE_LABEL: Record<ConfidenceTone, string> = {
-  baseline: "无有效依据",
-  weak: "弱结论",
-  fair: "中等把握",
-  strong: "有把握",
-};
-
-const CONFIDENCE_HINT: Record<ConfidenceTone, string> = {
-  baseline:
-    "只有规则册的基线类别兜底：没有任何有效规则命中（或正负证据相互抵消），不代表网关认定这台机器就是这一类。",
-  weak: "弱结论：最高分只略微领先次高分，或总分低于规则册的 weak_score 被打过折。",
-  fair: "中等把握：最高分对次高分有优势，但仍可能有规则未覆盖的信号。",
-  strong: "有把握：最高分明显领先次高分。",
-};
+const LIST_RENDER_LIMIT = 200;
 
 function badgeToneClass(tone: ConfidenceTone): string {
   return {
     baseline: styles.badgeUnknown,
+    tie: styles.badgeTie,
     weak: styles.badgeWeak,
     fair: styles.badgeFair,
     strong: styles.badgeOk,
@@ -79,6 +63,7 @@ function badgeToneClass(tone: ConfidenceTone): string {
 function textToneClass(tone: ConfidenceTone): string {
   return {
     baseline: styles.textUnknown,
+    tie: styles.textTie,
     weak: styles.textWeak,
     fair: styles.textFair,
     strong: styles.textOk,
@@ -88,10 +73,59 @@ function textToneClass(tone: ConfidenceTone): string {
 function barToneClass(tone: ConfidenceTone): string {
   return {
     baseline: styles.barUnknown,
+    tie: styles.barTie,
     weak: styles.barWeak,
     fair: styles.barFair,
     strong: styles.barOk,
   }[tone];
+}
+
+/**
+ * 有上限的字符串列表：超出 `LIST_RENDER_LIMIT` 时**明确告知被截断**，
+ * 并给一个「显示全部」的显式控件（agent 可控的列表可达数万条）。
+ */
+function CappedList({
+  values,
+  listClassName,
+  itemClassName,
+  unit,
+}: {
+  values: string[];
+  listClassName: string;
+  itemClassName?: string;
+  unit: string;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const truncated = values.length > LIST_RENDER_LIMIT;
+  const visible = truncated && !showAll ? values.slice(0, LIST_RENDER_LIMIT) : values;
+
+  return (
+    <>
+      <ul className={listClassName}>
+        {visible.map((value) => (
+          <li key={value} className={itemClassName}>
+            {value}
+          </li>
+        ))}
+      </ul>
+      {truncated ? (
+        <div className={styles.truncation}>
+          <span role="status">
+            {showAll
+              ? `已展开全部 ${values.length} ${unit}。`
+              : `只显示前 ${LIST_RENDER_LIMIT} ${unit}，还有 ${values.length - LIST_RENDER_LIMIT} ${unit}未显示。`}
+          </span>
+          <button
+            type="button"
+            className={styles.truncationButton}
+            onClick={() => setShowAll((current) => !current)}
+          >
+            {showAll ? "收起" : `显示全部 ${values.length} ${unit}`}
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function signalKindLabel(kind: string): string {
@@ -301,7 +335,9 @@ function FactSummaryPanel({
             </span>
             <span className={styles.factMeta}>
               去重会毁掉基数，所以另存去重前的条数
-              {droppedByDedup > 0 ? `（合并了 ${droppedByDedup} 条）` : ""}
+              {droppedByDedup > 0
+                ? `（差额 ${droppedByDedup}：重复的可执行标识被合并，或进程本来就没有可执行名）`
+                : ""}
             </span>
           </dd>
         </div>
@@ -313,15 +349,18 @@ function FactSummaryPanel({
           <span className={styles.listCount}>{dedupedProcesses} 条（去重后）</span>
         </div>
         {dedupedProcesses === 0 ? (
-          <p className={styles.listEmpty}>没有采集到进程。</p>
+          <p className={styles.listEmpty}>
+            {factSummary.processCount > 0
+              ? "未取到可执行名：这台上报了进程条数，但一条可执行标识都没拿到（内核线程等进程本来就没有可执行名）。这不是「没有进程」，去重前的条数以上报为准。"
+              : "去重前的条数也是 0：这台机器没有采集到进程。"}
+          </p>
         ) : (
-          <ul className={styles.valueList}>
-            {factSummary.processExecutables.map((executable) => (
-              <li key={executable} className={styles.mono}>
-                {executable}
-              </li>
-            ))}
-          </ul>
+          <CappedList
+            values={factSummary.processExecutables}
+            listClassName={styles.valueList}
+            itemClassName={styles.mono}
+            unit="条"
+          />
         )}
         <p className={styles.listCaption}>
           macOS 侧是完整路径（ps -axo comm=），Linux 侧只是 basename
@@ -335,15 +374,16 @@ function FactSummaryPanel({
           <span className={styles.listCount}>{factSummary.packages.length} 条</span>
         </div>
         {factSummary.packages.length === 0 ? (
-          <p className={styles.listEmpty}>未采集到包清单（当前只采集 Linux 侧）。</p>
+          <p className={styles.listEmpty}>
+            包清单探针尚未实现，此列恒空，不代表未安装。
+          </p>
         ) : (
-          <ul className={styles.chipList}>
-            {factSummary.packages.map((name) => (
-              <li key={name} className={styles.chip}>
-                {name}
-              </li>
-            ))}
-          </ul>
+          <CappedList
+            values={factSummary.packages}
+            listClassName={styles.chipList}
+            itemClassName={styles.chip}
+            unit="条"
+          />
         )}
       </div>
 
@@ -357,13 +397,12 @@ function FactSummaryPanel({
         {factSummary.listenPorts.length === 0 ? (
           <p className={styles.listEmpty}>没有采集到监听端口。</p>
         ) : (
-          <ul className={styles.chipList}>
-            {factSummary.listenPorts.map((port) => (
-              <li key={port} className={`${styles.chip} ${styles.mono}`}>
-                {port}
-              </li>
-            ))}
-          </ul>
+          <CappedList
+            values={factSummary.listenPorts}
+            listClassName={styles.chipList}
+            itemClassName={`${styles.chip} ${styles.mono}`}
+            unit="条"
+          />
         )}
       </div>
     </section>
@@ -398,7 +437,7 @@ function SuggestionPanel({
     );
   }
 
-  const tone = confidenceTone(suggestion.confidence);
+  const tone = confidenceTone(suggestion.confidence, suggestion.signals.length);
   const totalWeight = suggestion.signals.reduce(
     (sum, signal) => sum + signal.weight,
     0,

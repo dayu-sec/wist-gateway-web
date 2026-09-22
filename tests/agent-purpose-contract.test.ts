@@ -4,6 +4,11 @@ import {
   normalizeAgentPurposeView,
   setAdminApiToken,
 } from "../src/api/admin";
+import {
+  CONFIDENCE_HINT,
+  CONFIDENCE_LABEL,
+  confidenceTone,
+} from "../src/components/agentPurposeConfidence";
 
 // 契约测试：管理面「Agent 用途」视图（模型 `AdminViewAgentPurpose` / `AgentPurposeView`）。
 //
@@ -13,7 +18,8 @@ import {
 //   1. 请求形状：GET /api/v1/admin/agents/{agent_id}/purpose + Bearer token + agent_id 编码；
 //   2. 三种数据状态必须能被区分：都为 null / 只有事实 / 事实 + 建议；
 //   3. 依据逐条保留（rule_id / kind / value / weight，含**负权重**反向证据）与 confidence 原值；
-//   4. 404 仍是 404（抛 ApiError），不静默成空视图 —— 页面靠它区分「未知 Agent」。
+//   4. 404 仍是 404（抛 ApiError），不静默成空视图 —— 页面靠它区分「未知 Agent」；
+//   5. confidence 0 的两种含义（并列 / 无依据）必须能区分，且 nullable 分项「键缺失」抛错。
 //
 // Usage: npm run test:agent-purpose
 
@@ -108,8 +114,13 @@ const factOnly = normalizeAgentPurposeView({
 assert(factOnly.suggestion === null, "fact without suggestion must stay suggestion-free");
 const fact = factOnly.factSummary;
 assert(fact !== null, "fact_summary was dropped");
+assert(fact!.agentId === "agent-001", "fact_summary agent_id was not normalized");
 assert(fact!.contentDigest === "sha256:abc", "content_digest was not normalized");
 assert(fact!.revision === 7, "revision was not normalized");
+assert(fact!.observedAt === "2026-09-22T00:00:00Z", "observed_at was not normalized");
+assert(fact!.receivedAt === "2026-09-22T00:00:01Z", "received_at was not normalized");
+assert(fact!.os === "macos", "os was not normalized");
+assert(fact!.arch === "arm64", "arch was not normalized");
 assert(fact!.processCount === 906, "process_count was not normalized");
 assert(
   fact!.processExecutables.length === 2 &&
@@ -194,7 +205,9 @@ assert(
   "suggestion observed_at / computed_at were not normalized",
 );
 
-// 基线兜底：confidence 0 时 signals 为空，页面要把它当「弱结论」而不是「确定」。
+// confidence 0 不是「只有基线兜底」这一种情况：最高分与次高分**并列**时
+// `100 × (s1 − s2) / s1 = 0`，而 signals 非空（下面面板正列着这些依据）。
+// 所以 0 时必须再看有没有逐条依据，不能一律当「无有效依据」。
 const baseline = normalizeAgentPurposeView({
   agent_id: "agent-002",
   fact_summary: null,
@@ -215,6 +228,70 @@ const baseline = normalizeAgentPurposeView({
 assert(
   baseline.suggestion!.confidence === 0 && baseline.suggestion!.signals.length === 0,
   "baseline suggestion (confidence 0, no signals) must survive normalization",
+);
+
+// 并列（confidence 0 但 signals 非空）：归一化必须把依据逐条保留下来，
+// 否则组件就再也分不清「并列」与「无依据」——正是本条修的那个 bug。
+const tie = normalizeAgentPurposeView({
+  agent_id: "agent-004",
+  fact_summary: null,
+  suggestion: {
+    agent_id: "agent-004",
+    suggestion_id: "sug_tie",
+    suggested_class: "MacDev",
+    confidence: 0,
+    method: "rule",
+    rule_set_id: "macos-v1",
+    signals: [
+      {
+        rule_id: "mac-dev-safari",
+        kind: "process_path",
+        value: "/Applications/Safari.app",
+        weight: 10,
+      },
+      {
+        rule_id: "mac-dev-node-modules",
+        kind: "process_path",
+        value: "/srv/app/node_modules",
+        weight: 10,
+      },
+    ],
+    observed_at: "2026-09-22T00:00:00Z",
+    computed_at: "2026-09-22T00:00:02Z",
+  },
+  classification: null,
+  generated_at: "2026-09-22T00:00:02Z",
+});
+assert(
+  tie.suggestion!.confidence === 0 && tie.suggestion!.signals.length === 2,
+  "tied suggestion (confidence 0 with signals) must keep all signals",
+);
+
+// 分档本身：confidence 0 时用「有无逐条依据」区分并列与兜底。
+assert(
+  confidenceTone(0, baseline.suggestion!.signals.length) === "baseline",
+  "0 with no signals must be the baseline tone",
+);
+assert(
+  confidenceTone(0, tie.suggestion!.signals.length) === "tie",
+  "0 with signals must be the tie tone, not the baseline tone",
+);
+assert(
+  confidenceTone(0, 0) !== confidenceTone(0, 3),
+  "tie and baseline must be distinguishable tones",
+);
+assert(
+  CONFIDENCE_LABEL[confidenceTone(0, 3)] !==
+    CONFIDENCE_LABEL[confidenceTone(0, 0)] &&
+    CONFIDENCE_HINT[confidenceTone(0, 3)] !== CONFIDENCE_HINT[confidenceTone(0, 0)],
+  "tie and baseline need different labels and hints",
+);
+// confidence 完全没被压成一档：正常数值仍旧分弱/中/强。
+assert(
+  confidenceTone(30, 1) === "weak" &&
+    confidenceTone(60, 1) === "fair" &&
+    confidenceTone(100, 1) === "strong",
+  "non-zero confidence bands must keep working",
 );
 
 // 人工判定按模型如实解析（写入端点落地后页面无需改结构）。
@@ -260,6 +337,47 @@ const driftCases: [string, unknown][] = [
       generated_at: "t",
     },
   ],
+  // 三个并列分项整键缺失：不能当成「都为 null」的空视图静默渲染。
+  [
+    "missing fact_summary/suggestion/classification keys",
+    { agent_id: "a", generated_at: "t" },
+  ],
+  // nullable 字段也要求键存在（改名/删键是契约漂移，不是「未设置」）。
+  [
+    "missing rule_set_id",
+    {
+      agent_id: "a",
+      fact_summary: null,
+      suggestion: {
+        agent_id: "a",
+        suggestion_id: "s",
+        suggested_class: "MacDev",
+        confidence: 0,
+        method: "rule",
+        signals: [],
+        observed_at: "t",
+        computed_at: "t",
+      },
+      classification: null,
+      generated_at: "t",
+    },
+  ],
+  [
+    "missing classification suggestion_id",
+    {
+      agent_id: "a",
+      fact_summary: null,
+      suggestion: null,
+      classification: {
+        agent_id: "a",
+        machine_class: "LinuxData",
+        decided_by: "admin@example.com",
+        decided_at: "t",
+        note: null,
+      },
+      generated_at: "t",
+    },
+  ],
   [
     "unknown machine class",
     {
@@ -290,6 +408,21 @@ for (const [label, payload] of driftCases) {
   assert(threw, `contract drift must throw: ${label}`);
 }
 
+// 反向约束：三个分项**显式为 null** 是合法空态，绝不能因此抛错。
+const allNullView = normalizeAgentPurposeView({
+  agent_id: "a",
+  fact_summary: null,
+  suggestion: null,
+  classification: null,
+  generated_at: "t",
+});
+assert(
+  allNullView.factSummary === null &&
+    allNullView.suggestion === null &&
+    allNullView.classification === null,
+  "explicit null sub-items are a valid empty view and must not throw",
+);
+
 // --- 6. 未知 Agent：404 不能被静默成空视图 ---------------------------------
 responder = () => new Response("unknown agent agent-404", { status: 404 });
 let notFound: unknown;
@@ -316,4 +449,6 @@ try {
 assert(unauthorized instanceof ApiError, "401 must surface as ApiError");
 assert((unauthorized as ApiError).status === 401, "401 status must be preserved");
 
-console.log("agent purpose contract ok: 3 data states + 404 distinguished");
+console.log(
+  "agent purpose contract ok: 3 data states + baseline/tie split + drift throws + 404 distinguished",
+);
