@@ -89,6 +89,12 @@ export function SubsystemAgentHostMetricsPage(
             <span className={styles.liveDot} aria-hidden="true" />
             5 秒自动刷新
           </span>
+          <Link
+            className={styles.crossLink}
+            to={`/agents/${encodeURIComponent(agentId)}/purpose`}
+          >
+            查看用途 <span aria-hidden="true">→</span>
+          </Link>
         </div>
         <div className={styles.metaRow}>
           {agent ? (

@@ -14,7 +14,7 @@ jobs:
   #
   #    为什么要在这里再做一次：ci.yml 的 push 过滤是 `branches`，**tag 推送不会触发它**，
   #    所以不加这一步，镜像可以在完全未经校验的情况下发布。
-  #    步骤与 ci.yml 保持一致（本项目有两条测试脚本，将来新增也放这里）。
+  #    步骤与 ci.yml 保持一致（离线可跑的测试都放这里，将来新增也同步两处）。
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +38,9 @@ jobs:
 
       - name: Test (gateway initialize contract)
         run: npm run test:gateway-initialize
+
+      - name: Test (agent purpose contract)
+        run: npm run test:agent-purpose
 
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:

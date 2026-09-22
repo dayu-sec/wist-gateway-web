@@ -6,7 +6,7 @@ import styles from "./AppStatusBar.module.css";
 
 const SECTION_LABELS: Record<string, string> = {
   monitoring: "监控",
-  ops: "运维",
+  settings: "设置",
 };
 
 interface RouteMeta {
@@ -19,17 +19,24 @@ function describeRoute(pathname: string): RouteMeta {
   if (matchPath("/agents/:agentId/metrics", pathname)) {
     return { section: "monitoring", crumbs: ["主机指标", "主机详情"] };
   }
+  if (matchPath("/agents/:agentId/purpose", pathname)) {
+    return { section: "monitoring", crumbs: ["主机指标", "Agent 用途"] };
+  }
   switch (pathname) {
     case "/hosts":
       return { section: "monitoring", crumbs: ["主机指标"] };
     case "/pipeline":
       return { section: "monitoring", crumbs: ["数据采集"] };
     case "/control":
-      return { section: "ops", crumbs: ["控制中心"] };
+      return { section: "settings", crumbs: ["控制中心"] };
     case "/install":
-      return { section: "ops", crumbs: ["安装 Agent"] };
+      return { section: "settings", crumbs: ["安装 Agent"] };
+    case "/install-package":
+      return { section: "settings", crumbs: ["安装包设置"] };
+    case "/uplink":
+      return { section: "settings", crumbs: ["数据面上送地址"] };
     case "/init":
-      return { section: "ops", crumbs: ["初始化 Gateway"] };
+      return { section: "settings", crumbs: ["初始化 Gateway"] };
     case "/":
       return { section: "monitoring", crumbs: ["Agent 总览"] };
     default:

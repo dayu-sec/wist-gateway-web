@@ -186,6 +186,10 @@
 }
 
 .footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
   margin-top: auto;
   padding-top: 4px;
   border-top: 1px solid var(--border);
@@ -198,6 +202,21 @@
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
+}
+
+/* 「用途」是次级入口：与主机指标同屏但不抢主色。 */
+.purposeLink {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.purposeLink:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
 }
 
 .metricsLink:hover {

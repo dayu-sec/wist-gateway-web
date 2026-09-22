@@ -1,7 +1,9 @@
 node_modules
 dist
+.vite
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js
 .DS_Store
 .report
+.run*

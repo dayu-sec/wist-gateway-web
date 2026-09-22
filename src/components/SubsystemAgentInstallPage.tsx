@@ -1,3 +1,4 @@
+import { useState } from "react";
 import styles from "./SubsystemAgentInstallPage.module.css";
 import { SubsystemBootstrapTokenCard } from "./SubsystemBootstrapTokenCard";
 import { SubsystemX86LinuxInstallCode } from "./SubsystemX86LinuxInstallCode";
@@ -7,8 +8,17 @@ import { ApiError, isRateLimitedError } from "../api";
 import { useAgentInstallCode } from "../hooks";
 import { RateLimitNotice } from "./RateLimitNotice";
 
+const ARCH_TABS = [
+  { key: "x86", label: "X86 Linux" },
+  { key: "arm", label: "Arm Linux" },
+  { key: "macos", label: "macOS" },
+] as const;
+
+type ArchKey = (typeof ARCH_TABS)[number]["key"];
+
 export function SubsystemAgentInstallPage() {
   const { data, isLoading, isError, error } = useAgentInstallCode();
+  const [activeArch, setActiveArch] = useState<ArchKey>("x86");
 
   const authError = isError && error instanceof ApiError && error.status === 401;
   const token = data?.bootstrapEnrollmentToken;
@@ -45,23 +55,59 @@ export function SubsystemAgentInstallPage() {
       <div className={styles.content}>
         <SubsystemBootstrapTokenCard token={token} loading={isLoading} />
         <section className={styles.commandsSection}>
-          <h2 className={styles.sectionTitle}>按目标主机架构选择安装命令</h2>
-          <div className={styles.commandGrid}>
-            <SubsystemX86LinuxInstallCode
-              command={data?.x86LinuxInstallCode}
-              token={token}
-              loading={isLoading}
-            />
-            <SubsystemArmLinuxInstallCode
-              command={data?.armLinuxInstallCode}
-              token={token}
-              loading={isLoading}
-            />
-            <SubsystemMacOSInstallCode
-              command={data?.macosInstallCode}
-              token={token}
-              loading={isLoading}
-            />
+          <div className={styles.commandsHead}>
+            <h2 className={styles.sectionTitle}>
+              按目标主机架构选择安装命令
+            </h2>
+            <div
+              className={styles.archTabs}
+              role="tablist"
+              aria-label="目标主机架构"
+            >
+              {ARCH_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeArch === tab.key}
+                  className={
+                    activeArch === tab.key
+                      ? `${styles.archTab} ${styles.archTabActive}`
+                      : styles.archTab
+                  }
+                  onClick={() => setActiveArch(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* 三份命令来自同一次请求，切换是纯本地状态，无重新取数。 */}
+          <div role="tabpanel" className={styles.archPanel}>
+            {activeArch === "x86" ? (
+              <SubsystemX86LinuxInstallCode
+                command={data?.x86LinuxInstallCode}
+                token={token}
+                loading={isLoading}
+                label="安装命令"
+              />
+            ) : null}
+            {activeArch === "arm" ? (
+              <SubsystemArmLinuxInstallCode
+                command={data?.armLinuxInstallCode}
+                token={token}
+                loading={isLoading}
+                label="安装命令"
+              />
+            ) : null}
+            {activeArch === "macos" ? (
+              <SubsystemMacOSInstallCode
+                command={data?.macosInstallCode}
+                token={token}
+                loading={isLoading}
+                label="安装命令"
+              />
+            ) : null}
           </div>
         </section>
       </div>

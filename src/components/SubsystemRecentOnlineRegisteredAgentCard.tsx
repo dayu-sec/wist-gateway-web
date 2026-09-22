@@ -135,6 +135,12 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
         >
           查看主机指标 →
         </Link>
+        <Link
+          className={styles.purposeLink}
+          to={`/agents/${encodeURIComponent(agent.agentId)}/purpose`}
+        >
+          查看用途 →
+        </Link>
       </div>
     </article>
   );

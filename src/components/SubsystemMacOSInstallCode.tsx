@@ -6,6 +6,7 @@ interface SubsystemMacOSInstallCodeProps {
   command?: string;
   token?: string;
   loading?: boolean;
+  label?: string;
   children?: React.ReactNode;
 }
 
@@ -13,6 +14,7 @@ export function SubsystemMacOSInstallCode({
   command,
   token,
   loading,
+  label = "macOS 安装命令",
   children,
 }: SubsystemMacOSInstallCodeProps) {
   const displayCommand = loading
@@ -25,7 +27,7 @@ export function SubsystemMacOSInstallCode({
 
   return (
     <div className={styles.container}>
-      <div className={styles.label}>macOS 安装命令</div>
+      <div className={styles.label}>{label}</div>
       <code className={styles.code}>
         <ShellCode code={displayCommand} />
       </code>

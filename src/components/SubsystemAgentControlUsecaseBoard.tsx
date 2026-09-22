@@ -1,52 +1,15 @@
 import styles from "./SubsystemAgentControlUsecaseBoard.module.css";
-import { SubsystemPauseAgentUsecaseCard } from "./SubsystemPauseAgentUsecaseCard";
-import { SubsystemUpgradeAgentRemotelyUsecaseCard } from "./SubsystemUpgradeAgentRemotelyUsecaseCard";
-import type {
-  SubsystemAdminPauseAgentRequested,
-  SubsystemAdminUpgradeAgentRequested,
-} from "../types";
-import type { DispatchReceipt } from "../api";
 
 interface SubsystemAgentControlUsecaseBoardProps {
-  onSubsystemAdminPauseAgentRequested?: (
-    payload: SubsystemAdminPauseAgentRequested,
-  ) => void;
-  onSubsystemAdminUpgradeAgentRequested?: (
-    payload: SubsystemAdminUpgradeAgentRequested,
-  ) => void;
-  pauseReceipt?: DispatchReceipt;
-  upgradeReceipt?: DispatchReceipt;
-  pauseError?: unknown;
-  upgradeError?: unknown;
-  pauseSubmitting?: boolean;
-  upgradeSubmitting?: boolean;
   children?: React.ReactNode;
 }
 
+/**
+ * Agent 控制中心用例看板：集中承载各条远程用例卡片。
+ * 当前没有可用的远程用例，看板为空容器，后续用例按需挂载。
+ */
 export function SubsystemAgentControlUsecaseBoard({
-  onSubsystemAdminPauseAgentRequested,
-  onSubsystemAdminUpgradeAgentRequested,
-  pauseReceipt,
-  upgradeReceipt,
-  pauseError,
-  upgradeError,
-  pauseSubmitting,
-  upgradeSubmitting,
+  children,
 }: SubsystemAgentControlUsecaseBoardProps) {
-  return (
-    <div className={styles.container}>
-      <SubsystemPauseAgentUsecaseCard
-        onSubsystemAdminPauseAgentRequested={onSubsystemAdminPauseAgentRequested}
-        receipt={pauseReceipt}
-        error={pauseError}
-        submitting={pauseSubmitting}
-      />
-      <SubsystemUpgradeAgentRemotelyUsecaseCard
-        onSubsystemAdminUpgradeAgentRequested={onSubsystemAdminUpgradeAgentRequested}
-        receipt={upgradeReceipt}
-        error={upgradeError}
-        submitting={upgradeSubmitting}
-      />
-    </div>
-  );
+  return <div className={styles.container}>{children}</div>;
 }

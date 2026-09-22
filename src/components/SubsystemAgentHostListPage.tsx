@@ -365,13 +365,21 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       />
                     </td>
                     <td className={styles.tdAction}>
-                      <Link
-                        className={styles.detailLink}
-                        to={`/agents/${encodeURIComponent(row.agentId)}/metrics`}
-                      >
-                        详情
-                        <span aria-hidden="true">→</span>
-                      </Link>
+                      <div className={styles.actionLinks}>
+                        <Link
+                          className={styles.detailLink}
+                          to={`/agents/${encodeURIComponent(row.agentId)}/purpose`}
+                        >
+                          用途
+                        </Link>
+                        <Link
+                          className={styles.detailLink}
+                          to={`/agents/${encodeURIComponent(row.agentId)}/metrics`}
+                        >
+                          详情
+                          <span aria-hidden="true">→</span>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

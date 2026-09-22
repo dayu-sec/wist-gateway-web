@@ -1,8 +1,17 @@
+import type {
+  AgentClassification,
+  AgentFactSummary,
+  AgentPurposeView,
+  MachineClass,
+  PurposeSignal,
+  PurposeSuggestion,
+} from "../types";
+
 export interface AgentRuntimeStatusView {
   agentId: string;
   instanceId: string;
   version: string;
-  status: "online" | "offline" | "paused";
+  status: "online" | "offline";
   health: "healthy" | "degraded" | "unhealthy";
   lastSeenAt: string;
 }
@@ -79,6 +88,50 @@ export interface AgentInstallCode {
   bootstrapEnrollmentToken: string;
 }
 
+/**
+ * 网关分发的 Agent 安装包地址（管理面设置）。
+ *
+ * `packageSha256` / `updatedAt` 为 null 表示从未在管理面设置过，
+ * 此时生效的是网关内置的默认分发地址（地址仍会返回，便于页面直接展示）。
+ */
+export interface AgentInstallPackage {
+  addressId: string;
+  packageUrl: string;
+  packageSha256: string | null;
+  updatedBy: string;
+  updatedAt: string | null;
+}
+
+export interface SetAgentInstallPackageCommand {
+  packageUrl: string;
+  packageSha256?: string;
+  requestedBy?: string;
+}
+
+/**
+ * Agent 的数据面上送地址（管理面设置）。
+ *
+ * Agent 通过 TCP 把采集到的日志与指标上送到数据面的 `host:port`，
+ * 网关把它渲染进之后新签发的 Agent 初始配置。
+ *
+ * `updatedAt` 为 null 表示从未在管理面设置过（此时 `host` 为空串），
+ * 新安装的 Agent 只上报自身状态、不采集日志、也不向数据面上送；
+ * `port` 始终有值，未设置时是约定的默认端口。
+ */
+export interface AgentUplink {
+  settingId: string;
+  host: string;
+  port: number;
+  updatedBy: string;
+  updatedAt: string | null;
+}
+
+export interface SetAgentUplinkCommand {
+  host: string;
+  port: number;
+  requestedBy?: string;
+}
+
 /** 控制中心返回给 Gateway 的初始连接材料，字段与 Gateway 面接口契约一致。 */
 export interface ControlCenterTrustBundle {
   trust_bundle_id: string;
@@ -117,25 +170,6 @@ export interface GatewayInitializationResult {
   status: GatewayInitializationStatus;
 }
 
-export interface DispatchReceipt {
-  dispatchId: string;
-  commandId: string;
-  agentId: string;
-  status: "accepted" | "rejected";
-  createdAt: string;
-}
-
-export interface PauseAgentCommand {
-  agentId: string;
-  requestedBy: string;
-}
-
-export interface UpgradeAgentCommand {
-  agentId: string;
-  targetVersion: string;
-  requestedBy: string;
-}
-
 export const ADMIN_AUTH_CHANGED_EVENT = "warpInsightAdminAuthChanged";
 const ADMIN_API_TOKEN_STORAGE_KEY = "warpInsightAdminApiToken";
 
@@ -150,12 +184,25 @@ export class ApiError extends Error {
   readonly status: number;
   /** Seconds until the per-IP rate-limit block expires, when status is 429. */
   readonly retryAfterSeconds?: number;
+  /**
+   * 后端返回的错误正文（若有，已截断）。
+   *
+   * 有些失败只有后端知道原因（例如「摘要与来源内容不符」「来源拉不到」），
+   * 只带状态码的话页面只能给出笼统提示，操作者无从下手。
+   */
+  readonly detail?: string;
 
-  constructor(status: number, path: string, retryAfterSeconds?: number) {
+  constructor(
+    status: number,
+    path: string,
+    retryAfterSeconds?: number,
+    detail?: string,
+  ) {
     super(`HTTP ${status} ${path}`);
     this.name = "ApiError";
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
+    this.detail = detail;
   }
 }
 
@@ -193,6 +240,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
+    const detail = await readErrorDetail(response);
     if (response.status === 429) {
       const retryAfter = Number.parseInt(
         response.headers.get("Retry-After") ?? "",
@@ -202,11 +250,23 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
         response.status,
         path,
         Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60,
+        detail,
       );
     }
-    throw new ApiError(response.status, path);
+    throw new ApiError(response.status, path, undefined, detail);
   }
   return (await response.json()) as T;
+}
+
+/** 读取错误响应正文（截断）；失败时不影响原始错误。 */
+async function readErrorDetail(response: Response): Promise<string | undefined> {
+  try {
+    const text = (await response.text()).trim();
+    if (!text) return undefined;
+    return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+  } catch {
+    return undefined;
+  }
 }
 
 export function getAdminApiToken(): string | null {
@@ -358,8 +418,7 @@ function requiredArray(value: unknown, fieldName: string): any[] {
 function normalizeAgentStatus(
   value: unknown,
 ): AgentRuntimeStatusView["status"] {
-  if (value === "online" || value === "offline" || value === "paused")
-    return value;
+  if (value === "online" || value === "offline") return value;
   throw new Error("Invalid API response: invalid agent status");
 }
 
@@ -371,9 +430,30 @@ function normalizeAgentHealth(
   throw new Error("Invalid API response: invalid agent health");
 }
 
-function normalizeReceiptStatus(value: unknown): DispatchReceipt["status"] {
-  if (value === "accepted" || value === "rejected") return value;
-  throw new Error("Invalid API response: invalid dispatch receipt status");
+export function normalizeAgentInstallPackage(payload: any): AgentInstallPackage {
+  const setting = payload.install_package ?? payload.installPackage ?? payload;
+  return {
+    addressId: requiredString(
+      setting.address_id ?? setting.addressId,
+      "agentInstallPackage.addressId",
+    ),
+    packageUrl: requiredString(
+      setting.package_url ?? setting.packageUrl,
+      "agentInstallPackage.packageUrl",
+    ),
+    packageSha256: nullableString(
+      setting.package_sha256 ?? setting.packageSha256 ?? null,
+      "agentInstallPackage.packageSha256",
+    ),
+    updatedBy: requiredString(
+      setting.updated_by ?? setting.updatedBy,
+      "agentInstallPackage.updatedBy",
+    ),
+    updatedAt: nullableString(
+      setting.updated_at ?? setting.updatedAt ?? null,
+      "agentInstallPackage.updatedAt",
+    ),
+  };
 }
 
 function normalizeInstallCode(payload: any): AgentInstallCode {
@@ -395,29 +475,6 @@ function normalizeInstallCode(payload: any): AgentInstallCode {
       installCode.bootstrap_enrollment_token ??
         installCode.bootstrapEnrollmentToken,
       "installCode.bootstrapEnrollmentToken",
-    ),
-  };
-}
-
-function normalizeReceipt(payload: any): DispatchReceipt {
-  const receipt = payload.result ?? payload;
-  return {
-    dispatchId: requiredString(
-      receipt.dispatch_id ?? receipt.dispatchId,
-      "receipt.dispatchId",
-    ),
-    commandId: requiredString(
-      receipt.command_id ?? receipt.commandId,
-      "receipt.commandId",
-    ),
-    agentId: requiredString(
-      receipt.agent_id ?? receipt.agentId,
-      "receipt.agentId",
-    ),
-    status: normalizeReceiptStatus(receipt.status),
-    createdAt: requiredString(
-      receipt.created_at ?? receipt.createdAt,
-      "receipt.createdAt",
     ),
   };
 }
@@ -600,9 +657,85 @@ export async function fetchAllAgentsHostMetrics(): Promise<
   return normalizeHostMetricsSummaries(payload);
 }
 
+export function normalizeAgentUplink(payload: any): AgentUplink {
+  const setting = payload.uplink ?? payload;
+  return {
+    settingId: requiredString(
+      setting.setting_id ?? setting.settingId,
+      "agentUplink.settingId",
+    ),
+    host: requiredString(setting.host, "agentUplink.host"),
+    port: requiredNumber(setting.port, "agentUplink.port"),
+    updatedBy: requiredString(
+      setting.updated_by ?? setting.updatedBy,
+      "agentUplink.updatedBy",
+    ),
+    updatedAt: nullableString(
+      setting.updated_at ?? setting.updatedAt ?? null,
+      "agentUplink.updatedAt",
+    ),
+  };
+}
+
 export async function fetchAgentInstallCode(): Promise<AgentInstallCode> {
   const payload = await requestJson<unknown>("/api/v1/agent/install-code");
   return normalizeInstallCode(payload);
+}
+
+export async function fetchAgentInstallPackage(): Promise<AgentInstallPackage> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/install-package",
+  );
+  return normalizeAgentInstallPackage(payload);
+}
+
+/**
+ * 设置网关分发的 Agent 安装包地址（管理面）。
+ *
+ * 地址必须是 https:// 链接或主机上的绝对路径（网关拒绝明文 http），
+ * 摘要为可选，填写时必须是 64 位十六进制（可带 `sha256:` 前缀）。
+ * 设置只影响之后新签发的安装代码与 install.sh，不影响已分发的安装命令。
+ */
+export async function setAgentInstallPackage(
+  command: SetAgentInstallPackageCommand,
+): Promise<AgentInstallPackage> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/install-package",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        package_url: command.packageUrl,
+        package_sha256: command.packageSha256,
+        requested_by: command.requestedBy,
+      }),
+    },
+  );
+  return normalizeAgentInstallPackage(payload);
+}
+
+export async function fetchAgentUplink(): Promise<AgentUplink> {
+  const payload = await requestJson<unknown>("/api/v1/admin/agent/uplink");
+  return normalizeAgentUplink(payload);
+}
+
+/**
+ * 设置 Agent 的数据面上送地址（管理面）。
+ *
+ * 主机不能为空，端口必须是 1–65535 的整数；不符合要求时后端返回 400 纯文本。
+ * 设置只影响之后新签发的 Agent 初始配置，不影响已分发的 Agent。
+ */
+export async function setAgentUplink(
+  command: SetAgentUplinkCommand,
+): Promise<AgentUplink> {
+  const payload = await requestJson<unknown>("/api/v1/admin/agent/uplink", {
+    method: "POST",
+    body: JSON.stringify({
+      host: command.host,
+      port: command.port,
+      requested_by: command.requestedBy,
+    }),
+  });
+  return normalizeAgentUplink(payload);
 }
 
 /**
@@ -726,35 +859,6 @@ export async function initializeGatewayViaUrl(
   }
   const config = await fetchGatewayInitialConfig(target.initUrl, token);
   return { config, status };
-}
-
-export async function pauseAgent(
-  command: PauseAgentCommand,
-): Promise<DispatchReceipt> {
-  const payload = await requestJson<unknown>(
-    `/api/v1/admin/agents/${encodeURIComponent(command.agentId)}/pause`,
-    {
-      method: "POST",
-      body: JSON.stringify({ requested_by: command.requestedBy }),
-    },
-  );
-  return normalizeReceipt(payload);
-}
-
-export async function upgradeAgent(
-  command: UpgradeAgentCommand,
-): Promise<DispatchReceipt> {
-  const payload = await requestJson<unknown>(
-    `/api/v1/admin/agents/${encodeURIComponent(command.agentId)}/upgrade`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        requested_by: command.requestedBy,
-        target_version: command.targetVersion,
-      }),
-    },
-  );
-  return normalizeReceipt(payload);
 }
 
 /* ------------------------------------------------------------------ *
@@ -894,4 +998,200 @@ export async function fetchPipelineTopology(
     `/api/v1/admin/pipeline/topology?window=${windowSeconds}`,
   );
   return normalizePipelineTopology(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent 用途（管理面）：事实 / 推断 / 判定三分并列
+// ─────────────────────────────────────────────────────────────────────────────
+
+function nullableRecord(
+  value: unknown,
+  fieldName: string,
+): Record<string, unknown> | null {
+  if (value === null || value === undefined) return null;
+  return requiredRecord(value, fieldName);
+}
+
+function requiredStringArray(value: unknown, fieldName: string): string[] {
+  return requiredArray(value, fieldName).map((item, index) =>
+    requiredString(item, `${fieldName}[${index}]`),
+  );
+}
+
+/**
+ * 机器类别是**闭合**取值（模型里的 variant）：认不出来就抛错，
+ * 不静默渲染成一个没见过的类别名。
+ */
+function requiredMachineClass(value: unknown, fieldName: string): MachineClass {
+  if (
+    value === "MacDaily" ||
+    value === "MacDev" ||
+    value === "LinuxCompute" ||
+    value === "LinuxData"
+  ) {
+    return value;
+  }
+  throw new Error(`Invalid API response: invalid ${fieldName}`);
+}
+
+function normalizeAgentFactSummary(payload: any): AgentFactSummary {
+  return {
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "agentFactSummary.agentId",
+    ),
+    contentDigest: requiredString(
+      payload.content_digest ?? payload.contentDigest,
+      "agentFactSummary.contentDigest",
+    ),
+    revision: requiredNumber(payload.revision, "agentFactSummary.revision"),
+    observedAt: requiredString(
+      payload.observed_at ?? payload.observedAt,
+      "agentFactSummary.observedAt",
+    ),
+    os: requiredString(payload.os, "agentFactSummary.os"),
+    arch: requiredString(payload.arch, "agentFactSummary.arch"),
+    processCount: requiredNumber(
+      payload.process_count ?? payload.processCount,
+      "agentFactSummary.processCount",
+    ),
+    // 空列表与「该字段缺失」是两回事：数组本身必须存在。
+    processExecutables: requiredStringArray(
+      payload.process_executables ?? payload.processExecutables,
+      "agentFactSummary.processExecutables",
+    ),
+    packages: requiredStringArray(
+      payload.packages,
+      "agentFactSummary.packages",
+    ),
+    listenPorts: requiredStringArray(
+      payload.listen_ports ?? payload.listenPorts,
+      "agentFactSummary.listenPorts",
+    ),
+    receivedAt: requiredString(
+      payload.received_at ?? payload.receivedAt,
+      "agentFactSummary.receivedAt",
+    ),
+  };
+}
+
+function normalizePurposeSignal(payload: any): PurposeSignal {
+  return {
+    ruleId: requiredString(payload.rule_id ?? payload.ruleId, "purposeSignal.ruleId"),
+    // kind 在模型里是开放字符串（process / process_path / ...），不校验枚举。
+    kind: requiredString(payload.kind, "purposeSignal.kind"),
+    value: requiredString(payload.value, "purposeSignal.value"),
+    weight: requiredNumber(payload.weight, "purposeSignal.weight"),
+  };
+}
+
+function normalizePurposeSuggestion(payload: any): PurposeSuggestion {
+  return {
+    suggestionId: requiredString(
+      payload.suggestion_id ?? payload.suggestionId,
+      "purposeSuggestion.suggestionId",
+    ),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "purposeSuggestion.agentId",
+    ),
+    suggestedClass: requiredMachineClass(
+      payload.suggested_class ?? payload.suggestedClass,
+      "purposeSuggestion.suggestedClass",
+    ),
+    confidence: requiredNumber(payload.confidence, "purposeSuggestion.confidence"),
+    // method 也是开放字符串（rule | model），同样不校验枚举。
+    method: requiredString(payload.method, "purposeSuggestion.method"),
+    ruleSetId: nullableString(
+      payload.rule_set_id ?? payload.ruleSetId ?? null,
+      "purposeSuggestion.ruleSetId",
+    ),
+    signals: requiredArray(payload.signals, "purposeSuggestion.signals").map(
+      normalizePurposeSignal,
+    ),
+    observedAt: requiredString(
+      payload.observed_at ?? payload.observedAt,
+      "purposeSuggestion.observedAt",
+    ),
+    computedAt: requiredString(
+      payload.computed_at ?? payload.computedAt,
+      "purposeSuggestion.computedAt",
+    ),
+  };
+}
+
+function normalizeAgentClassification(payload: any): AgentClassification {
+  return {
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "agentClassification.agentId",
+    ),
+    machineClass: requiredMachineClass(
+      payload.machine_class ?? payload.machineClass,
+      "agentClassification.machineClass",
+    ),
+    // 采纳了哪次建议；人工直接判定/推翻建议时为空（不是 undefined）。
+    suggestionId: nullableString(
+      payload.suggestion_id ?? payload.suggestionId ?? null,
+      "agentClassification.suggestionId",
+    ),
+    decidedBy: requiredString(
+      payload.decided_by ?? payload.decidedBy,
+      "agentClassification.decidedBy",
+    ),
+    decidedAt: requiredString(
+      payload.decided_at ?? payload.decidedAt,
+      "agentClassification.decidedAt",
+    ),
+    note: nullableString(payload.note ?? null, "agentClassification.note"),
+  };
+}
+
+/**
+ * 规范化 `AgentPurposeView`：`fact_summary` / `suggestion` / `classification`
+ * 都可能为 `null`，且 **null 与缺失不同**（缺失说明契约漂移，要抛错）。
+ */
+export function normalizeAgentPurposeView(payload: any): AgentPurposeView {
+  // 后端 admin_ops.rs 直接返回**扁平**载荷（不额外包一层 `{purpose: ...}`）。
+  const root = requiredRecord(payload, "agentPurpose");
+  const factSummary = nullableRecord(
+    root.fact_summary ?? root.factSummary ?? null,
+    "agentPurpose.factSummary",
+  );
+  const suggestion = nullableRecord(
+    root.suggestion ?? null,
+    "agentPurpose.suggestion",
+  );
+  const classification = nullableRecord(
+    root.classification ?? null,
+    "agentPurpose.classification",
+  );
+  return {
+    agentId: requiredString(root.agent_id ?? root.agentId, "agentPurpose.agentId"),
+    factSummary: factSummary ? normalizeAgentFactSummary(factSummary) : null,
+    suggestion: suggestion ? normalizePurposeSuggestion(suggestion) : null,
+    // 管理面还没实现判定的写入端点，服务端恒为 null；真出现时按模型如实解析。
+    classification: classification
+      ? normalizeAgentClassification(classification)
+      : null,
+    generatedAt: requiredString(
+      root.generated_at ?? root.generatedAt,
+      "agentPurpose.generatedAt",
+    ),
+  };
+}
+
+/**
+ * 查看某台 Agent 的用途（对应模型 `AdminViewAgentPurpose`）。
+ *
+ * 未知 agent 由后端回 404（不是空视图）：调用方要用 `ApiError.status === 404`
+ * 区分「这台机器不存在」与「它还没报过事实」。
+ */
+export async function fetchAgentPurpose(
+  agentId: string,
+): Promise<AgentPurposeView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/purpose`,
+  );
+  return normalizeAgentPurposeView(payload);
 }

@@ -140,6 +140,52 @@
   color: var(--accent-strong);
 }
 
+/* 已设置时的折叠态：一行状态条，点「更换」展开完整表单。 */
+.authCollapsed {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.032);
+}
+
+.authCollapsedLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.authChange {
+  flex: 0 0 auto;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sidebar-text-active);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.authChange:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.authChange:focus-visible {
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
 .authForm {
   margin-top: auto;
   display: flex;
@@ -237,6 +283,12 @@
   background: var(--accent-hover);
 }
 
+/* 展开态里的「收起」：不定宽，让「应用」保持主导按钮。 */
+.authGhost {
+  flex: 0 0 auto;
+  padding: 0 10px;
+}
+
 @media (max-width: 860px) {
   .container {
     position: static;
@@ -274,7 +326,8 @@
     display: none;
   }
 
-  .authForm {
+  .authForm,
+  .authCollapsed {
     margin-top: 0;
   }
 

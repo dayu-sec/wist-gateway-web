@@ -83,11 +83,6 @@ export interface ControlAgentEnrollmentAccepted {
   acceptedAt: string;
 }
 
-export interface SubsystemAdminPauseAgentRequested {
-  agentId: string;
-  requestedBy: string;
-}
-
 export interface ControlAgentEnrollmentRejected {
   tokenId: string;
   nodeId: string;
@@ -106,12 +101,6 @@ export interface ControlAgentCredentialRejected {
   instanceId: string;
   reasonCode: string;
   rejectedAt: string;
-}
-
-export interface SubsystemAdminUpgradeAgentRequested {
-  agentId: string;
-  targetVersion: string;
-  requestedBy: string;
 }
 
 export interface ControlAgentEnrollmentTokenRejected {
@@ -141,4 +130,4 @@ export interface ControlDuplicateRegistrationDetected {
   detectedAt: string;
 }
 
-export type AppEvent = ControlAgentCredentialRevoked | ControlControlMessageRejected | ControlAgentCredentialIssued | ControlAgentEnrollmentTokenAccepted | ReportingIngestHeadError | ReportingActionPlanAck | ReportingDiscoveryIngestAck | ControlControlLongPollTimedOut | ControlControlCommandsReturned | ControlAgentEnrollmentAccepted | SubsystemAdminPauseAgentRequested | ControlAgentEnrollmentRejected | ControlAgentCredentialVerified | ControlAgentCredentialRejected | SubsystemAdminUpgradeAgentRequested | ControlAgentEnrollmentTokenRejected | ControlControlMessageAccepted | SubsystemAdminShowAgentRuntimeStatusRequested | ControlDuplicateRegistrationDetected;
+export type AppEvent = ControlAgentCredentialRevoked | ControlControlMessageRejected | ControlAgentCredentialIssued | ControlAgentEnrollmentTokenAccepted | ReportingIngestHeadError | ReportingActionPlanAck | ReportingDiscoveryIngestAck | ControlControlLongPollTimedOut | ControlControlCommandsReturned | ControlAgentEnrollmentAccepted | ControlAgentEnrollmentRejected | ControlAgentCredentialVerified | ControlAgentCredentialRejected | ControlAgentEnrollmentTokenRejected | ControlControlMessageAccepted | SubsystemAdminShowAgentRuntimeStatusRequested | ControlDuplicateRegistrationDetected;

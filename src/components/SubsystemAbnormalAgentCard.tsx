@@ -19,7 +19,6 @@ function statusText(status: AgentRuntimeStatusView["status"]): string {
   const labels: Record<AgentRuntimeStatusView["status"], string> = {
     online: "在线",
     offline: "离线",
-    paused: "已暂停",
   };
   return labels[status] ?? status;
 }

@@ -6,6 +6,7 @@ interface SubsystemArmLinuxInstallCodeProps {
   command?: string;
   token?: string;
   loading?: boolean;
+  label?: string;
   children?: React.ReactNode;
 }
 
@@ -13,6 +14,7 @@ export function SubsystemArmLinuxInstallCode({
   command,
   token,
   loading,
+  label = "Arm Linux 安装命令",
   children,
 }: SubsystemArmLinuxInstallCodeProps) {
   const displayCommand = loading
@@ -25,7 +27,7 @@ export function SubsystemArmLinuxInstallCode({
 
   return (
     <div className={styles.container}>
-      <div className={styles.label}>Arm Linux 安装命令</div>
+      <div className={styles.label}>{label}</div>
       <code className={styles.code}>
         <ShellCode code={displayCommand} />
       </code>

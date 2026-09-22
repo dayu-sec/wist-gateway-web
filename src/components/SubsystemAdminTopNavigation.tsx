@@ -85,6 +85,25 @@ function IconInstall() {
   );
 }
 
+function IconPackage() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path d="M8 1.9 14 4.6v6.8L8 14.1 2 11.4V4.6z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M2 4.6 8 7.3l6-2.7M8 7.3v6.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconUplink() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path d="M8 10.6V2.4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4.9 5.5 8 2.4l3.1 3.1" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2.6 13.4h10.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -95,11 +114,13 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "运维",
+    label: "设置",
     items: [
       { to: "/control", label: "控制中心", icon: <IconControl /> },
       { to: "/init", label: "初始化 Gateway", icon: <IconInit /> },
       { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
+      { to: "/install-package", label: "安装包设置", icon: <IconPackage /> },
+      { to: "/uplink", label: "数据面上送地址", icon: <IconUplink /> },
     ],
   },
 ];
@@ -110,6 +131,9 @@ export function SubsystemAdminTopNavigation({
   const queryClient = useQueryClient();
   const [token, setToken] = useState(() => getAdminApiToken() ?? "");
   const [applied, setApplied] = useState(false);
+  // 已设置时表单折叠成一行状态条，点「更换」才展开 —— 凭证是低频操作，
+  // 不该常驻占据侧边栏底部一整块。
+  const [editing, setEditing] = useState(false);
   const appliedTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(appliedTimer.current), []);
@@ -126,6 +150,7 @@ export function SubsystemAdminTopNavigation({
   }, []);
 
   const hasToken = Boolean(token);
+  const collapsed = hasToken && !editing;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -133,7 +158,11 @@ export function SubsystemAdminTopNavigation({
     setToken(getAdminApiToken() ?? "");
     setApplied(true);
     window.clearTimeout(appliedTimer.current);
-    appliedTimer.current = window.setTimeout(() => setApplied(false), 1600);
+    // 「已应用」反馈展示完顺手收回表单，回到一行状态条。
+    appliedTimer.current = window.setTimeout(() => {
+      setApplied(false);
+      setEditing(false);
+    }, 1600);
     void queryClient.invalidateQueries();
   }
 
@@ -187,54 +216,83 @@ export function SubsystemAdminTopNavigation({
             ))}
           </nav>
 
-          <form className={styles.authForm} onSubmit={handleSubmit}>
-            <div className={styles.authHead}>
-              <label
-                className={styles.authLabel}
-                htmlFor="warp-insight-admin-token"
+          {collapsed ? (
+            <div className={styles.authCollapsed}>
+              <span
+                className={`${styles.authLabel} ${styles.authCollapsedLabel}`}
               >
                 Admin Token
-              </label>
-              <span
-                className={
-                  hasToken
-                    ? `${styles.authState} ${styles.authStateOn}`
-                    : styles.authState
-                }
-              >
-                {hasToken ? "已设置" : "未设置"}
               </span>
-            </div>
-            <input
-              id="warp-insight-admin-token"
-              className={styles.authInput}
-              type="password"
-              autoComplete="off"
-              placeholder="粘贴管理令牌"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-            />
-            <p className={styles.authHint}>
-              仅存于本会话标签页，用于调用 Gateway 管理接口。
-            </p>
-            <div className={styles.authActions}>
+              <span className={`${styles.authState} ${styles.authStateOn}`}>
+                已设置
+              </span>
               <button
-                className={`${styles.authButton} ${styles.authPrimary}`}
-                type="submit"
-                disabled={!token || token === getAdminApiToken()}
-              >
-                {applied ? "已应用" : "应用"}
-              </button>
-              <button
-                className={styles.authButton}
                 type="button"
-                onClick={handleClear}
-                disabled={!hasToken}
+                className={styles.authChange}
+                onClick={() => setEditing(true)}
               >
-                清除
+                更换
               </button>
             </div>
-          </form>
+          ) : (
+            <form className={styles.authForm} onSubmit={handleSubmit}>
+              <div className={styles.authHead}>
+                <label
+                  className={styles.authLabel}
+                  htmlFor="warp-insight-admin-token"
+                >
+                  Admin Token
+                </label>
+                <span
+                  className={
+                    hasToken
+                      ? `${styles.authState} ${styles.authStateOn}`
+                      : styles.authState
+                  }
+                >
+                  {hasToken ? "已设置" : "未设置"}
+                </span>
+              </div>
+              <input
+                id="warp-insight-admin-token"
+                className={styles.authInput}
+                type="password"
+                autoComplete="off"
+                placeholder="粘贴管理令牌"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+              />
+              <p className={styles.authHint}>
+                仅存于本会话标签页，用于调用 Gateway 管理接口。
+              </p>
+              <div className={styles.authActions}>
+                <button
+                  className={`${styles.authButton} ${styles.authPrimary}`}
+                  type="submit"
+                  disabled={!token || token === getAdminApiToken()}
+                >
+                  {applied ? "已应用" : "应用"}
+                </button>
+                <button
+                  className={styles.authButton}
+                  type="button"
+                  onClick={handleClear}
+                  disabled={!hasToken}
+                >
+                  清除
+                </button>
+                {hasToken ? (
+                  <button
+                    className={`${styles.authButton} ${styles.authGhost}`}
+                    type="button"
+                    onClick={() => setEditing(false)}
+                  >
+                    收起
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          )}
         </>
       )}
     </aside>

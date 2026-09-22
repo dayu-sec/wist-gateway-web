@@ -11,6 +11,9 @@
     "build": "tsc -b && vite build",
     "test:bundle": "node tests/admin-token-bundle.test.mjs",
     "test:gateway-initialize": "tsx tests/gateway-initialize-contract.test.ts",
+    "test:install-package": "tsx tests/install-package-contract.test.ts",
+    "test:agent-purpose": "tsx tests/agent-purpose-contract.test.ts",
+    "test:uplink": "tsx tests/uplink-contract.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

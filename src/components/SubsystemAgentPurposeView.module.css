@@ -1,0 +1,436 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- 状态提示条：三种「有数据」状态一眼区分 ---------- */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.noticeTitle {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.noticeText {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 尚未上报事实：中性（是「还不知道」，不是错） */
+.noticeUnknown {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.noticeUnknown .noticeTitle {
+  color: var(--text-2);
+}
+
+/* 有事实、无建议：警示（网关明确没有结论） */
+.noticeWeak {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
+.noticeWeak .noticeTitle {
+  color: var(--warn);
+}
+
+/* 三分并列：正常 */
+.noticeOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+}
+
+.noticeOk .noticeTitle {
+  color: var(--ok);
+}
+
+/* ---------- 三分并列布局 ---------- */
+/* 推断列更宽：它是唯一带「逐条依据」的一列。 */
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 1180px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 820px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 15px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.panelHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panelTag {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.panelTitle {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.panelCaption {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.panelEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 13px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.panelEmpty strong {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.panelEmpty span {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+/* ---------- 键值列表 ---------- */
+.factList {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.factRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.factRow dt {
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.factRow dd {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.factMeta {
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.wrapText {
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 结论 + 置信度 ---------- */
+.verdictRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.verdictClass {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.badge {
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badgeOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badgeFair {
+  border-color: var(--info-soft);
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.badgeWeak {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badgeUnknown {
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-2);
+}
+
+.confidence {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.confidenceTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.confidenceLabel {
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.confidenceHint {
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.barTrack {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.textOk {
+  color: var(--ok);
+}
+
+.textFair {
+  color: var(--info);
+}
+
+.textWeak {
+  color: var(--warn);
+}
+
+.textUnknown {
+  color: var(--text-2);
+}
+
+.barOk {
+  background: var(--ok);
+}
+
+.barFair {
+  background: var(--info);
+}
+
+.barWeak {
+  background: var(--warn);
+}
+
+/* 置信度 0（基线兜底）不画成一条有把握的实心条：用中性色 + 短条。 */
+.barUnknown {
+  background: var(--unknown);
+}
+
+/* ---------- 列表 / 依据表 ---------- */
+.listBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.listHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.listTitle {
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.listCount {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.listEmpty {
+  padding: 9px 11px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--bg-elevated);
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.listCaption {
+  color: var(--text-4);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* 进程可达上千条：容器内滚动，不把页面撑长，也不截断数据。 */
+.valueList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 190px;
+  margin: 0;
+  padding: 9px 10px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-elevated);
+  list-style: none;
+}
+
+.valueList li {
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.chipList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 11.5px;
+}
+
+.signalWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg-elevated);
+}
+
+.signalTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.signalTable th {
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-4);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.signalTable td {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  vertical-align: top;
+}
+
+.signalTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.thWeight {
+  text-align: right;
+}
+
+.tdWeight {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.weightPositive {
+  color: var(--ok);
+}
+
+/* 负权重是反向证据：与加分用不同语义色，避免看成一回事。 */
+.weightNegative {
+  color: var(--crit);
+}

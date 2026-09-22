@@ -422,8 +422,15 @@
 }
 
 .tdAction {
-  width: 78px;
+  width: 132px;
   text-align: right;
+}
+
+.actionLinks {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .detailLink {
