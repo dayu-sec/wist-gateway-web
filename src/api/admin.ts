@@ -1845,10 +1845,15 @@ export async function classifyAgentPurpose(
 // 采集内容目录（管理面 `GET /api/v1/admin/content`）
 // ─────────────────────────────────────────────────────────────────────────────
 
-function normalizeFamilyReadiness(payload: any): FamilyReadinessView {
+function normalizeFamilyReadiness(
+  platform: string,
+  payload: any,
+): FamilyReadinessView {
   return {
     family: requiredString(payload.family, "familyReadiness.family"),
-    platform: requiredString(payload.platform, "familyReadiness.platform"),
+    // 平台在**父级**（网关的 readiness 是按平台分组的），这里摊平到每一条上，
+    // 页面侧就只需要一份扁平清单（按平台筛选是取用方的事）。
+    platform,
     activeUnits: requiredNumber(
       payload.active_units ?? payload.activeUnits,
       "familyReadiness.activeUnits",
@@ -1902,8 +1907,20 @@ export function normalizeContentCatalog(payload: any): ContentCatalogView {
     templates: requiredArray(payload.templates ?? [], "contentCatalog.templates").map(
       normalizeContentTemplate,
     ),
-    readiness: requiredArray(payload.readiness ?? [], "contentCatalog.readiness").map(
-      normalizeFamilyReadiness,
+    // 网关的 readiness 是**按平台分组**的（`[{platform, families:[…]}]`）；
+    // 摊平成一条一面，因为页面的问题是「这个面能不能派」，而不是「有哪些平台」。
+    readiness: requiredArray(payload.readiness ?? [], "contentCatalog.readiness").flatMap(
+      (group, index) => {
+        const record = requiredRecord(group, `contentCatalog.readiness[${index}]`);
+        const platform = requiredString(
+          record.platform,
+          `contentCatalog.readiness[${index}].platform`,
+        );
+        return requiredArray(
+          record.families ?? [],
+          `contentCatalog.readiness[${index}].families`,
+        ).map((entry) => normalizeFamilyReadiness(platform, entry));
+      },
     ),
   };
 }

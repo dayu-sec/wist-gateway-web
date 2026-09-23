@@ -310,6 +310,9 @@ export interface WorkReceipt {
  * 派活的取值空间就来自这里：能派哪个面，取决于该面在该平台上**有没有
  * `status = active` 的采集单元**（授权闸门是面就绪度，不是模板的策展状态）。
  * 页面用它把「不能派的面」挡在提交之前，而不是让网关回一个 409。
+ *
+ * 注意后端返回的就绪度是**按平台分组**的（`readiness: [{platform, families: […]}]`），
+ * `src/api/admin.ts` 的 normalizer 会摊平成一面一条 —— 页面只需要「这个面能不能派」。
  */
 export interface FamilyReadinessView {
   family: string;

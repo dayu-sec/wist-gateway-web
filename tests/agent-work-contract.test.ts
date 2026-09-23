@@ -264,6 +264,8 @@ assert(driftingCount(view.standing) === 1, "漂移计数按「未同步」算");
 assert(driftingCount(acked.standing) === 0, "已同步的不算漂移");
 
 // --- 5. 派活闸门：模板覆盖 ∩ 面就绪 ----------------------------------------
+// 载荷形状照**网关实际返回的**：就绪度按平台分组（曾经在这里写成扁平的 mock，
+// 结果线上载荷过不了 normalizer —— mock 必须与真实形状一致，否则白测）。
 const catalog = normalizeContentCatalog({
   catalog_version: 3,
   superseded_by: null,
@@ -278,12 +280,26 @@ const catalog = normalizeContentCatalog({
     },
   ],
   readiness: [
-    { family: "HostMetrics", platform: "macos", active_units: 1, total_units: 1, ready: true },
-    { family: "DevToolchain", platform: "macos", active_units: 0, total_units: 1, ready: false },
-    // PrivacyTcc 在模板里、在目录里有单元但未就绪 → 不可派。
-    { family: "PrivacyTcc", platform: "macos", active_units: 0, total_units: 1, ready: false },
+    {
+      platform: "macos",
+      families: [
+        { family: "HostMetrics", active_units: 1, total_units: 1, ready: true },
+        { family: "DevToolchain", active_units: 0, total_units: 1, ready: false },
+        // PrivacyTcc 在模板里、在目录里有单元但未就绪 → 不可派。
+        { family: "PrivacyTcc", active_units: 0, total_units: 1, ready: false },
+      ],
+    },
+    { platform: "linux", families: [] },
   ],
 });
+assert(
+  catalog.readiness.length === 3,
+  `按平台分组的就绪度要摊平成一面一条，得到 ${catalog.readiness.length}`,
+);
+assert(
+  catalog.readiness.every((entry) => entry.platform !== ""),
+  "摊平后每条都要带上所属平台",
+);
 assert(platformForMachineClass("MacDev") === "macos", "Mac* 属于 macos");
 assert(platformForMachineClass("LinuxData") === "linux", "Linux* 属于 linux");
 
@@ -313,6 +329,20 @@ try {
   missingSuperseded = error;
 }
 assert(missingSuperseded instanceof Error, "缺 superseded_by 必须抛错");
+
+// 就绪度那一组的 platform 是必填：缺了就没法把面归属到某个平台（会静默派错面）。
+let missingPlatform: unknown;
+try {
+  normalizeContentCatalog({
+    catalog_version: 1,
+    superseded_by: null,
+    templates: [],
+    readiness: [{ families: [{ family: "HostMetrics", active_units: 1, total_units: 1, ready: true }] }],
+  });
+} catch (error) {
+  missingPlatform = error;
+}
+assert(missingPlatform instanceof Error, "缺就绪度组的 platform 必须抛错");
 
 // --- 6. 周期与单元计数 ------------------------------------------------------
 const metricsOnly = parseWorkSpec(
