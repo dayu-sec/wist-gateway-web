@@ -4,13 +4,24 @@ import type {
   AgentPurposeView,
   AgentSoftwareEntry,
   AgentSoftwareInventory,
+  AgentWorkView,
+  ContentCatalogView,
+  ContentTemplateView,
+  FamilyReadinessView,
   MachineClass,
+  OneShotWork,
   PurposeSignal,
   PurposeSuggestion,
   SoftwareFleetInventory,
   SoftwareHolder,
   SoftwareKeySummary,
   SoftwareKind,
+  StandingWork,
+  StandingWorkStatus,
+  WorkAck,
+  WorkKind,
+  WorkReceipt,
+  WorkSpec,
 } from "../types";
 
 export interface AgentRuntimeStatusView {
@@ -1448,4 +1459,462 @@ export async function fetchSoftwareFleetInventory(
     `/api/v1/admin/software?limit=${limit}`,
   );
   return normalizeSoftwareFleetInventory(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 工作授权（模型 `Control.Agent.Work`）
+//
+// 网关授权 → Agent 拉快照 → 按版本确认。页面上要能回答三个问题：
+//   这台机器**在采什么**（生效中的工作与它们的采集单元）、
+//   **派下去的东西到了没有**（期望版本 vs 确认版本 = 漂移）、
+//   以及**谁改的**（撤回/被取代的历史留在 retired/settled 里）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 授权一份常驻工作（按采集面）。`spec` 留空 = 网关按事实从采集目录展开。 */
+export interface GrantStandingWorkCommand {
+  family: string;
+  /** 留空由网关展开；写了必须是该面上的目录单元（逗号分隔）。 */
+  spec?: string;
+  /** 可选：期望版本，必须**大于**当前版本（网关拒绝回退）。 */
+  planVersion?: number;
+}
+
+/** 派一件一次性工作（按动作）。 */
+export interface GrantOneShotWorkCommand {
+  action: string;
+  spec: string;
+  /** RFC3339 绝对截止；必填（没有截止的一次性工作与常驻工作无从分辨）。 */
+  deadlineAt: string;
+  /** 执行预算（秒），必须为正。 */
+  timeoutSeconds: number;
+  /** 计划开始时间（RFC3339）；留空 = 立即。 */
+  scheduledAt?: string;
+}
+
+/** 归档用途判定（模型 `AdminClassifyAgent`）。分类必须与机器平台一致，校验在网关。 */
+export interface ClassifyAgentPurposeCommand {
+  machineClass: MachineClass;
+  /** 采纳了哪条建议；人工直判/推翻建议时留空。 */
+  suggestionId?: string;
+  note?: string;
+}
+
+/**
+ * 解析工作参数（`StandingWork.spec` 的内容）。
+ *
+ * 解析失败**不抛错、也不当空工作**：那会把「网关发了坏参数」静默成「没什么可采的」，
+ * 两种情形的处置完全不同。这里保留原文与原因，交给页面如实呈现。
+ */
+export function parseWorkSpec(raw: string): WorkSpec {
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch (error) {
+    return {
+      units: [],
+      raw,
+      error: `工作参数不是合法 JSON：${(error as Error).message}`,
+    };
+  }
+  try {
+    const record = requiredRecord(decoded, "workSpec");
+    const units = presentField(record, ["units"], "workSpec.units");
+    return {
+      units: requiredArray(units, "workSpec.units").map((item, index) => {
+        const unit = requiredRecord(item, `workSpec.units[${index}]`);
+        return {
+          unitId: requiredString(
+            unit.unit_id ?? unit.unitId,
+            `workSpec.units[${index}].unitId`,
+          ),
+          capability: requiredString(
+            unit.capability,
+            `workSpec.units[${index}].capability`,
+          ),
+          ruleRef: requiredString(
+            unit.rule_ref ?? unit.ruleRef,
+            `workSpec.units[${index}].ruleRef`,
+          ),
+          requiresPrivilege: requiredString(
+            unit.requires_privilege ?? unit.requiresPrivilege,
+            `workSpec.units[${index}].requiresPrivilege`,
+          ),
+          sources: presentField(
+            unit,
+            ["sources"],
+            `workSpec.units[${index}].sources`,
+          ) === undefined
+            ? []
+            : requiredArray(
+                presentField(unit, ["sources"], `workSpec.units[${index}].sources`),
+                `workSpec.units[${index}].sources`,
+              ).map((source, sourceIndex) => {
+                const entry = requiredRecord(
+                  source,
+                  `workSpec.units[${index}].sources[${sourceIndex}]`,
+                );
+                return {
+                  kind: requiredString(
+                    entry.kind,
+                    `workSpec.units[${index}].sources[${sourceIndex}].kind`,
+                  ),
+                  target: requiredString(
+                    entry.target,
+                    `workSpec.units[${index}].sources[${sourceIndex}].target`,
+                  ),
+                };
+              }),
+        };
+      }),
+      raw,
+      error: null,
+    };
+  } catch (error) {
+    return { units: [], raw, error: (error as Error).message };
+  }
+}
+
+/** 确认回执：`null` = 从没确认过（那就是漂移，与「版本旧了」分开）。 */
+function normalizeWorkAck(payload: unknown): WorkAck | null {
+  if (payload === null || payload === undefined) return null;
+  const record = requiredRecord(payload, "workAck");
+  return {
+    workId: requiredString(record.work_id ?? record.workId, "workAck.workId"),
+    agentId: requiredString(record.agent_id ?? record.agentId, "workAck.agentId"),
+    workKind: requiredWorkKind(
+      record.work_kind ?? record.workKind,
+      "workAck.workKind",
+    ),
+    planVersion: requiredNumber(
+      record.plan_version ?? record.planVersion,
+      "workAck.planVersion",
+    ),
+    acknowledgedAt: requiredString(
+      record.acknowledged_at ?? record.acknowledgedAt,
+      "workAck.acknowledgedAt",
+    ),
+  };
+}
+
+/** 工作类型是闭合取值（模型里的 variant）：认不出来就抛错。 */
+function requiredWorkKind(value: unknown, fieldName: string): WorkKind {
+  if (value === "Standing" || value === "OneShot") return value;
+  throw new Error(`Invalid API response: invalid ${fieldName}`);
+}
+
+function requiredStandingWorkStatus(
+  value: unknown,
+  fieldName: string,
+): StandingWorkStatus {
+  if (
+    value === "active" ||
+    value === "paused" ||
+    value === "superseded" ||
+    value === "revoked"
+  ) {
+    return value;
+  }
+  throw new Error(`Invalid API response: invalid ${fieldName}`);
+}
+
+function normalizeStandingWork(payload: any): StandingWork {
+  return {
+    workId: requiredString(payload.work_id ?? payload.workId, "standingWork.workId"),
+    agentId: requiredString(payload.agent_id ?? payload.agentId, "standingWork.agentId"),
+    family: requiredString(payload.family, "standingWork.family"),
+    spec: parseWorkSpec(requiredString(payload.spec, "standingWork.spec")),
+    catalogVersion: requiredNumber(
+      payload.catalog_version ?? payload.catalogVersion,
+      "standingWork.catalogVersion",
+    ),
+    proposalId: nullableStringField(
+      payload,
+      ["proposal_id", "proposalId"],
+      "standingWork.proposalId",
+    ),
+    planVersion: requiredNumber(
+      payload.plan_version ?? payload.planVersion,
+      "standingWork.planVersion",
+    ),
+    effectiveFrom: requiredString(
+      payload.effective_from ?? payload.effectiveFrom,
+      "standingWork.effectiveFrom",
+    ),
+    status: requiredStandingWorkStatus(payload.status, "standingWork.status"),
+    updatedBy: requiredString(payload.updated_by ?? payload.updatedBy, "standingWork.updatedBy"),
+    updatedAt: requiredString(payload.updated_at ?? payload.updatedAt, "standingWork.updatedAt"),
+    ack: normalizeWorkAck(payload.ack),
+  };
+}
+
+function normalizeOneShotWork(payload: any): OneShotWork {
+  return {
+    workId: requiredString(payload.work_id ?? payload.workId, "oneShotWork.workId"),
+    agentId: requiredString(payload.agent_id ?? payload.agentId, "oneShotWork.agentId"),
+    action: requiredString(payload.action, "oneShotWork.action"),
+    spec: requiredString(payload.spec, "oneShotWork.spec"),
+    scheduledAt: requiredString(
+      payload.scheduled_at ?? payload.scheduledAt,
+      "oneShotWork.scheduledAt",
+    ),
+    deadlineAt: requiredString(
+      payload.deadline_at ?? payload.deadlineAt,
+      "oneShotWork.deadlineAt",
+    ),
+    timeoutSeconds: requiredNumber(
+      payload.timeout_seconds ?? payload.timeoutSeconds,
+      "oneShotWork.timeoutSeconds",
+    ),
+    interruptible: requiredBoolean(payload.interruptible, "oneShotWork.interruptible"),
+    status: requiredString(payload.status, "oneShotWork.status"),
+    pausedAt: nullableStringField(payload, ["paused_at", "pausedAt"], "oneShotWork.pausedAt"),
+    pausedTotalSeconds: requiredNumber(
+      payload.paused_total_seconds ?? payload.pausedTotalSeconds,
+      "oneShotWork.pausedTotalSeconds",
+    ),
+    attempt: requiredNumber(payload.attempt, "oneShotWork.attempt"),
+    issuedBy: requiredString(payload.issued_by ?? payload.issuedBy, "oneShotWork.issuedBy"),
+    issuedAt: requiredString(payload.issued_at ?? payload.issuedAt, "oneShotWork.issuedAt"),
+    ack: normalizeWorkAck(payload.ack),
+  };
+}
+
+/** 规范化 `AgentWorkView`（`GET /api/v1/admin/agents/{agent_id}/work`）。 */
+export function normalizeAgentWorkView(payload: any): AgentWorkView {
+  return {
+    agentId: requiredString(payload.agent_id ?? payload.agentId, "agentWork.agentId"),
+    sequence: requiredNumber(payload.sequence, "agentWork.sequence"),
+    standing: requiredArray(payload.standing ?? [], "agentWork.standing").map(
+      normalizeStandingWork,
+    ),
+    oneShot: requiredArray(payload.one_shot ?? payload.oneShot ?? [], "agentWork.oneShot").map(
+      normalizeOneShotWork,
+    ),
+    retiredStanding: requiredArray(
+      payload.retired_standing ?? payload.retiredStanding ?? [],
+      "agentWork.retiredStanding",
+    ).map(normalizeStandingWork),
+    settledOneShot: requiredArray(
+      payload.settled_one_shot ?? payload.settledOneShot ?? [],
+      "agentWork.settledOneShot",
+    ).map(normalizeOneShotWork),
+    generatedAt: requiredString(
+      payload.generated_at ?? payload.generatedAt,
+      "agentWork.generatedAt",
+    ),
+  };
+}
+
+/** 规范化 `WorkReceipt`。 */
+export function normalizeWorkReceipt(payload: any): WorkReceipt {
+  return {
+    workId: requiredString(payload.work_id ?? payload.workId, "workReceipt.workId"),
+    agentId: requiredString(payload.agent_id ?? payload.agentId, "workReceipt.agentId"),
+    workKind: requiredWorkKind(payload.work_kind ?? payload.workKind, "workReceipt.workKind"),
+    status: requiredString(payload.status, "workReceipt.status"),
+    planVersion: requiredNumber(
+      payload.plan_version ?? payload.planVersion,
+      "workReceipt.planVersion",
+    ),
+    createdAt: requiredString(payload.created_at ?? payload.createdAt, "workReceipt.createdAt"),
+  };
+}
+
+/**
+ * 某台 Agent 手上的工作（生效中的 + 未了结的一次性 + 历史留痕）。
+ *
+ * 不轮询：授权是**人工声明**，只在管理面操作时变化；但 Agent 的确认会随后到达
+ * （它按 30s 的节拍拉快照），所以页面在提交操作后会主动失效重取，让「确认到了没有」可见。
+ */
+export async function fetchAgentWork(agentId: string): Promise<AgentWorkView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/work`,
+  );
+  return normalizeAgentWorkView(payload);
+}
+
+/** 授权/更新一份常驻工作。同一面再授一次 = 改这一份（版本 +1），不是多出一份。 */
+export async function grantStandingWork(
+  agentId: string,
+  command: GrantStandingWorkCommand,
+): Promise<WorkReceipt> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/work`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        work_kind: "Standing",
+        family: command.family,
+        spec: command.spec ?? "",
+        ...(command.planVersion === undefined
+          ? {}
+          : { plan_version: command.planVersion }),
+      }),
+    },
+  );
+  return normalizeWorkReceipt(payload);
+}
+
+/** 派一件一次性工作（有期限与终态；agentd 侧的执行尚未实现）。 */
+export async function grantOneShotWork(
+  agentId: string,
+  command: GrantOneShotWorkCommand,
+): Promise<WorkReceipt> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/work`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        work_kind: "OneShot",
+        action: command.action,
+        spec: command.spec,
+        deadline_at: command.deadlineAt,
+        timeout_seconds: command.timeoutSeconds,
+        ...(command.scheduledAt ? { scheduled_at: command.scheduledAt } : {}),
+      }),
+    },
+  );
+  return normalizeWorkReceipt(payload);
+}
+
+/**
+ * 撤回一份工作：常驻 → revoked（撤销授权），一次性 → canceled（取消未了结的活）。
+ *
+ * `reason_code` 是留痕用的（当前网关只收下、还没落库）。
+ */
+export async function revokeWork(
+  agentId: string,
+  workId: string,
+  reasonCode: string,
+): Promise<WorkReceipt> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/work/${encodeURIComponent(workId)}/revoke`,
+    { method: "POST", body: JSON.stringify({ reason_code: reasonCode }) },
+  );
+  return normalizeWorkReceipt(payload);
+}
+
+/** 暂停一份工作：保留授权与版本，Agent「暂不做但仍持有」。 */
+export async function pauseWork(
+  agentId: string,
+  workId: string,
+): Promise<WorkReceipt> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/work/${encodeURIComponent(workId)}/pause`,
+    { method: "POST" },
+  );
+  return normalizeWorkReceipt(payload);
+}
+
+/** 恢复一份被暂停的工作：仍用暂停前的同一版本，不重新审定。 */
+export async function resumeWork(
+  agentId: string,
+  workId: string,
+): Promise<WorkReceipt> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/work/${encodeURIComponent(workId)}/resume`,
+    { method: "POST" },
+  );
+  return normalizeWorkReceipt(payload);
+}
+
+/**
+ * 归档某台 Agent 的用途判定（采集范围变更的前置）。
+ *
+ * 分类必须与该机器**已观测到的平台**一致：网关在没上报过事实时回 400（不默认放行）。
+ */
+export async function classifyAgentPurpose(
+  agentId: string,
+  command: ClassifyAgentPurposeCommand,
+): Promise<AgentClassification> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/classification`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        machine_class: command.machineClass,
+        ...(command.suggestionId ? { suggestion_id: command.suggestionId } : {}),
+        ...(command.note ? { note: command.note } : {}),
+      }),
+    },
+  );
+  return normalizeAgentClassification(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 采集内容目录（管理面 `GET /api/v1/admin/content`）
+// ─────────────────────────────────────────────────────────────────────────────
+
+function normalizeFamilyReadiness(payload: any): FamilyReadinessView {
+  return {
+    family: requiredString(payload.family, "familyReadiness.family"),
+    platform: requiredString(payload.platform, "familyReadiness.platform"),
+    activeUnits: requiredNumber(
+      payload.active_units ?? payload.activeUnits,
+      "familyReadiness.activeUnits",
+    ),
+    totalUnits: requiredNumber(
+      payload.total_units ?? payload.totalUnits,
+      "familyReadiness.totalUnits",
+    ),
+    ready: requiredBoolean(payload.ready, "familyReadiness.ready"),
+  };
+}
+
+function normalizeContentTemplate(payload: any): ContentTemplateView {
+  return {
+    templateId: requiredString(
+      payload.template_id ?? payload.templateId,
+      "contentTemplate.templateId",
+    ),
+    machineClass: requiredMachineClass(
+      payload.machine_class ?? payload.machineClass,
+      "contentTemplate.machineClass",
+    ),
+    platform: requiredString(payload.platform, "contentTemplate.platform"),
+    status: requiredString(payload.status, "contentTemplate.status"),
+    familyScope: requiredStringArray(
+      payload.family_scope ?? payload.familyScope ?? [],
+      "contentTemplate.familyScope",
+    ),
+    capabilityScope: requiredStringArray(
+      payload.capability_scope ?? payload.capabilityScope ?? [],
+      "contentTemplate.capabilityScope",
+    ),
+  };
+}
+
+export function normalizeContentCatalog(payload: any): ContentCatalogView {
+  return {
+    catalogVersion: requiredNumber(
+      payload.catalog_version ?? payload.catalogVersion,
+      "contentCatalog.catalogVersion",
+    ),
+    supersededBy: (() => {
+      const value = presentField(
+        payload,
+        ["superseded_by", "supersededBy"],
+        "contentCatalog.supersededBy",
+      );
+      if (value === null) return null;
+      return requiredNumber(value, "contentCatalog.supersededBy");
+    })(),
+    templates: requiredArray(payload.templates ?? [], "contentCatalog.templates").map(
+      normalizeContentTemplate,
+    ),
+    readiness: requiredArray(payload.readiness ?? [], "contentCatalog.readiness").map(
+      normalizeFamilyReadiness,
+    ),
+  };
+}
+
+/**
+ * 已装载的采集内容目录（模板 + 各平台各面的就绪度）。
+ *
+ * 关闭内容目录（未配 `[content]`）时网关回 503 —— 页面据此说「内容目录未装载」，
+ * 而不是把它渲染成「一个面都不能派」。
+ */
+export async function fetchContentCatalog(): Promise<ContentCatalogView> {
+  const payload = await requestJson<unknown>("/api/v1/admin/content");
+  return normalizeContentCatalog(payload);
 }

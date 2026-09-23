@@ -15,7 +15,8 @@
     "test:agent-purpose": "tsx tests/agent-purpose-contract.test.ts",
     "test:software-inventory": "tsx tests/software-inventory-contract.test.ts",
     "test:uplink": "tsx tests/uplink-contract.test.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:agent-work": "tsx tests/agent-work-contract.test.ts"
   },
   "dependencies": {
     "react": "^18.3.0",

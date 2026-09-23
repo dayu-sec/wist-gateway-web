@@ -176,3 +176,168 @@ export interface SoftwareFleetInventory {
   truncated: boolean;
   software: SoftwareKeySummary[];
 }
+
+/**
+ * 工作授权（模型 `Control.Agent.Work`）的视图结构。
+ *
+ * 对应后端 `GET /api/v1/admin/agents/{agent_id}/work`。后端返回的工作参数 `spec`
+ * 是一个**JSON 字符串**（由采集目录的条目物化成「单元清单」），normalizer 会把它解析成
+ * `WorkSpec.units`；解析失败不静默成空工作 —— 那是「网关发了坏参数」，页面要能说出来。
+ */
+
+/** 工作类型（模型 `WorkKind`）：常驻（持续到被替换或撤回）与一次性（有期限与终态）。 */
+export type WorkKind = "Standing" | "OneShot";
+
+/** 采集来源（模型 `CollectionSource` 的物化形态）：`kind` 决定 `target` 的含义。 */
+export interface WorkSpecSource {
+  /** FileGlob | Exporter | UnifiedLogPredicate | MetricInterval。 */
+  kind: string;
+  /** 路径通配 / 导出器标识 / 谓词 / 周期。 */
+  target: string;
+}
+
+/** 工作参数里的一个**已物化**采集单元：agentd 拿着它就能直接采。 */
+export interface WorkSpecUnit {
+  unitId: string;
+  /** collect_logs | collect_metrics。 */
+  capability: string;
+  /** 数据面 rule/oml 标识。 */
+  ruleRef: string;
+  /** none | root | fda —— 缺权限时说清缺什么，而不是安静地采不到。 */
+  requiresPrivilege: string;
+  sources: WorkSpecSource[];
+}
+
+/** 工作参数（`spec` 的解析结果）。 */
+export interface WorkSpec {
+  units: WorkSpecUnit[];
+  /** 原始字符串：解析失败时页面把它原样露出来，便于对账。 */
+  raw: string;
+  /** 解析/形状错误的原因；`null` = 解析成功。 */
+  error: string | null;
+}
+
+/** 常驻工作状态（模型 `StandingWork.status`）。 */
+export type StandingWorkStatus = "active" | "paused" | "superseded" | "revoked";
+
+/**
+ * Agent 对某份工作的确认回执（网关侧留痕）。
+ *
+ * `null` = **从没确认过**：期望版本发了、Agent 一直没回 —— 这就是漂移，
+ * 页面上必须与「已确认但版本旧了」分开呈现。
+ */
+export interface WorkAck {
+  workId: string;
+  agentId: string;
+  workKind: WorkKind;
+  planVersion: number;
+  acknowledgedAt: string;
+}
+
+/** 一份常驻工作（一个采集面一份）。 */
+export interface StandingWork {
+  workId: string;
+  agentId: string;
+  /** 采集面（`CollectionFamily`）。 */
+  family: string;
+  spec: WorkSpec;
+  /** 本工作按哪一版采集目录展开（目录换版不追改已授权工作）。 */
+  catalogVersion: number;
+  /** 生效依据：指向已批准的提案；人工直填时为 null。 */
+  proposalId: string | null;
+  /** 期望版本：网关每次改动 +1。 */
+  planVersion: number;
+  effectiveFrom: string;
+  status: StandingWorkStatus;
+  updatedBy: string;
+  updatedAt: string;
+  ack: WorkAck | null;
+}
+
+/** 一份一次性工作（按动作授权，有期限与终态）。 */
+export interface OneShotWork {
+  workId: string;
+  agentId: string;
+  /** 动作面：upgrade / snapshot / exec / …。 */
+  action: string;
+  spec: string;
+  scheduledAt: string;
+  /** 绝对截止：暂停也照走。 */
+  deadlineAt: string;
+  /** 执行预算（秒）：只在实际执行时消耗。 */
+  timeoutSeconds: number;
+  interruptible: boolean;
+  /** dispatched | accepted | running | paused | succeeded | failed | timed_out | canceled | expired。 */
+  status: string;
+  pausedAt: string | null;
+  pausedTotalSeconds: number;
+  attempt: number;
+  issuedBy: string;
+  issuedAt: string;
+  ack: WorkAck | null;
+}
+
+/** 管理面「Agent 工作」视图（模型 `WorkGrant` + 历史留痕）。 */
+export interface AgentWorkView {
+  agentId: string;
+  /** 授权序号：Agent 据此判断快照有没有变（不承诺「指令重放」）。 */
+  sequence: number;
+  /** 当前生效的（active / paused）—— 这些才在下发的快照里。 */
+  standing: StandingWork[];
+  /** 未了结的一次性工作。 */
+  oneShot: OneShotWork[];
+  /** 已撤回 / 被取代的常驻工作（审计用，不下发）。 */
+  retiredStanding: StandingWork[];
+  /** 已了结的一次性工作（审计用，不下发）。 */
+  settledOneShot: OneShotWork[];
+  generatedAt: string;
+}
+
+/** 管理面授权/撤回工作的回执（模型 `WorkReceipt`）。 */
+export interface WorkReceipt {
+  workId: string;
+  agentId: string;
+  workKind: WorkKind;
+  /** 操作结果：accepted | paused | resumed | revoked | rejected。 */
+  status: string;
+  planVersion: number;
+  createdAt: string;
+}
+
+/**
+ * 采集内容目录的**就绪度与模板**视图（管理面 `GET /api/v1/admin/content`）。
+ *
+ * 派活的取值空间就来自这里：能派哪个面，取决于该面在该平台上**有没有
+ * `status = active` 的采集单元**（授权闸门是面就绪度，不是模板的策展状态）。
+ * 页面用它把「不能派的面」挡在提交之前，而不是让网关回一个 409。
+ */
+export interface FamilyReadinessView {
+  family: string;
+  platform: string;
+  /** 该面上 `status = active` 的采集单元数。 */
+  activeUnits: number;
+  totalUnits: number;
+  /** 至少一个 active 单元 = 这个面能展开成工作。 */
+  ready: boolean;
+}
+
+/** 常驻工作模板（模型 `WorkTemplate`）：这类机器该采什么。 */
+export interface ContentTemplateView {
+  templateId: string;
+  machineClass: MachineClass;
+  platform: string;
+  /** 策展成熟度：active / draft / deprecated（**不是**授权闸门）。 */
+  status: string;
+  /** 按 `pack_refs` 展开后的面集。 */
+  familyScope: string[];
+  capabilityScope: string[];
+}
+
+/** 已装载的采集内容目录。 */
+export interface ContentCatalogView {
+  catalogVersion: number;
+  /** 已被新版取代时非空（引用式版本锁：多版并存，不追改已授权工作）。 */
+  supersededBy: number | null;
+  templates: ContentTemplateView[];
+  readiness: FamilyReadinessView[];
+}

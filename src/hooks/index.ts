@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
   ApiError,
+  classifyAgentPurpose,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
   fetchAgentInstallPackage,
@@ -10,13 +11,23 @@ import {
   fetchAgentPurpose,
   fetchAgentSoftwareInventory,
   fetchAgentUplink,
+  fetchAgentWork,
   fetchAllAgentsHostMetrics,
+  fetchContentCatalog,
   fetchPipelineTopology,
   fetchSoftwareFleetInventory,
   getAdminApiToken,
+  grantOneShotWork,
+  grantStandingWork,
   initializeGatewayViaUrl,
+  pauseWork,
+  resumeWork,
+  revokeWork,
   setAgentInstallPackage,
   setAgentUplink,
+  type ClassifyAgentPurposeCommand,
+  type GrantOneShotWorkCommand,
+  type GrantStandingWorkCommand,
   type SetAgentInstallPackageCommand,
   type SetAgentUplinkCommand,
 } from "../api";
@@ -261,5 +272,127 @@ export function useSoftwareFleetInventory(limit = 100) {
     queryKey: ["software-fleet", limit],
     queryFn: () => fetchSoftwareFleetInventory(limit),
     enabled,
+  });
+}
+
+/**
+ * 某台 Agent 手上的工作（生效中的常驻工作 + 未了结的一次性工作 + 历史留痕）。
+ *
+ * 不轮询：工作由管理面**人工**授权/暂停/撤回，值只在这些操作时变化；
+ * 但 Agent 的确认（ack）随后才到（它按 30s 的节拍拉快照），所以每个操作成功后
+ * 都失效这份查询 —— 让「派下去的活到了没有」在页面上可见。
+ */
+export function useAgentWork(agentId: string) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(agentId);
+  return useQuery({
+    queryKey: ["agent-work", agentId],
+    queryFn: () => fetchAgentWork(agentId),
+    enabled,
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+
+/** 采集内容目录（模板 + 各平台各面的就绪度）：派活表单的取值空间来自它。 */
+export function useContentCatalog() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["content-catalog"],
+    queryFn: fetchContentCatalog,
+    enabled,
+    // 内容目录是启动时装载的策展数据（改内容要重启网关），没必要轮询。
+    retry: (failureCount, error) => {
+      // 503 = 未配 `[content]`：这是「未装载」而不是故障，别重试。
+      if (error instanceof ApiError && error.status === 503) return false;
+      return failureCount < 3;
+    },
+  });
+}
+
+/** 授权/更新一份常驻工作；成功后刷新这台机器的工作视图。 */
+export function useGrantStandingWork(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: GrantStandingWorkCommand) =>
+      grantStandingWork(agentId, command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
+    },
+  });
+}
+
+/** 派一件一次性工作；成功后刷新工作视图。 */
+export function useGrantOneShotWork(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: GrantOneShotWorkCommand) =>
+      grantOneShotWork(agentId, command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
+    },
+  });
+}
+
+/**
+ * 对一份工作做暂停/恢复/撤回。
+ *
+ * 三个动作合成一个 mutation（而不是三个 hook）：它们在页面上是**同一组按钮**，
+ * 失败提示与刷新策略也完全一样，拆开只会让调用方多写三份重复样板。
+ */
+export function useWorkAction(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: {
+      kind: "pause" | "resume" | "revoke";
+      workId: string;
+      reasonCode?: string;
+    }) => {
+      switch (action.kind) {
+        case "pause":
+          return pauseWork(agentId, action.workId);
+        case "resume":
+          return resumeWork(agentId, action.workId);
+        case "revoke":
+          return revokeWork(agentId, action.workId, action.reasonCode ?? "");
+      }
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
+    },
+  });
+}
+
+/** 归档用途判定（采集范围变更的前置）；成功后刷新用途视图。 */
+export function useClassifyAgentPurpose(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: ClassifyAgentPurposeCommand) =>
+      classifyAgentPurpose(agentId, command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["agent-purpose", agentId] });
+      // 判定是派活的前置：判完这台机器「能不能派活」就变了，一并刷新。
+      void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
+    },
   });
 }

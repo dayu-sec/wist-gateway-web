@@ -46,7 +46,7 @@
   color: var(--warn);
 }
 
-/* 三分并列：正常 */
+/* 事实与结论都在：正常 */
 .noticeOk {
   border-color: var(--ok-border);
   background: var(--ok-soft);
@@ -56,27 +56,118 @@
   color: var(--ok);
 }
 
-/* ---------- 三分并列布局 ---------- */
-/* 推断列更宽：它是唯一带「逐条依据」的一列。 */
-.columns {
+/* ---------- 结论带：判定 | 推断 并排，冲突提示横跨整带 ---------- */
+.verdictBand {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 
-@media (max-width: 1180px) {
-  .columns {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
+.verdictBand > .bandConflict {
+  grid-column: 1 / -1;
 }
 
 @media (max-width: 820px) {
-  .columns {
+  .verdictBand {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
+.verdictCell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px 15px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.verdictCellHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.verdictCellCaption {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+/* 判定（人定的、以此为准）用 ok 语义；推断保持 accent。 */
+.tagDecision {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.verdictEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 13px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.verdictEmpty strong {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.verdictEmpty span {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+/* ---------- 判定留痕：一条窄带，不再撑一个空面板 ---------- */
+.ledger {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ledgerItem {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+}
+
+.ledgerItem dt {
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ledgerItem dd {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.ledgerMeta {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+/* ---------- 通用面板：全宽分区 ---------- */
 .panel {
   display: flex;
   flex-direction: column;
@@ -140,17 +231,24 @@
   line-height: 1.65;
 }
 
-/* ---------- 键值列表 ---------- */
-.factList {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
+/* ---------- 键值列表：两列网格，窄屏折单列 ---------- */
+.factGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 28px;
+}
+
+@media (max-width: 720px) {
+  .factGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .factRow {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .factRow dt {
@@ -164,6 +262,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  margin: 0;
   color: var(--text);
   font-size: 12.5px;
 }
@@ -260,6 +359,7 @@
 }
 
 .confidenceHint {
+  margin: 0;
   color: var(--text-3);
   font-size: 11.5px;
   line-height: 1.6;
@@ -347,6 +447,7 @@
 }
 
 .listEmpty {
+  margin: 0;
   padding: 9px 11px;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-xs);
@@ -357,6 +458,7 @@
 }
 
 .listCaption {
+  margin: 0;
   color: var(--text-4);
   font-size: 11px;
   line-height: 1.6;

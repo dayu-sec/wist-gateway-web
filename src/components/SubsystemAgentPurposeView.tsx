@@ -151,7 +151,7 @@ function displayWeight(weight: number): string {
 /**
  * 视图状态提示条：三种**有数据**的状态要在第一眼就区分开 ——
  * 「尚未上报事实」（事实与建议都空）/「有事实、无建议」（规则未命中或平台无规则册）/
- * 「三分并列」。
+ * 「事实与结论都在」。
  *
  * 第四种状态「未知 Agent」是 HTTP 404，由页面渲染：它是「这台机器不存在」，
  * 与「它还没报过事实」是两回事，不能都当空视图。
@@ -189,7 +189,7 @@ function PurposeStateNotice({
 
   return (
     <div className={`${styles.notice} ${styles.noticeOk}`} role="status">
-      <span className={styles.noticeTitle}>事实 / 推断 / 判定 三分并列</span>
+      <span className={styles.noticeTitle}>事实 / 推断 / 判定 并列展示</span>
       <span className={styles.noticeText}>
         推断由规则表算出、可变可过期；判定是人定的、留痕。两者冲突时以判定为准，
         但推断仍然并列展示 —— 不是谁盖掉谁。
@@ -233,26 +233,172 @@ export function SubsystemAgentPurposeView({
     <div className={styles.container}>
       <PurposeStateNotice factSummary={factSummary} suggestion={suggestion} />
 
-      <div className={styles.columns}>
-        <FactSummaryPanel factSummary={factSummary} />
-        <SuggestionPanel
-          suggestion={suggestion}
-          hasFact={factSummary !== null}
-        />
-        <ClassificationPanel
-          classification={classification}
-          suggestion={suggestion}
-        />
-      </div>
+      <VerdictBand
+        classification={classification}
+        suggestion={suggestion}
+        hasFact={factSummary !== null}
+      />
+
+      {classification ? (
+        <ClassificationLedger classification={classification} />
+      ) : null}
+
+      <FactSection factSummary={factSummary} />
+      <EvidenceSection suggestion={suggestion} hasFact={factSummary !== null} />
     </div>
   );
 }
 
-function FactSummaryPanel({
-  factSummary,
+/**
+ * 结论带：人工判定（以此为准）与网关推断（可变可过期）并排一格 ——
+ * 冲突时在带内显式提示，但两个值都照常展示，不互相覆盖。
+ */
+function VerdictBand({
+  classification,
+  suggestion,
+  hasFact,
 }: {
-  factSummary: AgentFactSummary | null;
+  classification: AgentClassification | null;
+  suggestion: PurposeSuggestion | null;
+  hasFact: boolean;
 }) {
+  const conflict =
+    classification && suggestion && suggestion.suggestedClass !== classification.machineClass
+      ? suggestion
+      : null;
+
+  return (
+    <div className={styles.verdictBand}>
+      <section className={styles.verdictCell} aria-labelledby={CLASSIFICATION_TITLE_ID}>
+        <div className={styles.verdictCellHead}>
+          <span className={`${styles.panelTag} ${styles.tagDecision}`}>判定</span>
+          <span className={styles.verdictCellCaption}>人工判定 · 冲突时以此为准</span>
+        </div>
+        {classification ? (
+          <div className={styles.verdictRow}>
+            <span className={styles.verdictClass}>
+              {MACHINE_CLASS_LABEL[classification.machineClass]}
+            </span>
+            <span className={styles.mono}>{classification.machineClass}</span>
+            <span className={`${styles.badge} ${styles.badgeOk}`}>人工判定</span>
+          </div>
+        ) : (
+          <div className={styles.verdictEmpty}>
+            <strong>尚未人工判定</strong>
+            <span>
+              管理面的判定写入端点还没实现，所以现在不可能有判定值 ——
+              旁边的推断只是建议，不代表这台机器已被归类。
+            </span>
+          </div>
+        )}
+      </section>
+
+      <section className={styles.verdictCell} aria-labelledby={SUGGESTION_TITLE_ID}>
+        <div className={styles.verdictCellHead}>
+          <span className={styles.panelTag}>推断</span>
+          <span className={styles.verdictCellCaption}>规则表算出 · 可变、可过期</span>
+        </div>
+        {suggestion ? (
+          <VerdictInference suggestion={suggestion} />
+        ) : (
+          <div className={styles.verdictEmpty}>
+            <strong>没有建议</strong>
+            <span>
+              {hasFact
+                ? "规则未命中，或这台机器的平台没有规则册 —— 网关宁可不猜，也不给没有依据的结论。"
+                : "还没有事实摘要，没有东西可供推断。"}
+            </span>
+          </div>
+        )}
+      </section>
+
+      {conflict ? (
+        <div className={`${styles.notice} ${styles.noticeWeak} ${styles.bandConflict}`} role="status">
+          <span className={styles.noticeTitle}>与网关推断不一致</span>
+          <span className={styles.noticeText}>
+            推断为 {MACHINE_CLASS_LABEL[conflict.suggestedClass]}（{conflict.suggestedClass}）。
+            冲突时以人工判定为准，但推断仍然并列展示，不被盖掉。
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** 推断半格：结论 + 紧凑置信度（逐条依据在下方全宽分区里）。 */
+function VerdictInference({ suggestion }: { suggestion: PurposeSuggestion }) {
+  const tone = confidenceTone(suggestion.confidence, suggestion.signals.length);
+
+  return (
+    <>
+      <div className={styles.verdictRow}>
+        <span className={styles.verdictClass}>
+          {MACHINE_CLASS_LABEL[suggestion.suggestedClass]}
+        </span>
+        <span className={styles.mono}>{suggestion.suggestedClass}</span>
+        <span className={`${styles.badge} ${badgeToneClass(tone)}`}>
+          {CONFIDENCE_LABEL[tone]}
+        </span>
+      </div>
+      <div className={styles.confidence}>
+        <div className={styles.confidenceTop}>
+          <span className={styles.confidenceLabel}>置信度</span>
+          <span className={`${styles.mono} ${textToneClass(tone)}`}>
+            {suggestion.confidence} / 100
+          </span>
+        </div>
+        <div className={styles.barTrack}>
+          <div
+            className={`${styles.barFill} ${barToneClass(tone)}`}
+            style={{
+              width: `${Math.min(Math.max(suggestion.confidence, 0), 100)}%`,
+            }}
+          />
+        </div>
+        <p className={styles.confidenceHint}>{CONFIDENCE_HINT[tone]}</p>
+      </div>
+    </>
+  );
+}
+
+/**
+ * 判定留痕：判定人 / 判定时间 / 采纳的建议 / 备注。
+ * 判定带只放结论，留痕折成一条窄带，不再撑一个空面板。
+ */
+function ClassificationLedger({
+  classification,
+}: {
+  classification: AgentClassification;
+}) {
+  return (
+    <dl className={styles.ledger}>
+      <div className={styles.ledgerItem}>
+        <dt>判定人</dt>
+        <dd className={styles.mono}>{classification.decidedBy}</dd>
+      </div>
+      <div className={styles.ledgerItem}>
+        <dt>判定时间</dt>
+        <dd className={styles.mono}>{formatTimestamp(classification.decidedAt)}</dd>
+      </div>
+      <div className={styles.ledgerItem}>
+        <dt>采纳的建议</dt>
+        <dd className={styles.mono}>
+          {classification.suggestionId ?? EMPTY}
+          <span className={styles.ledgerMeta}>
+            {classification.suggestionId ? "采纳了这一次建议" : "人工直接判定或推翻了建议"}
+          </span>
+        </dd>
+      </div>
+      <div className={styles.ledgerItem}>
+        <dt>备注</dt>
+        <dd className={styles.wrapText}>{classification.note ?? EMPTY}</dd>
+      </div>
+    </dl>
+  );
+}
+
+/** 事实摘要：全宽分区。键值两列排布，长列表不再被塞进窄栏。 */
+function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) {
   if (!factSummary) {
     return (
       <section className={styles.panel} aria-labelledby={FACT_TITLE_ID}>
@@ -284,7 +430,7 @@ function FactSummaryPanel({
         titleId={FACT_TITLE_ID}
       />
 
-      <dl className={styles.factList}>
+      <dl className={styles.factGrid}>
         <div className={styles.factRow}>
           <dt>平台</dt>
           <dd>
@@ -387,73 +533,76 @@ function FactSummaryPanel({
         </p>
       </div>
 
-      <div className={styles.listBlock}>
-        <div className={styles.listHead}>
-          <h3 className={styles.listTitle}>已装包</h3>
-          <span className={styles.listCount}>{factSummary.packages.length} 条</span>
+      <div className={styles.factGrid}>
+        <div className={styles.listBlock}>
+          <div className={styles.listHead}>
+            <h3 className={styles.listTitle}>已装包</h3>
+            <span className={styles.listCount}>{factSummary.packages.length} 条</span>
+          </div>
+          {factSummary.packages.length === 0 ? (
+            <p className={styles.listEmpty}>
+              包清单探针尚未实现，此列恒空，不代表未安装。
+            </p>
+          ) : (
+            <CappedList
+              values={factSummary.packages}
+              listClassName={styles.chipList}
+              itemClassName={styles.chip}
+              unit="条"
+            />
+          )}
         </div>
-        {factSummary.packages.length === 0 ? (
-          <p className={styles.listEmpty}>
-            包清单探针尚未实现，此列恒空，不代表未安装。
-          </p>
-        ) : (
-          <CappedList
-            values={factSummary.packages}
-            listClassName={styles.chipList}
-            itemClassName={styles.chip}
-            unit="条"
-          />
-        )}
-      </div>
 
-      <div className={styles.listBlock}>
-        <div className={styles.listHead}>
-          <h3 className={styles.listTitle}>监听端口</h3>
-          <span className={styles.listCount}>
-            {factSummary.listenPorts.length} 条
-          </span>
+        <div className={styles.listBlock}>
+          <div className={styles.listHead}>
+            <h3 className={styles.listTitle}>监听端口</h3>
+            <span className={styles.listCount}>
+              {factSummary.listenPorts.length} 条
+            </span>
+          </div>
+          {factSummary.listenPorts.length === 0 ? (
+            <p className={styles.listEmpty}>没有采集到监听端口。</p>
+          ) : (
+            <CappedList
+              values={factSummary.listenPorts}
+              listClassName={styles.chipList}
+              itemClassName={`${styles.chip} ${styles.mono}`}
+              unit="条"
+            />
+          )}
         </div>
-        {factSummary.listenPorts.length === 0 ? (
-          <p className={styles.listEmpty}>没有采集到监听端口。</p>
-        ) : (
-          <CappedList
-            values={factSummary.listenPorts}
-            listClassName={styles.chipList}
-            itemClassName={`${styles.chip} ${styles.mono}`}
-            unit="条"
-          />
-        )}
-      </div>
 
-      <div className={styles.listBlock}>
-        <div className={styles.listHead}>
-          <h3 className={styles.listTitle}>网卡地址</h3>
-          <span className={styles.listCount}>
-            {factSummary.networkAddresses.length} 条
-          </span>
-        </div>
-        {factSummary.networkAddresses.length === 0 ? (
-          <p className={styles.listEmpty}>
-            这台还没上报过网卡信息 —— 旧版 agentd 不带这些字段。
+        <div className={styles.listBlock}>
+          <div className={styles.listHead}>
+            <h3 className={styles.listTitle}>网卡地址</h3>
+            <span className={styles.listCount}>
+              {factSummary.networkAddresses.length} 条
+            </span>
+          </div>
+          {factSummary.networkAddresses.length === 0 ? (
+            <p className={styles.listEmpty}>
+              这台还没上报过网卡信息 —— 旧版 agentd 不带这些字段。
+            </p>
+          ) : (
+            <CappedList
+              values={factSummary.networkAddresses}
+              listClassName={styles.chipList}
+              itemClassName={`${styles.chip} ${styles.mono}`}
+              unit="条"
+            />
+          )}
+          <p className={styles.listCaption}>
+            每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，
+            换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。
           </p>
-        ) : (
-          <CappedList
-            values={factSummary.networkAddresses}
-            listClassName={styles.chipList}
-            itemClassName={`${styles.chip} ${styles.mono}`}
-            unit="条"
-          />
-        )}
-        <p className={styles.listCaption}>
-          每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，
-          换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。
-        </p>
+        </div>
       </div>
     </section>
   );
 }
 
-function SuggestionPanel({
+/** 逐条依据：全宽分区。判定方法 / 时间 / 建议 ID 折成两列键值，信号表横向铺开。 */
+function EvidenceSection({
   suggestion,
   hasFact,
 }: {
@@ -465,12 +614,12 @@ function SuggestionPanel({
       <section className={styles.panel} aria-labelledby={SUGGESTION_TITLE_ID}>
         <PanelHeader
           tag="推断"
-          title="网关用途建议"
-          caption="规则表算出，可变、可过期"
+          title="逐条依据"
+          caption="网关凭什么给出这个建议 —— 规则表算出，可变、可过期"
           titleId={SUGGESTION_TITLE_ID}
         />
         <div className={styles.panelEmpty}>
-          <strong>没有建议</strong>
+          <strong>没有依据</strong>
           <span>
             {hasFact
               ? "规则未命中，或这台机器的平台没有规则册 —— 网关宁可不猜，也不给没有依据的结论。"
@@ -481,7 +630,6 @@ function SuggestionPanel({
     );
   }
 
-  const tone = confidenceTone(suggestion.confidence, suggestion.signals.length);
   const totalWeight = suggestion.signals.reduce(
     (sum, signal) => sum + signal.weight,
     0,
@@ -491,40 +639,12 @@ function SuggestionPanel({
     <section className={styles.panel} aria-labelledby={SUGGESTION_TITLE_ID}>
       <PanelHeader
         tag="推断"
-        title="网关用途建议"
-        caption="规则表算出，可变、可过期"
+        title="逐条依据"
+        caption="网关凭什么给出这个建议 —— 规则表算出，可变、可过期"
         titleId={SUGGESTION_TITLE_ID}
       />
 
-      <div className={styles.verdictRow}>
-        <span className={styles.verdictClass}>
-          {MACHINE_CLASS_LABEL[suggestion.suggestedClass]}
-        </span>
-        <span className={styles.mono}>{suggestion.suggestedClass}</span>
-        <span className={`${styles.badge} ${badgeToneClass(tone)}`}>
-          {CONFIDENCE_LABEL[tone]}
-        </span>
-      </div>
-
-      <div className={styles.confidence}>
-        <div className={styles.confidenceTop}>
-          <span className={styles.confidenceLabel}>置信度</span>
-          <span className={`${styles.mono} ${textToneClass(tone)}`}>
-            {suggestion.confidence} / 100
-          </span>
-        </div>
-        <div className={styles.barTrack}>
-          <div
-            className={`${styles.barFill} ${barToneClass(tone)}`}
-            style={{
-              width: `${Math.min(Math.max(suggestion.confidence, 0), 100)}%`,
-            }}
-          />
-        </div>
-        <p className={styles.confidenceHint}>{CONFIDENCE_HINT[tone]}</p>
-      </div>
-
-      <dl className={styles.factList}>
+      <dl className={styles.factGrid}>
         <div className={styles.factRow}>
           <dt>判定方法</dt>
           <dd>
@@ -563,7 +683,7 @@ function SuggestionPanel({
 
       <div className={styles.listBlock}>
         <div className={styles.listHead}>
-          <h3 className={styles.listTitle}>凭什么这么判</h3>
+          <h3 className={styles.listTitle}>信号明细</h3>
           <span className={styles.listCount}>
             {suggestion.signals.length} 条依据 · 合计权重{" "}
             {displayWeight(totalWeight)}
@@ -619,108 +739,5 @@ function SignalRow({ signal }: { signal: PurposeSignal }) {
         {displayWeight(signal.weight)}
       </td>
     </tr>
-  );
-}
-
-function ClassificationPanel({
-  classification,
-  suggestion,
-}: {
-  classification: AgentClassification | null;
-  suggestion: PurposeSuggestion | null;
-}) {
-  if (!classification) {
-    return (
-      <section
-        className={styles.panel}
-        aria-labelledby={CLASSIFICATION_TITLE_ID}
-      >
-        <PanelHeader
-          tag="判定"
-          title="人工判定"
-          caption="人定的类别：一台一条，改判留痕"
-          titleId={CLASSIFICATION_TITLE_ID}
-        />
-        <div className={styles.panelEmpty}>
-          <strong>尚未人工判定</strong>
-          <span>
-            管理面的判定写入端点还没实现，所以现在不可能有判定值 ——
-            中间的推断只是建议，不代表这台机器已被归类。
-          </span>
-        </div>
-      </section>
-    );
-  }
-
-  // 冲突时以判定为准，但推断照旧并列展示（不覆盖、不隐藏）。
-  const suggestionInConflict =
-    suggestion && suggestion.suggestedClass !== classification.machineClass
-      ? suggestion
-      : null;
-
-  return (
-    <section className={styles.panel} aria-labelledby={CLASSIFICATION_TITLE_ID}>
-      <PanelHeader
-        tag="判定"
-        title="人工判定"
-        caption="人定的类别：一台一条，改判留痕"
-        titleId={CLASSIFICATION_TITLE_ID}
-      />
-
-      <div className={styles.verdictRow}>
-        <span className={styles.verdictClass}>
-          {MACHINE_CLASS_LABEL[classification.machineClass]}
-        </span>
-        <span className={styles.mono}>{classification.machineClass}</span>
-        <span className={`${styles.badge} ${styles.badgeOk}`}>人工判定</span>
-      </div>
-
-      {suggestionInConflict ? (
-        <div className={`${styles.notice} ${styles.noticeWeak}`} role="status">
-          <span className={styles.noticeTitle}>与网关推断不一致</span>
-          <span className={styles.noticeText}>
-            推断为 {MACHINE_CLASS_LABEL[suggestionInConflict.suggestedClass]}
-            （{suggestionInConflict.suggestedClass}）。冲突时以人工判定为准，
-            但推断仍然并列展示，不被盖掉。
-          </span>
-        </div>
-      ) : null}
-
-      <dl className={styles.factList}>
-        <div className={styles.factRow}>
-          <dt>判定人</dt>
-          <dd>
-            <span className={styles.mono}>{classification.decidedBy}</span>
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>判定时间</dt>
-          <dd>
-            <span className={styles.mono}>
-              {formatTimestamp(classification.decidedAt)}
-            </span>
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>采纳的建议</dt>
-          <dd>
-            <span className={styles.mono}>
-              {classification.suggestionId ?? EMPTY}
-            </span>
-            <span className={styles.factMeta}>
-              {classification.suggestionId
-                ? "采纳了这一次建议"
-                : "人工直接判定或推翻了建议"}
-            </span>
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>备注</dt>
-          <dd>
-            <span className={styles.wrapText}>{classification.note ?? EMPTY}</span>
-          </dd>
-        </div>
-      </dl>
-    </section>
   );
 }

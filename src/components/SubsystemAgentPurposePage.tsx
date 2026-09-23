@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
-import { useAgentPurpose } from "../hooks";
+import type { MachineClass } from "../types";
+import { useAgentPurpose, useClassifyAgentPurpose } from "../hooks";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
 import styles from "./SubsystemAgentPurposePage.module.css";
@@ -51,7 +53,7 @@ function formatTimestamp(value: string): string {
  * Agent 用途页（模型 `ViewAgentPurpose`，管理面条目 `AdminViewAgentPurpose`）。
  *
  * 页面只管取数与路由状态（加载中 / 未知 Agent / 读取失败），
- * 事实 / 推断 / 判定三分并列的展示在 `SubsystemAgentPurposeView` 里。
+ * 结论带（判定 | 推断）与事实 / 依据全宽分区的展示在 `SubsystemAgentPurposeView` 里。
  */
 export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
   const { agentId = "" } = useParams<{ agentId: string }>();
@@ -73,6 +75,12 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
             to={`/agents/${encodeURIComponent(agentId)}/metrics`}
           >
             主机指标 <span aria-hidden="true">→</span>
+          </Link>
+          <Link
+            className={styles.crossLink}
+            to={`/agents/${encodeURIComponent(agentId)}/work`}
+          >
+            采集工作 <span aria-hidden="true">→</span>
           </Link>
         </div>
         <div className={styles.metaRow}>
@@ -136,9 +144,142 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
 
       {data ? (
         <div className={styles.viewWrap}>
+          <ClassifyPanel
+            agentId={agentId}
+            currentClass={data.classification?.machineClass ?? null}
+            suggestedClass={data.suggestion?.suggestedClass ?? null}
+            suggestionId={data.suggestion?.suggestionId ?? null}
+            hasFacts={data.factSummary !== null}
+          />
           <SubsystemAgentPurposeView agentPurposeView={data} />
         </div>
       ) : null}
     </div>
   );
+}
+
+const MACHINE_CLASS_OPTIONS: MachineClass[] = [
+  "MacDaily",
+  "MacDev",
+  "LinuxCompute",
+  "LinuxData",
+];
+
+interface ClassifyPanelProps {
+  agentId: string;
+  currentClass: MachineClass | null;
+  suggestedClass: MachineClass | null;
+  suggestionId: string | null;
+  hasFacts: boolean;
+}
+
+/**
+ * 归档用途判定（模型 `AdminClassifyAgent`）。
+ *
+ * 为什么放在用途页而不是派活页：判定是**采集范围的前置**，它回答的是「这台机器是什么」——
+ * 那是本页的题目；派活页只是它的下游使用者。
+ *
+ * 两个必须说在前面的事：
+ *   · 分类必须与该机器**已观测到的平台**一致（网关联没有事实时报 400，不默认放行）；
+ *   · 改判就是改采集范围：**合规边界**，因此留判的人与时间。
+ */
+function ClassifyPanel({
+  agentId,
+  currentClass,
+  suggestedClass,
+  suggestionId,
+  hasFacts,
+}: ClassifyPanelProps) {
+  const mutation = useClassifyAgentPurpose(agentId);
+  const [selected, setSelected] = useState<MachineClass | "">(
+    currentClass ?? suggestedClass ?? "",
+  );
+  const [note, setNote] = useState("");
+  const value = selected || suggestedClass || "MacDaily";
+
+  return (
+    <section className={styles.classifyPanel} aria-labelledby="agent-purpose-classify">
+      <header className={styles.classifyHeader}>
+        <h2 className={styles.classifyTitle} id="agent-purpose-classify">
+          归档用途判定
+        </h2>
+        <span className={styles.classifyHint}>
+          判定是**授权工作模板的前置**（它决定取哪份模板、能派哪些采集面）；
+          改判就是改采集范围，所以留判的人与时间
+        </span>
+      </header>
+
+      {!hasFacts ? (
+        <p className={styles.classifyBlocked}>
+          这台机器还没上报过事实摘要：网关无法确认它的平台，因此**拒绝**归档判定
+          （不默认放行）。等它上报后再来。
+        </p>
+      ) : (
+        <div className={styles.classifyForm}>
+          <label className={styles.classifyField}>
+            机器类别
+            <select
+              className={styles.classifyInput}
+              value={value}
+              onChange={(event) =>
+                setSelected(event.target.value as MachineClass)
+              }
+            >
+              {MACHINE_CLASS_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                  {option === suggestedClass ? "（网关建议）" : ""}
+                  {option === currentClass ? "（当前判定）" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.classifyField}>
+            备注（可留空）
+            <input
+              className={styles.classifyInput}
+              value={note}
+              placeholder="例如：这台是开发机，采纳网关建议"
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            className={styles.classifyButton}
+            disabled={mutation.isPending}
+            onClick={() =>
+              mutation.mutate({
+                machineClass: value,
+                // 与当前建议一致时记下「采纳了哪一次建议」，不一致就是改判/推翻。
+                suggestionId: value === suggestedClass ? suggestionId ?? undefined : undefined,
+                note: note.trim() ? note.trim() : undefined,
+              })
+            }
+          >
+            {mutation.isPending ? "提交中…" : "归档判定"}
+          </button>
+          {mutation.isError ? (
+            <span className={styles.classifyError} role="alert">
+              {classifyErrorMessage(mutation.error)}
+            </span>
+          ) : null}
+          {mutation.isSuccess ? (
+            <span className={styles.classifyOk} role="status">
+              已归档：{mutation.data.machineClass}
+            </span>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function classifyErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    // 400 的两种原因（没事实 / 分类与平台不符）网关都写在正文里，原样透出。
+    if (error.status === 400) return error.detail ?? "请求不成立（HTTP 400）。";
+    if (error.status === 404) return "未知 Agent（HTTP 404）。";
+    return `归档失败（HTTP ${error.status}）：${error.detail ?? "请检查网关日志。"}`;
+  }
+  return "归档失败：响应不符合当前契约。";
 }
