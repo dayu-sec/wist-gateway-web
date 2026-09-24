@@ -36,6 +36,9 @@ function formatMemory(bytes?: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+// CPU 有两个口径：cpuPercent 是单核口径（100% = 占满一个核，可能 > 100，只统计
+// agent 进程自身）；cpuPercentOfMachine 是整机口径（0..100）。二者都不能在缺省时
+// 假装成 0，所以统一显示「—」。
 function formatCpu(percent?: number): string {
   return percent === undefined || percent === null ? "—" : `${percent.toFixed(1)}%`;
 }
@@ -84,7 +87,14 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
         </div>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>CPU</span>
-          <span className={styles.metricValue}>{formatCpu(agent.cpuPercent)}</span>
+          <span className={styles.metricValue}>
+            {formatCpu(agent.cpuPercent)}
+            <span className={styles.metricScope}>单核</span>
+          </span>
+          <span className={styles.metricValue}>
+            {formatCpu(agent.cpuPercentOfMachine)}
+            <span className={styles.metricScope}>整机</span>
+          </span>
         </div>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>Admin 延时</span>
@@ -100,7 +110,7 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
           />
         </div>
         <div className={styles.trendItem}>
-          <span className={styles.trendLabel}>CPU 趋势</span>
+          <span className={styles.trendLabel}>CPU 趋势（单核）</span>
           <Sparkline
             values={(agent.metricsHistory ?? []).map((s) => s.cpuPercent)}
             color="var(--series-5)"

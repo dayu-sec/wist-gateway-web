@@ -29,6 +29,8 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "monitoring", crumbs: ["资产清单"] };
     case "/pipeline":
       return { section: "monitoring", crumbs: ["数据采集"] };
+    case "/logs":
+      return { section: "monitoring", crumbs: ["采集日志"] };
     case "/control":
       return { section: "settings", crumbs: ["控制中心"] };
     case "/install":

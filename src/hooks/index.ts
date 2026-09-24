@@ -25,6 +25,7 @@ import {
   revokeWork,
   setAgentInstallPackage,
   setAgentUplink,
+  viewAgentLogs,
   type ClassifyAgentPurposeCommand,
   type GrantOneShotWorkCommand,
   type GrantStandingWorkCommand,
@@ -327,6 +328,41 @@ export function useContentCatalog() {
       if (error instanceof ApiError && error.status === 503) return false;
       return failureCount < 3;
     },
+  });
+}
+
+/**
+ * 网关主机上的采集日志（文件尾部窗口，最新 N 条）。
+ *
+ * 不轮询：日志由数据面写入 NDJSON 文件后由网关读出来，刷新频率跟着采集走，
+ * 而 `refetchInterval` 只会重复读到同一窗内容。需要重取时用右上角「刷新」
+ * （它会失效所有查询）。
+ *
+ * `family`（采集面）与 `agentId` 一样进 queryKey：换面就是换一份数据，不能拿上一个面的
+ * 缓存顶替。两者都参与缓存键，任一变化都要重新读文件尾窗。
+ */
+export function useAgentLogs(
+  agentId: string | undefined,
+  family: string | undefined,
+  limit: number,
+) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["agent-logs", agentId ?? "", family ?? "", limit],
+    queryFn: () =>
+      viewAgentLogs({
+        agentId: agentId || undefined,
+        family: family || undefined,
+        limit,
+      }),
+    enabled,
   });
 }
 

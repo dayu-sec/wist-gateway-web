@@ -151,17 +151,25 @@ export function platformForMachineClass(
 }
 
 /**
- * 这台机器**能派**的采集面 = 该机器类别模板覆盖的面 ∩ 该平台上就绪的面。
+ * 这台机器**能派**的采集面 = 该机器类别模板覆盖的面 ∩ 该平台上**采集就绪**的面。
  *
  * 两个条件都得满足，而且各有各的理由：
  *   · 模板覆盖：不在模板里的面派了也取不到内容（网关回 409「模板不含此面」）；
- *   · 面就绪：规则还没写好（没有 `active` 单元）的面不许授权（渐进启用）。
+ *   · 采集就绪：还没有能采的单元（没有 `status = active`）的面不许授权（渐进启用）。
  * 把两者取交集，运维在表单里看不到注定失败的选项。
+ *
+ * **不看解析就绪**（`ruleRef`）：采原文不需要解析规则。`parseReady` 只是随行带出去，
+ * 让表单能如实标一句「原文未归类」，而不是把两者搅在一起。
  */
 export function grantableFamilies(
   catalog: ContentCatalogView,
   machineClass: MachineClass,
-): { family: string; activeUnits: number; totalUnits: number }[] {
+): {
+  family: string;
+  activeUnits: number;
+  totalUnits: number;
+  parseReady: boolean;
+}[] {
   const platform = platformForMachineClass(machineClass);
   const template = catalog.templates.find(
     (candidate) => candidate.machineClass === machineClass,
@@ -180,10 +188,18 @@ export function grantableFamilies(
         family,
         activeUnits: entry.activeUnits,
         totalUnits: entry.totalUnits,
+        parseReady: entry.parseReady,
       };
     })
-    .filter((entry): entry is { family: string; activeUnits: number; totalUnits: number } =>
-      entry !== null,
+    .filter(
+      (
+        entry,
+      ): entry is {
+        family: string;
+        activeUnits: number;
+        totalUnits: number;
+        parseReady: boolean;
+      } => entry !== null,
     )
     .sort((left, right) => left.family.localeCompare(right.family));
 }
@@ -192,7 +208,8 @@ export function grantableFamilies(
  * 这台机器**不能派**的面及原因（正好是上一条的补集）。
  *
  * 为什么要列出来：只给一三个可选面、不说缺什么，运维会以为「平台就只支持这些」；
- * 而真相往往是「规则还没写好」—— 那是进度问题，不是能力问题。
+ * 而真相往往是「采集要素还没齐」（或者来源类型 agentd 还执行不了）——
+ * 那是进度问题，不是能力问题。
  */
 export function blockedFamilies(
   catalog: ContentCatalogView,
@@ -220,7 +237,7 @@ export function blockedFamilies(
       const entry = readiness.get(family);
       if (entry && entry.ready) return null;
       const detail = entry
-        ? `该面还没有 status = active 的采集单元（${entry.activeUnits}/${entry.totalUnits}）`
+        ? `该面还没有采集就绪（status = active）的单元（${entry.activeUnits}/${entry.totalUnits}）`
         : "该平台上没有这个面的采集单元";
       return { family, reason: detail };
     })

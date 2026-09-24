@@ -528,7 +528,12 @@ function OneShotWorkCard({ work, pending, onAction }: OneShotWorkCardProps) {
 }
 
 interface GrantStandingFormProps {
-  grantable: { family: string; activeUnits: number; totalUnits: number }[];
+  grantable: {
+    family: string;
+    activeUnits: number;
+    totalUnits: number;
+    parseReady: boolean;
+  }[];
   blocked: { family: string; reason: string }[];
   platform: string;
   machineClass: MachineClass;
@@ -551,8 +556,8 @@ function GrantStandingForm({
   if (grantable.length === 0) {
     return (
       <div className={styles.blockedNotice}>
-        <strong>{machineClass}</strong>（{platform}）当前**没有任何就绪的采集面**：
-        所有面的规则都还没写好（没有 `status = active` 的采集单元），因此无可授权。
+        <strong>{machineClass}</strong>（{platform}）当前**没有任何可采的采集面**：
+        所有面都还没有采集就绪的单元（没有 `status = active`），因此无可授权。
         <ul className={styles.blockedList}>
           {blocked.map((entry) => (
             <li key={entry.family}>
@@ -576,7 +581,8 @@ function GrantStandingForm({
           >
             {grantable.map((entry) => (
               <option key={entry.family} value={entry.family}>
-                {entry.family}（{entry.activeUnits}/{entry.totalUnits} 单元就绪）
+                {entry.family}（{entry.activeUnits}/{entry.totalUnits} 单元可采
+                {entry.parseReady ? "" : "，原文未归类"}）
               </option>
             ))}
           </select>

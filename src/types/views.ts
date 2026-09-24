@@ -307,9 +307,13 @@ export interface WorkReceipt {
 /**
  * 采集内容目录的**就绪度与模板**视图（管理面 `GET /api/v1/admin/content`）。
  *
- * 派活的取值空间就来自这里：能派哪个面，取决于该面在该平台上**有没有
- * `status = active` 的采集单元**（授权闸门是面就绪度，不是模板的策展状态）。
+ * 派活的取值空间就来自这里：能派哪个面，取决于该面在该平台上**有没有采集就绪的单元**
+ * （授权闸门是面就绪度，不是模板的策展状态，也不是“解析规则写好了没有”）。
  * 页面用它把「不能派的面」挡在提交之前，而不是让网关回一个 409。
+ *
+ * **两个轴分开**：`ready` 是采集就绪（能不能派下去把原文拿回来），
+ * `parseReady` 是解析就绪（拿回来的能不能归类、抽字段 —— 不参与闸门）。
+ * 只报前者，会把「采到了但认不出是谁」看着像已就绪。
  *
  * 注意后端返回的就绪度是**按平台分组**的（`readiness: [{platform, families: […]}]`），
  * `src/api/admin.ts` 的 normalizer 会摊平成一面一条 —— 页面只需要「这个面能不能派」。
@@ -317,11 +321,15 @@ export interface WorkReceipt {
 export interface FamilyReadinessView {
   family: string;
   platform: string;
-  /** 该面上 `status = active` 的采集单元数。 */
+  /** 该面上采集就绪（`status = active`）的单元数。 */
   activeUnits: number;
+  /** 采集就绪**且**解析就绪（`rule_ref` 非空）的单元数。 */
+  parseReadyUnits: number;
   totalUnits: number;
-  /** 至少一个 active 单元 = 这个面能展开成工作。 */
+  /** 至少一个采集就绪的单元 = 这个面能展开成工作。 */
   ready: boolean;
+  /** 该面采下来的记录能被归类、抽字段（**不参与闸门**）。 */
+  parseReady: boolean;
 }
 
 /** 常驻工作模板（模型 `WorkTemplate`）：这类机器该采什么。 */
@@ -343,4 +351,59 @@ export interface ContentCatalogView {
   supersededBy: number | null;
   templates: ContentTemplateView[];
   readiness: FamilyReadinessView[];
+}
+
+/**
+ * 采集日志里的一条记录（管理面视图，无对应数据库表）。
+ *
+ * 日志链路是 agentd → warp-parse（数据面）→ 网关内部接入端点 → 网关主机上的
+ * **本地 NDJSON 文件**。所以这一条不是查询出来的行，而是网关写盘时留下的原文剪影。
+ *
+ * - `observedAt` 是 **agentd 自己的观测时刻**，`receivedAt` 是**网关写入磁盘的时刻**
+ *   —— 两者不是一回事，中间隔着上行链路与数据面处理，页面上必须分开标注。
+ * - `raw` 是记录**原文**：一条多行日志在 NDJSON 里仍是一行（换行被转义），
+ *   渲染时要保留换行，否则多行记录会被压成一行读错。
+ * - `family` / `unit` 是这条来自**哪个采集面**、**哪个采集单元**（闭集，见
+ *   `doc/design/center/collection-families.md`）；空串 = 不是平台派活来的（本机手工配置的输入）。
+ * - `category` 是日志**类别**，当前恒为泛化的 `agent.log`（正文规则未就绪）。它**不是**采集面：
+ *   两个面一起跑时正文规则还没就绪，只有 `family` 能把它们分开。
+ * - `seq` 是 Agent 上行帧的序号。
+ */
+export interface AgentLogRecord {
+  agentId: string;
+  /** **采集面**（闭集，如 `ServiceLifecycle`）；空串 = 非派活来源。 */
+  family: string;
+  /** **采集单元 id**（如 `mac-launchd-service`）；空串 = 非派活来源。 */
+  unit: string;
+  /** agentd 自己的观测时刻（RFC3339）。 */
+  observedAt: string;
+  /** Agent 上行帧序号。 */
+  seq: number;
+  /** 日志类别；正文规则未就绪时恒为 `agent.log`。 */
+  category: string;
+  /** 记录来源描述（当前恒为「Agent 日志-原文」）。 */
+  logDesc: string;
+  /** 记录原文，**可能含换行**。 */
+  raw: string;
+  /** 网关把这条写入磁盘的时刻（RFC3339）。 */
+  receivedAt: string;
+}
+
+/**
+ * 管理面「采集日志」视图（对应后端 `GET /api/v1/admin/logs`）。
+ *
+ * 服务端读的是**文件尾部窗口**，返回最新的 N 条（写入顺序，旧 → 新）：
+ * - `truncated = true` 表示窗口被截断 —— **更早的记录存在但没返回**，
+ *   页面必须显式提示，否则操作者会把「这一窗」读成「全部」。
+ * - `file` 是网关主机上 NDJSON 文件的绝对路径：操作者需要它去 `tail` / `grep` 原文。
+ */
+export interface AgentLogsView {
+  /** 按写入顺序（旧 → 新）返回的最新 N 条。 */
+  logs: AgentLogRecord[];
+  /** 服务端本次生效的条数上限（夹到 1..1000）。 */
+  limit: number;
+  /** 尾部窗口被裁剪（更早的记录存在但未返回）。 */
+  truncated: boolean;
+  /** 网关主机上 NDJSON 文件的绝对路径。 */
+  file: string;
 }

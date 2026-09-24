@@ -166,6 +166,14 @@
   white-space: nowrap;
 }
 
+/* 口径标注（单核 / 整机）：跟在数值后面，弱化到次级色。 */
+.metricScope {
+  margin-left: 4px;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
 .trend {
   display: flex;
   gap: 12px;

@@ -283,10 +283,32 @@ const catalog = normalizeContentCatalog({
     {
       platform: "macos",
       families: [
-        { family: "HostMetrics", active_units: 1, total_units: 1, ready: true },
-        { family: "DevToolchain", active_units: 0, total_units: 1, ready: false },
-        // PrivacyTcc 在模板里、在目录里有单元但未就绪 → 不可派。
-        { family: "PrivacyTcc", active_units: 0, total_units: 1, ready: false },
+        {
+          family: "HostMetrics",
+          active_units: 1,
+          parse_ready_units: 1,
+          total_units: 1,
+          ready: true,
+          parse_ready: true,
+        },
+        {
+          family: "DevToolchain",
+          active_units: 0,
+          parse_ready_units: 0,
+          total_units: 1,
+          ready: false,
+          parse_ready: false,
+        },
+        // PrivacyTcc：**采集就绪但解析未就绪** —— 正是“两个轴分开”要覆盖的那种面：
+        // 能派下去把原文拿回来，但记录只会以未归类的原文落地。
+        {
+          family: "PrivacyTcc",
+          active_units: 1,
+          parse_ready_units: 0,
+          total_units: 1,
+          ready: true,
+          parse_ready: false,
+        },
       ],
     },
     { platform: "linux", families: [] },
@@ -304,15 +326,21 @@ assert(platformForMachineClass("MacDev") === "macos", "Mac* 属于 macos");
 assert(platformForMachineClass("LinuxData") === "linux", "Linux* 属于 linux");
 
 const grantable = grantableFamilies(catalog, "MacDev");
-assert(grantable.length === 1, `只有就绪的面可派，得到 ${grantable.length}`);
-assert(grantable[0].family === "HostMetrics", "可派的面应是 HostMetrics");
-assert(grantable[0].activeUnits === 1, "可派面的就绪单元数要带出来");
+assert(grantable.length === 2, `只有可采的面可派，得到 ${grantable.length}`);
+assert(grantable[0].family === "HostMetrics", "可派的面按面名排序");
+assert(grantable[0].activeUnits === 1, "可派面的可采单元数要带出来");
+assert(grantable[0].parseReady, "解析就绪要随行带出来");
+// 关键：解析不就绪**不**阻止派活 —— 它只是随行携带的一个提示。
+assert(
+  grantable[1].family === "PrivacyTcc" && !grantable[1].parseReady,
+  "采集就绪但解析未就绪的面照样可派，且要标明原文未归类",
+);
 
 const blocked = blockedFamilies(catalog, "MacDev");
-assert(blocked.length === 2, `不可派的面要列出来，得到 ${blocked.length}`);
+assert(blocked.length === 1, `不可派的面要列出来，得到 ${blocked.length}`);
 assert(
   blocked.every((entry) => entry.reason.includes("active")),
-  "不可派原因要说清是规则未就绪",
+  "不可派原因要说清是没有采集就绪的单元",
 );
 // 没有模板的机器类别：不是「无可派面」而是「取不到模板」，原因要不一样。
 const noTemplate = blockedFamilies(catalog, "LinuxData");
@@ -337,7 +365,20 @@ try {
     catalog_version: 1,
     superseded_by: null,
     templates: [],
-    readiness: [{ families: [{ family: "HostMetrics", active_units: 1, total_units: 1, ready: true }] }],
+    readiness: [
+      {
+        families: [
+          {
+            family: "HostMetrics",
+            active_units: 1,
+            parse_ready_units: 1,
+            total_units: 1,
+            ready: true,
+            parse_ready: true,
+          },
+        ],
+      },
+    ],
   });
 } catch (error) {
   missingPlatform = error;

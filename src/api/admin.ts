@@ -1,6 +1,8 @@
 import type {
   AgentClassification,
   AgentFactSummary,
+  AgentLogRecord,
+  AgentLogsView,
   AgentPurposeView,
   AgentSoftwareEntry,
   AgentSoftwareInventory,
@@ -43,7 +45,18 @@ export interface AgentOverviewMetrics {
 export interface AgentMetricSample {
   at: string;
   memoryBytes?: number;
+  /**
+   * 单核口径的进程 CPU 占比（100% = 占满一个核，可能 > 100）。
+   * 只统计 agent 进程自身，不代表整机负载。
+   */
   cpuPercent?: number;
+  /**
+   * 整机口径的 CPU 占比（0..100），由网关按「单核占比 ÷ 逻辑核数」派生。
+   * 缺省表示后端没测到，页面应当显示「—」而不是 0。
+   */
+  cpuPercentOfMachine?: number;
+  /** agent 所在机器的逻辑核数；缺省表示后端没上报。 */
+  cpuCores?: number;
   adminLatencyMs?: number;
 }
 
@@ -56,7 +69,18 @@ export interface RecentOnlineRegisteredAgent {
   onlineDurationSeconds: number;
   source: "real" | "example";
   memoryBytes?: number;
+  /**
+   * 单核口径的进程 CPU 占比（100% = 占满一个核，可能 > 100）。
+   * 只统计 agent 进程自身，**不是**整机 CPU。
+   */
   cpuPercent?: number;
+  /**
+   * 整机口径的 CPU 占比（0..100），由网关按「单核占比 ÷ 逻辑核数」派生。
+   * 缺省表示后端没测到，页面显示「—」而不是 0。
+   */
+  cpuPercentOfMachine?: number;
+  /** agent 所在机器的逻辑核数；缺省表示后端没上报。 */
+  cpuCores?: number;
   adminLatencyMs?: number;
   metricsHistory?: AgentMetricSample[];
 }
@@ -547,11 +571,17 @@ function normalizeRecentOnlineAgent(payload: any): RecentOnlineRegisteredAgent {
     source,
     memoryBytes: payload.memory_bytes ?? payload.memoryBytes,
     cpuPercent: payload.cpu_percent ?? payload.cpuPercent,
+    cpuPercentOfMachine:
+      payload.cpu_percent_of_machine ?? payload.cpuPercentOfMachine,
+    cpuCores: payload.cpu_cores ?? payload.cpuCores,
     adminLatencyMs: payload.admin_latency_ms ?? payload.adminLatencyMs,
     metricsHistory: rawHistory.map((sample: any) => ({
       at: sample.at,
       memoryBytes: sample.memory_bytes ?? sample.memoryBytes,
       cpuPercent: sample.cpu_percent ?? sample.cpuPercent,
+      cpuPercentOfMachine:
+        sample.cpu_percent_of_machine ?? sample.cpuPercentOfMachine,
+      cpuCores: sample.cpu_cores ?? sample.cpuCores,
       adminLatencyMs: sample.admin_latency_ms ?? sample.adminLatencyMs,
     })),
   };
@@ -1858,11 +1888,18 @@ function normalizeFamilyReadiness(
       payload.active_units ?? payload.activeUnits,
       "familyReadiness.activeUnits",
     ),
+    parseReadyUnits: requiredNumber(
+      payload.parse_ready_units ?? payload.parseReadyUnits,
+      "familyReadiness.parseReadyUnits",
+    ),
     totalUnits: requiredNumber(
       payload.total_units ?? payload.totalUnits,
       "familyReadiness.totalUnits",
     ),
     ready: requiredBoolean(payload.ready, "familyReadiness.ready"),
+    // 解析就绪是**独立**的一轴（不参与闸门）：缺字段时不当 false 默认，
+    // 否则服务端一漂移，页面就会把“不知道能不能归类”默默说成“不能归类”。
+    parseReady: requiredBoolean(payload.parse_ready, "familyReadiness.parseReady"),
   };
 }
 
@@ -1934,4 +1971,108 @@ export function normalizeContentCatalog(payload: any): ContentCatalogView {
 export async function fetchContentCatalog(): Promise<ContentCatalogView> {
   const payload = await requestJson<unknown>("/api/v1/admin/content");
   return normalizeContentCatalog(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 采集日志（管理面 `GET /api/v1/admin/logs`）
+//
+// 日志链路：agentd → warp-parse（数据面）→ 网关内部接入端点 → 网关主机上的
+// **本地 NDJSON 文件**（没有数据库表）。服务端读的是文件尾部窗口，返回最新的
+// N 条（写入顺序，旧 → 新）；`truncated` 表示窗口被裁剪，`file` 指向原文文件。
+// ─────────────────────────────────────────────────────────────────────────────
+
+function normalizeAgentLogRecord(
+  value: unknown,
+  fieldName: string,
+): AgentLogRecord {
+  const record = requiredRecord(value, fieldName);
+  return {
+    agentId: presentStringField(
+      record,
+      ["agent_id", "agentId"],
+      `${fieldName}.agentId`,
+    ),
+    // 采集面 / 采集单元：**由网关补齐**（落盘时就是字符串，本机手工输入的输入是空串），
+    // 所以这两个键必须在响应里 —— 缺了说明对面不是当前契约，别默认成空值糊过去。
+    family: presentStringField(record, ["family"], `${fieldName}.family`),
+    unit: presentStringField(record, ["unit"], `${fieldName}.unit`),
+    observedAt: presentStringField(
+      record,
+      ["observed_at", "observedAt"],
+      `${fieldName}.observedAt`,
+    ),
+    seq: presentNumberField(record, ["seq"], `${fieldName}.seq`),
+    category: presentStringField(record, ["category"], `${fieldName}.category`),
+    logDesc: presentStringField(
+      record,
+      ["log_desc", "logDesc"],
+      `${fieldName}.logDesc`,
+    ),
+    // 原文**可以含换行**：它是一个完整的字符串，不是「一行」。
+    raw: presentStringField(record, ["raw"], `${fieldName}.raw`),
+    receivedAt: presentStringField(
+      record,
+      ["received_at", "receivedAt"],
+      `${fieldName}.receivedAt`,
+    ),
+  };
+}
+
+/**
+ * 规范化「采集日志」视图。
+ *
+ * `logs` 数组本身必须存在 —— 与「暂时没有日志」是两回事：后者是 200 + 空数组，
+ * 不是缺字段。`truncated` / `file` 是这一页判断「是不是全集」与「去哪个文件取原文」
+ * 的两个依据，不能静默丢掉。
+ */
+export function normalizeAgentLogs(payload: unknown): AgentLogsView {
+  const root = requiredRecord(payload, "agentLogs");
+  return {
+    logs: requiredArray(
+      presentField(root, ["logs"], "agentLogs.logs"),
+      "agentLogs.logs",
+    ).map((entry, index) =>
+      normalizeAgentLogRecord(entry, `agentLogs.logs[${index}]`),
+    ),
+    limit: presentNumberField(root, ["limit"], "agentLogs.limit"),
+    truncated: presentBooleanField(root, ["truncated"], "agentLogs.truncated"),
+    file: presentStringField(root, ["file"], "agentLogs.file"),
+  };
+}
+
+/** 「采集日志」查询参数：三者都可选，省略即不约束。 */
+export interface ViewAgentLogsQuery {
+  /** 按 agent_id 过滤；省略 = 返回所有 Agent 的记录。 */
+  agentId?: string;
+  /**
+   * 按**采集面**过滤（闭集，如 `ServiceLifecycle`）；省略 = 所有面。
+   *
+   * 为什么需要它：正文规则未就绪时 `category` 恒为泛化的 `agent.log`，
+   * 面是唯一能把「这些是 launchd 的、那些是 wifi 的」分开的字段。
+   * 值大小写敏感、原样透传 —— 它按面名逐字比对（不是模糊匹配）。
+   */
+  family?: string;
+  /** 条数上限；后端夹到 1..1000（默认 200）。 */
+  limit?: number;
+}
+
+/**
+ * 读取网关主机上的采集日志（文件尾部窗口，最新 N 条）。
+ *
+ * `agent_id` / `family` / `limit` 都是可选查询参数：省略 agent_id 返回所有 Agent 的记录，
+ * 省略 family 返回所有采集面的记录；limit 由后端夹到 1..1000（默认 200），前端**不重复夹取**
+ * —— 夹取口径只留一处真相，页面据响应里的 `limit` / `truncated` 如实呈现。
+ */
+export async function viewAgentLogs(
+  query: ViewAgentLogsQuery = {},
+): Promise<AgentLogsView> {
+  const params = new URLSearchParams();
+  if (query.agentId) params.set("agent_id", query.agentId);
+  if (query.family) params.set("family", query.family);
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  const search = params.toString();
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/logs${search ? `?${search}` : ""}`,
+  );
+  return normalizeAgentLogs(payload);
 }

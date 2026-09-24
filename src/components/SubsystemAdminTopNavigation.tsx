@@ -115,6 +115,16 @@ function IconSoftware() {
   );
 }
 
+/** 采集日志：日志文件外形 —— Agent 采集原文在网关侧落盘的结果。 */
+function IconLogs() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <rect x="2.6" y="1.8" width="10.8" height="12.4" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5.4 5.2h5.2M5.4 8h5.2M5.4 10.8h3.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -123,6 +133,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: "/hosts", label: "主机指标", icon: <IconHost /> },
       { to: "/software", label: "资产清单", icon: <IconSoftware /> },
       { to: "/pipeline", label: "数据采集", icon: <IconPipeline /> },
+      { to: "/logs", label: "采集日志", icon: <IconLogs /> },
     ],
   },
   {

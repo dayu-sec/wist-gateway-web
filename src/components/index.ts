@@ -62,4 +62,5 @@ export { SubsystemAgentHostListPage } from "./SubsystemAgentHostListPage";
 export { SubsystemSoftwareInventoryPage } from "./SubsystemSoftwareInventoryPage";
 export { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
 export { SubsystemAgentPurposePage } from "./SubsystemAgentPurposePage";
+export { SubsystemAgentLogsPage } from "./SubsystemAgentLogsPage";
 export { AppLayout } from "./AppLayout";

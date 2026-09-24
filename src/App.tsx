@@ -13,6 +13,7 @@ import { SubsystemAgentHostListPage } from "./components/SubsystemAgentHostListP
 import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareInventoryPage";
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
+import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 
 export function App() {
   return (
@@ -30,6 +31,7 @@ export function App() {
         <Route path="/hosts" element={<SubsystemAgentHostListPage />} />
         <Route path="/software" element={<SubsystemSoftwareInventoryPage />} />
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
+        <Route path="/logs" element={<SubsystemAgentLogsPage />} />
         <Route
           path="/agents/:agentId/metrics"
           element={<SubsystemAgentHostMetricsPage />}
