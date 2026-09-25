@@ -14,6 +14,8 @@ import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareIn
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
+import { SubsystemRolloutPlansPage } from "./components/SubsystemRolloutPlansPage";
+import { SubsystemRolloutPlanDetailPage } from "./components/SubsystemRolloutPlanDetailPage";
 
 export function App() {
   return (
@@ -32,6 +34,11 @@ export function App() {
         <Route path="/software" element={<SubsystemSoftwareInventoryPage />} />
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route path="/logs" element={<SubsystemAgentLogsPage />} />
+        <Route path="/rollout" element={<SubsystemRolloutPlansPage />} />
+        <Route
+          path="/rollout/:planId"
+          element={<SubsystemRolloutPlanDetailPage />}
+        />
         <Route
           path="/agents/:agentId/metrics"
           element={<SubsystemAgentHostMetricsPage />}

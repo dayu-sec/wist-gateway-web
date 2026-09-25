@@ -63,4 +63,6 @@ export { SubsystemSoftwareInventoryPage } from "./SubsystemSoftwareInventoryPage
 export { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
 export { SubsystemAgentPurposePage } from "./SubsystemAgentPurposePage";
 export { SubsystemAgentLogsPage } from "./SubsystemAgentLogsPage";
+export { SubsystemRolloutPlansPage } from "./SubsystemRolloutPlansPage";
+export { SubsystemRolloutPlanDetailPage } from "./SubsystemRolloutPlanDetailPage";
 export { AppLayout } from "./AppLayout";

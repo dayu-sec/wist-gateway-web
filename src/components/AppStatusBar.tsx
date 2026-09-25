@@ -6,6 +6,7 @@ import styles from "./AppStatusBar.module.css";
 
 const SECTION_LABELS: Record<string, string> = {
   monitoring: "监控",
+  release: "发布",
   settings: "设置",
 };
 
@@ -22,6 +23,9 @@ function describeRoute(pathname: string): RouteMeta {
   if (matchPath("/agents/:agentId/purpose", pathname)) {
     return { section: "monitoring", crumbs: ["主机指标", "Agent 用途"] };
   }
+  if (matchPath("/rollout/:planId", pathname)) {
+    return { section: "release", crumbs: ["灰度发布", "计划详情"] };
+  }
   switch (pathname) {
     case "/hosts":
       return { section: "monitoring", crumbs: ["主机指标"] };
@@ -31,6 +35,8 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "monitoring", crumbs: ["数据采集"] };
     case "/logs":
       return { section: "monitoring", crumbs: ["采集日志"] };
+    case "/rollout":
+      return { section: "release", crumbs: ["灰度发布"] };
     case "/control":
       return { section: "settings", crumbs: ["控制中心"] };
     case "/install":

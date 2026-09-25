@@ -3,7 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
   ApiError,
+  advanceRolloutPlan,
+  approveRolloutPlan,
   classifyAgentPurpose,
+  createRolloutPlan,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
   fetchAgentInstallPackage,
@@ -15,6 +18,8 @@ import {
   fetchAllAgentsHostMetrics,
   fetchContentCatalog,
   fetchPipelineTopology,
+  fetchRolloutPlan,
+  fetchRolloutPlans,
   fetchSoftwareFleetInventory,
   getAdminApiToken,
   grantOneShotWork,
@@ -27,6 +32,7 @@ import {
   setAgentUplink,
   viewAgentLogs,
   type ClassifyAgentPurposeCommand,
+  type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
   type GrantStandingWorkCommand,
   type SetAgentInstallPackageCommand,
@@ -429,6 +435,93 @@ export function useClassifyAgentPurpose(agentId: string) {
       void queryClient.invalidateQueries({ queryKey: ["agent-purpose", agentId] });
       // 判定是派活的前置：判完这台机器「能不能派活」就变了，一并刷新。
       void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
+    },
+  });
+}
+
+/**
+ * 灰度发布计划列表（模型 `Control.Rollout`）。
+ *
+ * 不轮询：计划只在管理面操作（创建/批准/推进）时变化，而这些操作的 mutation
+ * 会失效这份查询。需要重取时用右上角「刷新」。
+ */
+export function useRolloutPlans() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["rollout-plans"],
+    queryFn: fetchRolloutPlans,
+    enabled,
+  });
+}
+
+/**
+ * 一份计划及其逐台进度。
+ *
+ * 不轮询：条目状态由 agentd 上报回填（`ReportWorkResult`），而 Agent 按 30 秒的
+ * 节拍拉快照 —— 提交批准/推进后会失效重取；要看最新进度用右上角「刷新」。
+ * 404（未知计划）是确定性的，重试只是白撞同一个错误。
+ */
+export function useRolloutPlan(planId: string) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(planId);
+  return useQuery({
+    queryKey: ["rollout-plan", planId],
+    queryFn: () => fetchRolloutPlan(planId),
+    enabled,
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+
+/** 创建一份计划；成功后刷新计划列表。 */
+export function useCreateRolloutPlan() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: CreateRolloutPlanCommand) => createRolloutPlan(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["rollout-plans"] });
+    },
+  });
+}
+
+/**
+ * 批准 / 推进一份计划。
+ *
+ * 两个动作合成一个 mutation（而不是两个 hook）：它们在详情页上是**相邻的两个按钮**，
+ * 失败提示与刷新策略完全一样，拆开只会让调用方多写两份重复样板。
+ */
+export function useRolloutPlanAction() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: { kind: "approve" | "advance"; planId: string }) =>
+      action.kind === "approve"
+        ? approveRolloutPlan(action.planId)
+        : advanceRolloutPlan(action.planId),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["rollout-plans"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["rollout-plan", variables.planId],
+      });
     },
   });
 }

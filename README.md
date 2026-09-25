@@ -78,6 +78,9 @@ npm run test:gateway-initialize  # 校验 Gateway 初始化接口契约
 | `/init` | 初始化 Gateway |
 | `/hosts` | 主机列表 |
 | `/pipeline` | 数据采集管线 |
+| `/logs` | 采集日志 |
+| `/rollout` | 灰度发布计划 |
+| `/rollout/:planId` | 灰度发布计划详情 |
 | `/agents/:agentId/metrics` | 主机指标详情 |
 
 ## 代码生成

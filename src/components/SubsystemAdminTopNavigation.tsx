@@ -125,6 +125,17 @@ function IconLogs() {
   );
 }
 
+/** 灰度发布：逐级展开的横条 —— 金丝雀 → 扩大 → 全量。 */
+function IconRollout() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <rect x="2" y="2.5" width="5.4" height="2.6" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="2" y="6.7" width="9" height="2.6" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <rect x="2" y="10.9" width="12" height="2.6" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -135,6 +146,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: "/pipeline", label: "数据采集", icon: <IconPipeline /> },
       { to: "/logs", label: "采集日志", icon: <IconLogs /> },
     ],
+  },
+  {
+    label: "发布",
+    items: [{ to: "/rollout", label: "灰度发布", icon: <IconRollout /> }],
   },
   {
     label: "设置",

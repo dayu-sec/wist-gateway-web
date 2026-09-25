@@ -425,3 +425,68 @@ export interface AgentLogsView {
   /** 网关主机上 NDJSON 文件的绝对路径。 */
   file: string;
 }
+
+/**
+ * 灰度发布计划（模型 `Control.Rollout`）的视图结构。
+ *
+ * 计划是「编排层」：把一个动作（action + spec）按阶段（灰度）铺到一组目标（target）。
+ * 批准/推进时才把阶段内的 target **物化**成一件件一次性工作（`OneShotWork`），
+ * 结果经 `ReportWorkResult` 回填到逐目标条目 —— 计划本身不重复存工作内容，
+ * `spec` 只在计划这一行，条目只记 `work_id` 与结果。
+ *
+ * 与中心侧「升级网关」的 `UpgradePlan` 不同：那是具体动作的专用建模，
+ * 这里是通用的「分阶段灰度发布」结构，`upgrade` 只是它的第一个 action。
+ */
+
+/** 计划里的一个阶段：一段目标范围 + 推进到下一阶段的闸门。 */
+export interface RolloutPhaseView {
+  /** 从 1 开始。 */
+  phaseIndex: number;
+  /** 本阶段的目标范围（金丝雀阶段通常一两台，后续阶段逐步扩大）。 */
+  targetIds: string[];
+  /** 推进闸门：manual | all_succeeded | success_rate:<NN>。 */
+  advanceRule: string;
+  /** pending | rolling | completed。 */
+  status: string;
+}
+
+/** 一份灰度发布计划（`GET /api/v1/admin/rollout-plans`）。 */
+export interface RolloutPlanView {
+  planId: string;
+  /** 动作面：与 `OneShotWork.action` 同一目录，今天只有 `upgrade`。 */
+  action: string;
+  /** 动作参数（**JSON 字符串**）：`upgrade` 时是 `{"target_version","package_url","package_sha256"}`。 */
+  spec: string;
+  deadlineAt: string;
+  timeoutSeconds: number;
+  phases: RolloutPhaseView[];
+  /** 每个阶段内同时执行的台数（0 = 不节流、全量同时）。 */
+  batchSize: number;
+  /** 当前进行到第几阶段（0 = 尚未开始；对应 `phases[i].phaseIndex`）。 */
+  currentPhase: number;
+  /** draft | rolling | completed（模型的 approved/failed/canceled 留待后续）。 */
+  status: string;
+  createdBy: string;
+  createdAt: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+}
+
+/** 计划里的一个目标（target）的逐台进度。 */
+export interface RolloutPlanEntryView {
+  /** 目标标识：网关铺机队时是 `agent_id`。 */
+  targetId: string;
+  /** 物化出的执行单元（一次性工作）标识；还没进入该阶段时为 `null`。 */
+  workId: string | null;
+  /** pending | dispatched | succeeded | failed（`rolled_back` 在 agentd 侧映射成 failed）。 */
+  status: string;
+  /** 结果说明：失败原因/回滚到哪一版写在这里。 */
+  detail: string;
+  updatedAt: string;
+}
+
+/** 管理面「计划 + 逐目标进度」详情（`GET /api/v1/admin/rollout-plans/{plan_id}`）。 */
+export interface RolloutPlanDetailView {
+  plan: RolloutPlanView;
+  entries: RolloutPlanEntryView[];
+}

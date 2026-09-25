@@ -14,6 +14,10 @@ import type {
   OneShotWork,
   PurposeSignal,
   PurposeSuggestion,
+  RolloutPhaseView,
+  RolloutPlanDetailView,
+  RolloutPlanEntryView,
+  RolloutPlanView,
   SoftwareFleetInventory,
   SoftwareHolder,
   SoftwareKeySummary,
@@ -2092,4 +2096,254 @@ export async function viewAgentLogs(
     `/api/v1/admin/logs${search ? `?${search}` : ""}`,
   );
   return normalizeAgentLogs(payload);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 灰度发布计划（模型 `Control.Rollout`）
+//
+// 计划是**编排层**：把升级（今天唯一的动作）按阶段铺到机队。管理面要能回答：这份计划
+// 铺到谁、铺到第几阶段、每台成没成、失败/回滚的原因。计划本身不存工作内容 —— `spec`
+// 只在计划这一行，逐目标条目只记 work_id 与结果（由 agentd 上报回填，网关折算成条目状态）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** 新建计划里的一个阶段（模型 `RolloutPhase`）。 */
+export interface CreateRolloutPhaseCommand {
+  /** 本阶段的目标范围（agent_id）。 */
+  targetIds: string[];
+  /** manual | all_succeeded | success_rate:<NN>。 */
+  advanceRule: string;
+}
+
+/** 新建一份灰度发布计划（模型 `AdminCreateRolloutPlan`）。 */
+export interface CreateRolloutPlanCommand {
+  /** 动作面：今天只有 `upgrade`。 */
+  action: string;
+  /** 动作参数（JSON 字符串）；`upgrade` 用 `jsonUpgradeSpec` 从结构化字段拼。 */
+  spec: string;
+  phases: CreateRolloutPhaseCommand[];
+  /** RFC3339 绝对截止。 */
+  deadlineAt: string;
+  /** 执行预算（秒），必须为正。 */
+  timeoutSeconds: number;
+  /** 每个阶段内同时执行的台数（0 = 不节流、全量同时）。 */
+  batchSize: number;
+}
+
+/**
+ * 拼 `upgrade` 动作的 spec（与 agentd 侧 `UpgradeSpec` 同形）。
+ *
+ * 空的可选字段**不写进 JSON**，而不是写成 `""`：agentd 侧按字段有没有来决定用不用它。
+ */
+export function jsonUpgradeSpec(input: {
+  targetVersion: string;
+  packageUrl?: string;
+  packageSha256?: string;
+}): string {
+  return JSON.stringify({
+    target_version: input.targetVersion.trim(),
+    ...(input.packageUrl?.trim()
+      ? { package_url: input.packageUrl.trim() }
+      : {}),
+    ...(input.packageSha256?.trim()
+      ? { package_sha256: input.packageSha256.trim() }
+      : {}),
+  });
+}
+
+/**
+ * 解析 `upgrade` 计划的 `spec`（与 `jsonUpgradeSpec` 反向）。
+ *
+ * 解析失败**不抛错、也不当空**：那会把「计划里的参数写坏了」静默成「没什么参数」
+ * 两种情形处置不同 —— 保留原文与原因，交给页面如实呈现。
+ */
+export function parseUpgradeSpec(raw: string): {
+  targetVersion: string | null;
+  packageUrl: string | null;
+  packageSha256: string | null;
+  raw: string;
+  error: string | null;
+} {
+  try {
+    const record = requiredRecord(JSON.parse(raw), "upgradeSpec");
+    return {
+      targetVersion: nullableStringField(
+        record,
+        ["target_version", "targetVersion"],
+        "upgradeSpec.targetVersion",
+      ),
+      packageUrl: nullableStringField(
+        record,
+        ["package_url", "packageUrl"],
+        "upgradeSpec.packageUrl",
+      ),
+      packageSha256: nullableStringField(
+        record,
+        ["package_sha256", "packageSha256"],
+        "upgradeSpec.packageSha256",
+      ),
+      raw,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      targetVersion: null,
+      packageUrl: null,
+      packageSha256: null,
+      raw,
+      error: (error as Error).message,
+    };
+  }
+}
+
+function normalizeRolloutPhase(payload: unknown): RolloutPhaseView {
+  const record = requiredRecord(payload, "rolloutPhase");
+  return {
+    phaseIndex: requiredNumber(
+      presentField(record, ["phase_index", "phaseIndex"], "rolloutPhase.phaseIndex"),
+      "rolloutPhase.phaseIndex",
+    ),
+    targetIds: requiredArray(
+      presentField(record, ["target_ids", "targetIds"], "rolloutPhase.targetIds"),
+      "rolloutPhase.targetIds",
+    ).map((target, index) =>
+      requiredString(target, `rolloutPhase.targetIds[${index}]`),
+    ),
+    advanceRule: requiredString(
+      presentField(record, ["advance_rule", "advanceRule"], "rolloutPhase.advanceRule"),
+      "rolloutPhase.advanceRule",
+    ),
+    status: requiredString(record.status, "rolloutPhase.status"),
+  };
+}
+
+/** 规范化一份计划（`/rollout-plans` 列表项与单份返回同一形状）。 */
+export function normalizeRolloutPlan(payload: unknown): RolloutPlanView {
+  const record = requiredRecord(payload, "rolloutPlan");
+  return {
+    planId: requiredString(
+      presentField(record, ["plan_id", "planId"], "rolloutPlan.planId"),
+      "rolloutPlan.planId",
+    ),
+    action: requiredString(record.action, "rolloutPlan.action"),
+    spec: requiredString(record.spec, "rolloutPlan.spec"),
+    deadlineAt: requiredString(
+      presentField(record, ["deadline_at", "deadlineAt"], "rolloutPlan.deadlineAt"),
+      "rolloutPlan.deadlineAt",
+    ),
+    timeoutSeconds: requiredNumber(
+      presentField(record, ["timeout_seconds", "timeoutSeconds"], "rolloutPlan.timeoutSeconds"),
+      "rolloutPlan.timeoutSeconds",
+    ),
+    phases: requiredArray(record.phases, "rolloutPlan.phases").map(normalizeRolloutPhase),
+    batchSize: requiredNumber(
+      presentField(record, ["batch_size", "batchSize"], "rolloutPlan.batchSize"),
+      "rolloutPlan.batchSize",
+    ),
+    currentPhase: requiredNumber(
+      presentField(record, ["current_phase", "currentPhase"], "rolloutPlan.currentPhase"),
+      "rolloutPlan.currentPhase",
+    ),
+    status: requiredString(record.status, "rolloutPlan.status"),
+    createdBy: requiredString(
+      presentField(record, ["created_by", "createdBy"], "rolloutPlan.createdBy"),
+      "rolloutPlan.createdBy",
+    ),
+    createdAt: requiredString(
+      presentField(record, ["created_at", "createdAt"], "rolloutPlan.createdAt"),
+      "rolloutPlan.createdAt",
+    ),
+    approvedBy: nullableStringField(
+      record,
+      ["approved_by", "approvedBy"],
+      "rolloutPlan.approvedBy",
+    ),
+    approvedAt: nullableStringField(
+      record,
+      ["approved_at", "approvedAt"],
+      "rolloutPlan.approvedAt",
+    ),
+  };
+}
+
+function normalizeRolloutPlanEntry(payload: unknown): RolloutPlanEntryView {
+  const record = requiredRecord(payload, "rolloutEntry");
+  return {
+    targetId: requiredString(
+      presentField(record, ["target_id", "targetId"], "rolloutEntry.targetId"),
+      "rolloutEntry.targetId",
+    ),
+    workId: nullableStringField(record, ["work_id", "workId"], "rolloutEntry.workId"),
+    status: requiredString(record.status, "rolloutEntry.status"),
+    detail: requiredString(record.detail, "rolloutEntry.detail"),
+    updatedAt: requiredString(
+      presentField(record, ["updated_at", "updatedAt"], "rolloutEntry.updatedAt"),
+      "rolloutEntry.updatedAt",
+    ),
+  };
+}
+
+/** 规范化一份计划详情（`GET /api/v1/admin/rollout-plans/{plan_id}`）。 */
+export function normalizeRolloutPlanDetail(payload: unknown): RolloutPlanDetailView {
+  const record = requiredRecord(payload, "rolloutPlanDetail");
+  return {
+    plan: normalizeRolloutPlan(record.plan),
+    entries: requiredArray(record.entries, "rolloutPlanDetail.entries").map(
+      normalizeRolloutPlanEntry,
+    ),
+  };
+}
+
+/** 列出网关下的灰度发布计划（读投影，不轮询：只在管理面操作时变化）。 */
+export async function fetchRolloutPlans(): Promise<RolloutPlanView[]> {
+  const payload = await requestJson<unknown>("/api/v1/admin/rollout-plans");
+  return requiredArray(payload, "rolloutPlans").map(normalizeRolloutPlan);
+}
+
+/** 查看一份计划及其逐台进度。 */
+export async function fetchRolloutPlan(
+  planId: string,
+): Promise<RolloutPlanDetailView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/rollout-plans/${encodeURIComponent(planId)}`,
+  );
+  return normalizeRolloutPlanDetail(payload);
+}
+
+/** 创建一份计划（落成 `draft`，等批准后才展开成工作）。 */
+export async function createRolloutPlan(
+  command: CreateRolloutPlanCommand,
+): Promise<RolloutPlanView> {
+  const payload = await requestJson<unknown>("/api/v1/admin/rollout-plans", {
+    method: "POST",
+    body: JSON.stringify({
+      action: command.action,
+      spec: command.spec,
+      phases: command.phases.map((phase) => ({
+        target_ids: phase.targetIds,
+        advance_rule: phase.advanceRule,
+      })),
+      deadline_at: command.deadlineAt,
+      timeout_seconds: command.timeoutSeconds,
+      batch_size: command.batchSize,
+    }),
+  });
+  return normalizeRolloutPlan(payload);
+}
+
+/** 批准一份计划：进入第一阶段，为阶段内每个 target 生成一件一次性工作。 */
+export async function approveRolloutPlan(planId: string): Promise<RolloutPlanView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/rollout-plans/approve",
+    { method: "POST", body: JSON.stringify({ plan_id: planId }) },
+  );
+  return normalizeRolloutPlan(payload);
+}
+
+/** 推进到下一阶段（`advance_rule = manual` 的阶段由人工确认后点这个）。 */
+export async function advanceRolloutPlan(planId: string): Promise<RolloutPlanView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/rollout-plans/advance",
+    { method: "POST", body: JSON.stringify({ plan_id: planId }) },
+  );
+  return normalizeRolloutPlan(payload);
 }
