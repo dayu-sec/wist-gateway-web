@@ -85,21 +85,19 @@ function IconInstall() {
   );
 }
 
-function IconPackage() {
+/** Agent 初始化：齿轮 —— Agent 端初始配置（取包来源 / 上送目标）的归口。 */
+function IconAgentInit() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <path d="M8 1.9 14 4.6v6.8L8 14.1 2 11.4V4.6z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M2 4.6 8 7.3l6-2.7M8 7.3v6.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconUplink() {
-  return (
-    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <path d="M8 10.6V2.4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M4.9 5.5 8 2.4l3.1 3.1" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M2.6 13.4h10.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="8" cy="8" r="5.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="8" cy="8" r="2.1" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M8 1.2v1.8M8 13v1.8M1.2 8h1.8M13 8h1.8"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
@@ -125,13 +123,13 @@ function IconLogs() {
   );
 }
 
-/** 灰度发布：逐级展开的横条 —— 金丝雀 → 扩大 → 全量。 */
-function IconRollout() {
+/** Agent 升级：向上的箭头 + 底托 —— 把机器上的 agentd 升到更高版本。 */
+function IconUpgrade() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <rect x="2" y="2.5" width="5.4" height="2.6" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="2" y="6.7" width="9" height="2.6" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <rect x="2" y="10.9" width="12" height="2.6" rx="1.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 12.4V3.4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M4.7 6.7 8 3.4l3.3 3.3" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 14.2h10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }
@@ -148,17 +146,19 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     ],
   },
   {
-    label: "发布",
-    items: [{ to: "/rollout", label: "灰度发布", icon: <IconRollout /> }],
+    label: "运维",
+    items: [{ to: "/upgrade", label: "Agent 升级", icon: <IconUpgrade /> }],
   },
   {
     label: "设置",
     items: [
       { to: "/control", label: "控制中心", icon: <IconControl /> },
-      { to: "/init", label: "初始化 Gateway", icon: <IconInit /> },
+      // 「链接上级」= 把本网关接入上级控制中心，与上面那项 Agent 远程运维的
+      //「控制中心」是两回事，所以名字里点明动作与对象。
+      { to: "/link-upstream", label: "链接上级", icon: <IconInit /> },
+      // 取包来源与上送目标合成一页：两项都只写进新签发 Agent 的初始配置。
+      { to: "/agent-init", label: "Agent 初始化", icon: <IconAgentInit /> },
       { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
-      { to: "/install-package", label: "安装包设置", icon: <IconPackage /> },
-      { to: "/uplink", label: "数据面上送地址", icon: <IconUplink /> },
     ],
   },
 ];

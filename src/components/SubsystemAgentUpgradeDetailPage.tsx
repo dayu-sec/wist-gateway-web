@@ -18,7 +18,7 @@ import {
   planTargetCount,
   type RolloutTone,
 } from "./rolloutStatus";
-import styles from "./SubsystemRolloutPlanDetailPage.module.css";
+import styles from "./SubsystemAgentUpgradeDetailPage.module.css";
 
 /** 区分 404 的两种含义（与其余管理面页面同一口径）。 */
 function isUnknownPlanError(error: unknown): boolean {
@@ -78,15 +78,15 @@ function toneClass(tone: RolloutTone): string {
 }
 
 /**
- * 灰度发布计划详情页（模型 `Control.Rollout`：`ViewRolloutPlan` + `ApproveRolloutPlan`
+ * 升级计划详情页（模型 `Control.Rollout` 的具体化：`ViewRolloutPlan` + `ApproveRolloutPlan`
  * + `AdvanceRolloutPlan`）。
  *
- * 这一页承载灰度发布的**两处人工闸门**：
- *   · 草稿 → 批准（进入第一阶段，把阶段内的 Agent 各展开成一件一次性升级工作）；
+ * 一份「Agent 升级」计划的分阶段推进就落在这里，承载两处人工闸门：
+ *   · 草稿 → 批准（进入第一阶段，为阶段内的 Agent 各派一件升级）；
  *   · 进行中 → 推进（金丝雀确认无问题后，把下一阶段范围也铺下去）。
- * 逐台进度是条目（entry），由 agentd 上报的结果回填而来。
+ * 逐台进度是条目（entry），由 agentd 上报的升级结果回填而来。
  */
-export function SubsystemRolloutPlanDetailPage() {
+export function SubsystemAgentUpgradeDetailPage() {
   const { planId = "" } = useParams<{ planId: string }>();
   const detail = useRolloutPlan(planId);
   const action = useRolloutPlanAction();
@@ -104,8 +104,8 @@ export function SubsystemRolloutPlanDetailPage() {
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
-        <Link className={styles.back} to="/rollout">
-          <span aria-hidden="true">←</span> 返回计划列表
+        <Link className={styles.back} to="/upgrade">
+          <span aria-hidden="true">←</span> 返回升级计划
         </Link>
         <div className={styles.titleRow}>
           <h1 className={styles.pageTitle}>{planId || "未指定计划"}</h1>
@@ -116,7 +116,7 @@ export function SubsystemRolloutPlanDetailPage() {
           ) : null}
         </div>
         <p className={styles.pageSummary}>
-          计划是编排层：批准/推进时才把阶段内的 Agent 物化成一次性升级工作；
+          这份计划把 agentd 升级按灰度阶段铺到它覆盖的 Agent：批准/推进时才真正派发升级，
           逐台成败由 agentd 上报回填。本页不自动轮询，操作后或点右上角「刷新」重取。
         </p>
       </header>
@@ -125,12 +125,12 @@ export function SubsystemRolloutPlanDetailPage() {
         <section className={styles.unknown} role="alert">
           <h2 className={styles.unknownTitle}>未知计划</h2>
           <p className={styles.unknownText}>
-            网关里没有 <strong>{planId}</strong> 这份灰度发布计划（HTTP 404）。
+            网关里没有 <strong>{planId}</strong> 这份升级计划（HTTP 404）。
           </p>
           <p className={styles.unknownHint}>
-            请确认计划 id 是否正确；已创建的计划可以在
-            <Link className={styles.unknownLink} to="/rollout">
-              计划列表
+            请确认计划 id 是否正确；已创建的升级计划可以在
+            <Link className={styles.unknownLink} to="/upgrade">
+              升级计划
             </Link>
             页核对。
           </p>
@@ -165,9 +165,9 @@ export function SubsystemRolloutPlanDetailPage() {
 
       {plan ? (
         <div className={styles.viewWrap}>
-          <section className={styles.summary} aria-label="计划摘要">
+          <section className={styles.summary} aria-label="升级计划摘要">
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>目标总数</span>
+              <span className={styles.summaryLabel}>Agent 数</span>
               <span className={styles.summaryValue}>{planTargetCount(plan)}</span>
             </div>
             <div className={styles.summaryItem}>
@@ -220,15 +220,17 @@ export function SubsystemRolloutPlanDetailPage() {
           <section className={styles.card} aria-labelledby="rollout-plan-meta-title">
             <header className={styles.cardHead}>
               <h2 className={styles.cardTitle} id="rollout-plan-meta-title">
-                计划内容
+                升级参数
               </h2>
-              <span className={styles.cardHint}>动作与参数在各阶段共用一份</span>
+              <span className={styles.cardHint}>各阶段共用一份</span>
             </header>
             <dl className={styles.metaList}>
               <div className={styles.metaRow}>
-                <dt>动作</dt>
+                <dt>任务类型</dt>
                 <dd>
-                  <span className={styles.mono}>{plan.action}</span>
+                  <span className={styles.mono}>
+                    {plan.action === "upgrade" ? "Agent 升级" : plan.action}
+                  </span>
                 </dd>
               </div>
               <div className={styles.metaRow}>
@@ -238,10 +240,10 @@ export function SubsystemRolloutPlanDetailPage() {
                     <span className={styles.valueWarn}>
                       spec 不是合法 JSON：{spec.error}
                     </span>
+                  ) : spec?.targetVersion ? (
+                    <span className={styles.mono}>{spec.targetVersion}</span>
                   ) : (
-                    <span className={styles.mono}>
-                      {spec?.targetVersion ?? "—"}
-                    </span>
+                    <span className={styles.valueMuted}>由包内 agentd 决定</span>
                   )}
                 </dd>
               </div>
@@ -270,7 +272,7 @@ export function SubsystemRolloutPlanDetailPage() {
                 </dd>
               </div>
               <div className={styles.metaRow}>
-                <dt>执行预算</dt>
+                <dt>单个 Agent 超时</dt>
                 <dd>
                   <span className={styles.mono}>{plan.timeoutSeconds} 秒</span>
                 </dd>
@@ -280,8 +282,8 @@ export function SubsystemRolloutPlanDetailPage() {
                 <dd>
                   <span className={styles.mono}>
                     {plan.batchSize === 0
-                      ? "不节流（全量同时）"
-                      : `最多 ${plan.batchSize} 台在飞`}
+                      ? "不节流（全部同时升级）"
+                      : `最多 ${plan.batchSize} 台同时升级`}
                   </span>
                 </dd>
               </div>
@@ -327,8 +329,8 @@ export function SubsystemRolloutPlanDetailPage() {
                 <div className={styles.gateCopy}>
                   <span className={styles.gateTitle}>批准并进入第一阶段</span>
                   <span className={styles.gateHint}>
-                    批准后为阶段 1 的 {plan.phases[0]?.targetIds.length ?? 0} 个
-                    Agent 各生成一件一次性升级工作。
+                    批准后为第 1 批（金丝雀）的 {plan.phases[0]?.targetIds.length ?? 0} 个
+                    Agent 各派一件升级。
                   </span>
                 </div>
                 <button
@@ -354,11 +356,11 @@ export function SubsystemRolloutPlanDetailPage() {
                     {activeSettled
                       ? isLastPhase
                         ? "当前阶段已全部了结，推进后计划完成。"
-                        : `当前阶段已全部了结，推进后为阶段 ${
+                        : `当前阶段已全部了结，推进后为第 ${
                             plan.currentPhase + 1
-                          } 的 ${
+                          } 批的 ${
                             plan.phases[plan.currentPhase]?.targetIds.length ?? 0
-                          } 个 Agent 派发工作。`
+                          } 个 Agent 派发升级。`
                       : `当前阶段还有 ${activeIncomplete} 个目标未了结（执行中或待派发）。`}
                   </span>
                 </div>
@@ -398,14 +400,16 @@ export function SubsystemRolloutPlanDetailPage() {
                     }
                   >
                     <div className={styles.phaseTop}>
-                      <span className={styles.phaseIndex}>阶段 {phase.phaseIndex}</span>
+                      <span className={styles.phaseIndex}>
+                        第 {phase.phaseIndex} 批
+                      </span>
                       <span
                         className={`${styles.badge} ${toneClass(phaseStatusTone(phase.status))}`}
                       >
                         {phaseStatusLabel(phase.status)}
                       </span>
                       <span className={styles.phaseMeta}>
-                        {phase.targetIds.length} 个目标 ·{" "}
+                        {phase.targetIds.length} 个 Agent ·{" "}
                         {advanceRuleLabel(phase.advanceRule)}
                       </span>
                     </div>
@@ -426,20 +430,20 @@ export function SubsystemRolloutPlanDetailPage() {
                 逐台进度
               </h2>
               <span className={styles.cardHint}>
-                一个目标一行；进入阶段时物化出工作，结果回填到这里
+                一个 Agent 一行；进入阶段时才派发升级，结果回填到这里
               </span>
             </header>
 
             {entries.length === 0 ? (
-              <p className={styles.emptyNotice}>这份计划还没有目标条目。</p>
+              <p className={styles.emptyNotice}>这份计划还没有 Agent 条目。</p>
             ) : (
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th scope="col">目标</th>
+                      <th scope="col">Agent</th>
                       <th scope="col">状态</th>
-                      <th scope="col">工作</th>
+                      <th scope="col">升级工作</th>
                       <th scope="col">说明</th>
                       <th scope="col">更新时间</th>
                     </tr>

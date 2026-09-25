@@ -73,15 +73,20 @@ npm run test:gateway-initialize  # 校验 Gateway 初始化接口契约
 | 路径 | 说明 |
 |------|------|
 | `/` | Agent 总览 |
-| `/control` | Agent 控制中心 |
+| `/control` | Agent 控制中心（远程运维动作） |
 | `/install` | 安装 Agent |
-| `/init` | 初始化 Gateway |
+| `/link-upstream` | 链接上级（接入上级控制中心） |
+| `/agent-init` | Agent 初始化（取包来源 / 数据面上送地址） |
+| `/init` | 已改名 `/link-upstream`，保留重定向 |
+| `/install-package`、`/uplink` | 已并入 `/agent-init`，保留重定向 |
 | `/hosts` | 主机列表 |
+| `/software` | 资产清单 |
 | `/pipeline` | 数据采集管线 |
 | `/logs` | 采集日志 |
-| `/rollout` | 灰度发布计划 |
-| `/rollout/:planId` | 灰度发布计划详情 |
+| `/upgrade` | Agent 升级（灰度发布计划） |
+| `/upgrade/:planId` | 升级计划详情 |
 | `/agents/:agentId/metrics` | 主机指标详情 |
+| `/agents/:agentId/purpose` | Agent 用途 |
 
 ## 代码生成
 

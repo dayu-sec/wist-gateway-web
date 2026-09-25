@@ -30,50 +30,9 @@
   line-height: 1.65;
 }
 
-.steps {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 14px;
-  list-style: none;
-}
-
-.step {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.stepIndex {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--accent-border);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  transform: translateY(1px);
-}
-
-.stepText {
-  color: var(--text-2);
-  font-size: 12.5px;
-  line-height: 1.55;
-}
-
-.usecaseTag {
-  color: var(--accent-strong);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-}
-
-.usecaseCard {
+/* 一张卡 = 一个设置项：卡头（标签/标题/说明）+ 只读的当前值 + 修改表单。
+   两段之间只用一条 hairline 分隔，不另起一张「平台维护操作」卡。 */
+.card {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -81,42 +40,42 @@
   box-shadow: var(--shadow-sm);
 }
 
-.usecaseCard + .usecaseCard {
+.card + .card {
   margin-top: 18px;
 }
 
-.usecaseMeta {
+.cardHead {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
 }
 
-.usecaseMetaCopy h2 {
+.cardTag {
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.cardHead h2 {
   margin-top: 5px;
   font-size: 18px;
   font-weight: 700;
   line-height: 1.35;
 }
 
-.usecaseMetaCopy p {
-  max-width: 650px;
+.cardHead p {
+  max-width: 680px;
   margin-top: 5px;
   color: var(--text-3);
   font-size: 12.5px;
   line-height: 1.6;
 }
 
-.cardBody {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px 20px 20px;
-}
-
-/* 只读摘要：不再套一层带边框的网格（会与卡片边框叠成「表里套表」），
-   改成卡片内通栏的行 —— 取消 cardBody 左右内边距，分隔线左右到边。 */
+/* 只读的当前值：卡片内通栏的行（不套第二层边框盒，避免「表里套表」）。
+   主值行给足字号并允许折行 —— 长 URL 要能一眼看全，不能截断在输入框里。 */
 .summaryList {
-  margin: 0 -20px;
+  margin: 0;
 }
 
 .summaryRow {
@@ -138,7 +97,7 @@
   border-top: 1px solid var(--border);
 }
 
-/* 主值行（来源地址）：左侧 accent 色条锚定视线。用色条而不是边框，
+/* 主值行靠左侧 accent 色条锚定视线。用色条而不是边框，
    避免又叠出第二层框线。 */
 .summaryRowPrimary {
   position: relative;
@@ -172,16 +131,7 @@
   min-width: 0;
 }
 
-.summaryValue {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-/* 主值：这一页的主角，字号与亮度都要压过其余两行。 */
+/* 主值：这一项的主角，字号与亮度都要压过其余几行。 */
 .summaryValuePrimary {
   flex: 1 1 auto;
   min-width: 0;
@@ -203,7 +153,7 @@
   overflow-wrap: anywhere;
 }
 
-/* 「未设置」是状态而非普通文本：网关正在用内置包，值得被看见。 */
+/* 「未设置」是状态而非普通文本：网关要么在用它内置的包，要么 Agent 压根没有上送目标。 */
 .summaryValueEmpty {
   flex: 1 1 auto;
   min-width: 0;
@@ -245,11 +195,20 @@
   outline: none;
 }
 
+/* 当前值区里的状态提示（读取中 / 读失败 / 未设置）。 */
+.summaryNotices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+
 .form {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 18px 20px 20px;
+  border-top: 1px solid var(--border);
 }
 
 .field {
@@ -259,6 +218,13 @@
   color: var(--text);
   font-size: 13px;
   font-weight: 600;
+}
+
+/* 主机 + 端口这类「一长一短」的字段并排：端口不必占满整行。 */
+.fieldRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 168px;
+  gap: 14px 18px;
 }
 
 .field input {
@@ -272,6 +238,18 @@
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 500;
+}
+
+/* 数字输入不做「步进器」：端口是精确值，原生上下箭头只会误导。 */
+.field input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.field input[type="number"]::-webkit-outer-spin-button,
+.field input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .field input:focus {
@@ -385,6 +363,10 @@
   .form {
     gap: 14px;
   }
+
+  .fieldRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 560px) {
@@ -392,15 +374,11 @@
     padding: 22px 16px 40px;
   }
 
-  .usecaseMeta,
-  .cardBody,
-  .form {
+  .cardHead,
+  .form,
+  .summaryNotices {
     padding-left: 16px;
     padding-right: 16px;
-  }
-
-  .summaryList {
-    margin: 0 -16px;
   }
 
   .summaryRow {

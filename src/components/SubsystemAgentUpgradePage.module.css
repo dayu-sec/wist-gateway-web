@@ -1,0 +1,745 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  gap: 16px;
+  padding-bottom: 56px;
+}
+
+.pageHeader {
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  padding-top: 24px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  color: var(--text);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.crossLink {
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.crossLink:hover {
+  color: var(--accent-strong);
+}
+
+.pageSummary {
+  max-width: 820px;
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* ---------- 面板（列表 / 新建） ---------- */
+
+.panel {
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.panelTitle {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.panelHint {
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- 通用提示 ---------- */
+
+.errorBanner {
+  margin: 14px 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.skeletonWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 20px;
+}
+
+.skeletonRow {
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--surface) 0%,
+    var(--surface-2) 50%,
+    var(--surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 20px;
+  padding: 30px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  text-align: center;
+}
+
+.emptyTitle {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.emptyText {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* ---------- 计划列表表格 ---------- */
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.planLink {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.planLink:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+/* 行尾箭头代替单独的「查看」列：一眼看出这一格可点，又不占一列宽度。 */
+.planArrow {
+  color: var(--text-4);
+  font-family: var(--font);
+  font-weight: 600;
+}
+
+.table tbody tr:hover .planArrow {
+  color: var(--accent-strong);
+}
+
+.mono {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 列表里的包：文件名带版本与架构，长了从左往右截断（版本在前段，保留；全地址在 title 里）。 */
+.pkgCell {
+  display: block;
+  max-width: 248px;
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 侧边栏展开时主区偏窄（<1080px 这一列就挤了）：先让位，包名在详情页里看。 */
+@media (max-width: 1080px) {
+  .pkgCol {
+    display: none;
+  }
+}
+
+.thNum,
+.tdNum {
+  text-align: right;
+}
+
+/* 阶段：进度点阵 + 「第 n 批 / 共 m 批」，比裸的 1 / 1 好读。 */
+.phaseCell {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.phaseDots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.phaseDot {
+  width: 5px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+
+.phaseDotDone {
+  background: var(--ok);
+}
+
+.phaseDotActive {
+  background: var(--accent);
+}
+
+.timeCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.timeMeta {
+  color: var(--text-4);
+  font-size: 11px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toneOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.toneWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.toneCrit {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.toneUnknown {
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-3);
+}
+
+/* ---------- 新建计划表单 ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 20px 20px;
+}
+
+.formSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.formSection:last-of-type {
+  border-bottom: none;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px 14px;
+  flex-wrap: wrap;
+}
+
+.formSectionTitle {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 分区导语：与标题同一行，读起来是「标题 + 一句解释」，不是又一段正文。 */
+.sectionNote {
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 竖向分区里的说明文字：不能带 flex-basis，否则在列容器里会被当成高度撑开。 */
+.formNote {
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* 升级参数：两项都是要逐字核对的制品标识（长路径 / 64 位摘要），各占整行更好读。 */
+.fieldColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fieldGridThree {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+}
+
+@media (max-width: 860px) {
+  .fieldGridThree {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 带单位后缀的输入框：单位贴在框内右侧，不靠标签文字暗示。 */
+.inputWrap {
+  position: relative;
+  display: block;
+}
+
+.inputWrap input {
+  padding-right: 42px;
+}
+
+.inputUnit {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  transform: translateY(-50%);
+  color: var(--text-4);
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+/* 数字输入：去掉浏览器原生上下箭头（与设计系统的输入框口径一致）。 */
+.field input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.field input[type="number"]::-webkit-outer-spin-button,
+.field input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.field input:focus,
+.field select:focus {
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.field input::placeholder {
+  color: var(--text-4);
+}
+
+.field small {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+/* ---------- 灰度阶段：选阶段数 + 自动分配预览 ---------- */
+
+.countTabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.countTab {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.countTab:hover {
+  color: var(--text);
+}
+
+.countTabActive,
+.countTabActive:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.countTab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 阶段列表：左侧编号轨道 + 连接线，读起来是一串先后发生的批次。 */
+.phaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--border);
+}
+
+.phaseItem {
+  display: flex;
+  gap: 12px;
+  padding: 11px 14px;
+  background: var(--bg-elevated);
+}
+
+.phaseRail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  width: 20px;
+}
+
+.railDot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.railDotCanary {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.railDotFinal {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.railLine {
+  flex: 1 1 auto;
+  width: 1px;
+  min-height: 6px;
+  background: var(--border-strong);
+}
+
+.phaseItem:last-child .railLine {
+  display: none;
+}
+
+.phaseBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.phaseTop {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.phaseIndex {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.phaseScale {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.phaseScaleCanary {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.phaseScaleFinal {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.phaseMeta {
+  color: var(--text-4);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 机队大时 chip 会堆很高：容器内滚动，不把表单撑长。 */
+.phaseAgents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 108px;
+  overflow-y: auto;
+}
+
+.agentChip {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* ---------- 提交区：按钮 + 即将创建的计划摘要 ---------- */
+
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 12px 20px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.primaryButton {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primaryButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.primaryButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  cursor: not-allowed;
+}
+
+.planSummary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px 18px;
+  flex-wrap: wrap;
+  margin: 0;
+  min-width: 0;
+}
+
+.planSummaryItem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.planSummaryItem dt {
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.planSummaryItem dd {
+  margin: 0;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 860px) {
+  .pageHeader,
+  .panel {
+    width: calc(100% - 32px);
+  }
+}
+
+@media (max-width: 560px) {
+  .pageHeader,
+  .panel {
+    width: calc(100% - 24px);
+  }
+
+  .panelHead,
+  .form {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .errorBanner,
+  .empty {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+}

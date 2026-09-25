@@ -1099,6 +1099,26 @@ function nullableStringField(
   return requiredString(value, fieldName);
 }
 
+/**
+ * 键**可以不存在**的字符串字段：缺失 / `null` 都返回 `null`。
+ *
+ * 用于契约里**可省**的字段（如升级 spec 的 `target_version`）—— 那种字段用
+ * `presentField` 会把「没写」误判成契约漂移。
+ */
+function optionalStringField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): string | null {
+  const key = keys.find((candidate) =>
+    Object.prototype.hasOwnProperty.call(record, candidate),
+  );
+  if (key === undefined) return null;
+  const value = record[key];
+  if (value === null || value === undefined) return null;
+  return requiredString(value, fieldName);
+}
+
 function requiredStringArray(value: unknown, fieldName: string): string[] {
   return requiredArray(value, fieldName).map((item, index) =>
     requiredString(item, `${fieldName}[${index}]`),
@@ -2132,29 +2152,31 @@ export interface CreateRolloutPlanCommand {
 /**
  * 拼 `upgrade` 动作的 spec（与 agentd 侧 `UpgradeSpec` 同形）。
  *
- * 空的可选字段**不写进 JSON**，而不是写成 `""`：agentd 侧按字段有没有来决定用不用它。
+ * `target_version` **可省**（留空就不写）：新 agentd 会从包内 agentd 自报的版本取。
+ * 但**旧 agentd 要求这个键必须存在**，所以升级一批还没跟上的旧 Agent 时要把目标版本填上。
+ * 页面上不暴露这个键（版本以包内 agentd 自报为单一事实来源），需要时由调用方在此传入。
+ * `package_url` 必须是 `https://…` 或**目标 Agent 主机上的绝对路径**；`package_sha256` 必须是
+ * 64 位 hex（可带 `sha256:` 前缀）。这两个键永远写。
  */
 export function jsonUpgradeSpec(input: {
-  targetVersion: string;
-  packageUrl?: string;
-  packageSha256?: string;
+  targetVersion?: string;
+  packageUrl: string;
+  packageSha256: string;
 }): string {
+  const target = input.targetVersion?.trim();
   return JSON.stringify({
-    target_version: input.targetVersion.trim(),
-    ...(input.packageUrl?.trim()
-      ? { package_url: input.packageUrl.trim() }
-      : {}),
-    ...(input.packageSha256?.trim()
-      ? { package_sha256: input.packageSha256.trim() }
-      : {}),
+    ...(target ? { target_version: target } : {}),
+    package_url: input.packageUrl.trim(),
+    package_sha256: input.packageSha256.trim(),
   });
 }
 
 /**
  * 解析 `upgrade` 计划的 `spec`（与 `jsonUpgradeSpec` 反向）。
  *
- * 解析失败**不抛错、也不当空**：那会把「计划里的参数写坏了」静默成「没什么参数」
- * 两种情形处置不同 —— 保留原文与原因，交给页面如实呈现。
+ * `target_version` 是**可省**的（版本由包内 agentd 自报决定），所以它缺省时返回 `null`、
+ * 不当成错误；`package_url` / `package_sha256` 必须存在。解析失败**不抛错**，
+ * 而是把原文与原因交给页面如实呈现。
  */
 export function parseUpgradeSpec(raw: string): {
   targetVersion: string | null;
@@ -2166,7 +2188,7 @@ export function parseUpgradeSpec(raw: string): {
   try {
     const record = requiredRecord(JSON.parse(raw), "upgradeSpec");
     return {
-      targetVersion: nullableStringField(
+      targetVersion: optionalStringField(
         record,
         ["target_version", "targetVersion"],
         "upgradeSpec.targetVersion",

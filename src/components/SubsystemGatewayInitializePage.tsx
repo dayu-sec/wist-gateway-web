@@ -65,9 +65,11 @@ function ConfigResult({ config }: { config: GatewayInitialConfig }) {
 }
 
 /**
- * Gateway 自身初始化页：消费 Center 创建实例时交付的 init_url，
- * 提交时先查询 Center 侧实例状态，未初始化才获取并展示 JSON Gateway 初始配置；
- * Bearer 只由请求层放入 Authorization Header，不处理 Agent 安装配置。
+ * 「链接上级」页（路由 `/link-upstream`）：把本网关接入上级控制中心。
+ *
+ * 消费 Center 创建实例时交付的 init_url，提交时先查询 Center 侧实例状态，
+ * 未初始化才获取并展示 JSON Gateway 初始配置；Bearer 只由请求层放入 Authorization Header，
+ * 不处理 Agent 安装配置。
  */
 export function SubsystemGatewayInitializePage() {
   const [initUrl, setInitUrl] = useState("");
@@ -85,10 +87,11 @@ export function SubsystemGatewayInitializePage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>初始化 Gateway</h1>
+          <h1 className={styles.pageTitle}>链接上级</h1>
+          {/* 换行落在句号后：JSX 里中文行末换行会渲染成一个可见空格。 */}
           <p className={styles.pageSummary}>
-            这是新装 Gateway 接入控制中心的唯一步骤。初始化材料由 Center
-            在创建实例时交付，且只能消费一次。
+            新装 Gateway 接入上级（即控制中心）的唯一步骤。
+            初始化材料由控制中心在创建实例时交付，且只能消费一次。
           </p>
           <ol className={styles.steps}>
             {STEPS.map((step, index) => (

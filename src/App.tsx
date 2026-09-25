@@ -4,8 +4,7 @@ import { AppLayout } from "./components/AppLayout";
 import { SubsystemAdminHomePage } from "./components/SubsystemAdminHomePage";
 import { SubsystemAgentControlCenterPage } from "./components/SubsystemAgentControlCenterPage";
 import { SubsystemAgentInstallPage } from "./components/SubsystemAgentInstallPage";
-import { SubsystemAgentInstallPackagePage } from "./components/SubsystemAgentInstallPackagePage";
-import { SubsystemAgentUplinkPage } from "./components/SubsystemAgentUplinkPage";
+import { SubsystemAgentInitializePage } from "./components/SubsystemAgentInitializePage";
 import { SubsystemGatewayInitializePage } from "./components/SubsystemGatewayInitializePage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentPurposePage } from "./components/SubsystemAgentPurposePage";
@@ -14,8 +13,8 @@ import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareIn
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
-import { SubsystemRolloutPlansPage } from "./components/SubsystemRolloutPlansPage";
-import { SubsystemRolloutPlanDetailPage } from "./components/SubsystemRolloutPlanDetailPage";
+import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
+import { SubsystemAgentUpgradeDetailPage } from "./components/SubsystemAgentUpgradeDetailPage";
 
 export function App() {
   return (
@@ -24,20 +23,28 @@ export function App() {
         <Route path="/" element={<SubsystemAdminHomePage />} />
         <Route path="/control" element={<SubsystemAgentControlCenterPage />} />
         <Route path="/install" element={<SubsystemAgentInstallPage />} />
+        <Route path="/agent-init" element={<SubsystemAgentInitializePage />} />
+        <Route
+          path="/link-upstream"
+          element={<SubsystemGatewayInitializePage />}
+        />
+        {/* 旧入口一律留重定向，外部链接与书签不至于落到 404：
+            「安装包设置」「数据面上送地址」已合并进「Agent 初始化」；
+            「初始化 Gateway / /init」已改名「链接上级 / /link-upstream」。 */}
         <Route
           path="/install-package"
-          element={<SubsystemAgentInstallPackagePage />}
+          element={<Navigate to="/agent-init" replace />}
         />
-        <Route path="/uplink" element={<SubsystemAgentUplinkPage />} />
-        <Route path="/init" element={<SubsystemGatewayInitializePage />} />
+        <Route path="/uplink" element={<Navigate to="/agent-init" replace />} />
+        <Route path="/init" element={<Navigate to="/link-upstream" replace />} />
         <Route path="/hosts" element={<SubsystemAgentHostListPage />} />
         <Route path="/software" element={<SubsystemSoftwareInventoryPage />} />
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route path="/logs" element={<SubsystemAgentLogsPage />} />
-        <Route path="/rollout" element={<SubsystemRolloutPlansPage />} />
+        <Route path="/upgrade" element={<SubsystemAgentUpgradePage />} />
         <Route
-          path="/rollout/:planId"
-          element={<SubsystemRolloutPlanDetailPage />}
+          path="/upgrade/:planId"
+          element={<SubsystemAgentUpgradeDetailPage />}
         />
         <Route
           path="/agents/:agentId/metrics"

@@ -24,6 +24,12 @@ import {
   planStatusTone,
   planTargetCount,
 } from "../src/components/rolloutStatus";
+import {
+  PHASE_COUNTS,
+  availablePhaseCounts,
+  phaseScaleLabel,
+  planPhases,
+} from "../src/components/agentUpgradePhases";
 
 // 契约测试：管理面「灰度发布计划」（模型 `Control.Rollout` 的列表/创建/批准/推进/查看）。
 //
@@ -203,7 +209,10 @@ responder = () => Response.json(planPayload({ status: "draft", phases: [phasePay
 
 const created = await createRolloutPlan({
   action: "upgrade",
-  spec: jsonUpgradeSpec({ targetVersion: "0.1.4" }),
+  spec: jsonUpgradeSpec({
+    packageUrl: "/srv/wist/wist-agentd-0.1.4.tar.gz",
+    packageSha256: `sha256:${"a".repeat(64)}`,
+  }),
   phases: [
     { targetIds: ["agent-canary"], advanceRule: "manual" },
     { targetIds: ["agent-b", "agent-c"], advanceRule: "success_rate:80" },
@@ -230,12 +239,38 @@ assert(
 );
 assert(created.status === "draft", "create returns a draft plan");
 
-// spec 只有 target_version：可选字段**不写成空串**（agentd 按「有没有」决定用不用）。
-const bareSpec = JSON.parse(jsonUpgradeSpec({ targetVersion: "0.1.4" }));
-assert(bareSpec.target_version === "0.1.4", "spec must carry target_version");
+// spec 只写 package_url / package_sha256：`target_version` **留空就不写** —— 新 agentd 会从包内
+// agentd 自报的版本取；但**旧 agentd 要求这个键存在**，所以升级旧 Agent 时要把它填上。
+const localSpec = JSON.parse(
+  jsonUpgradeSpec({
+    packageUrl: "/srv/wist/wist-agentd.tar.gz",
+    packageSha256: "sha256:abc",
+  }),
+);
 assert(
-  bareSpec.package_url === undefined && bareSpec.package_sha256 === undefined,
-  "empty optional fields must be omitted, not written as empty strings",
+  localSpec.package_url === "/srv/wist/wist-agentd.tar.gz",
+  "spec must pass a target-host absolute path through verbatim",
+);
+assert(localSpec.package_sha256 === "sha256:abc", "spec must carry package_sha256");
+assert(
+  !("target_version" in localSpec),
+  "留空就不写 target_version（版本由包内 agentd 自报决定）",
+);
+
+// 填了就写进去（升级还没跟上的旧 agent 需要这个键）。
+const explicitTarget = JSON.parse(
+  jsonUpgradeSpec({
+    targetVersion: "0.1.5",
+    packageUrl: "/srv/wist/p.tar.gz",
+    packageSha256: "abc",
+  }),
+);
+assert(explicitTarget.target_version === "0.1.5", "填了目标版本就写进去");
+
+const blankSpec = JSON.parse(jsonUpgradeSpec({ packageUrl: "", packageSha256: "" }));
+assert(
+  "package_url" in blankSpec && "package_sha256" in blankSpec,
+  "package_url / package_sha256 键必须始终在（UpgradeSpec 对它们没有 serde default）",
 );
 
 // --- 5. 批准 / 推进：body 形状 ---------------------------------------------
@@ -279,6 +314,14 @@ assert(parsed.packageSha256 === "abc", "package_sha256 must parse");
 const broken = parseUpgradeSpec("not json");
 assert(broken.error !== null, "a broken spec must surface an error, not parse to empty");
 assert(broken.raw === "not json", "the raw spec must be preserved for display");
+
+// 没写 target_version 的 spec 也合法（版本由包内 agentd 自报决定）—— 不能当契约漂移。
+const derived = parseUpgradeSpec(
+  JSON.stringify({ package_url: "/srv/wist/p.tar.gz", package_sha256: "abc" }),
+);
+assert(derived.error === null, "spec 缺 target_version 不是错误");
+assert(derived.targetVersion === null, "target_version 缺省读作 null");
+assert(derived.packageUrl === "/srv/wist/p.tar.gz", "包地址要读出来");
 
 // --- 7. 状态口径与闭合兜底 -------------------------------------------------
 assert(planStatusLabel("draft") === "草稿（待批准）", "draft label");
@@ -331,6 +374,62 @@ assert((notFound as ApiError).status === 404, "404 status must be preserved");
 assert(
   /unknown rollout plan/.test((notFound as ApiError).detail ?? ""),
   "404 正文要保留（页面靠它区分未知计划）",
+);
+
+// --- 7b. 灰度阶段自动分配（只选阶段数，agent_id 自动切片） --------------------
+const fleet = Array.from(
+  { length: 100 },
+  (_, index) => `agent-${String(index).padStart(3, "0")}`,
+);
+
+const five = planPhases(fleet, 5);
+assert(five.error === null, "100 台分 5 阶段应可分");
+assert(
+  five.phases.map((phase) => phase.targetIds.length).join(",") === "1,9,20,40,30",
+  `5 阶段按 1/10/30/70/剩余 切片，实际 ${five.phases
+    .map((phase) => phase.targetIds.length)
+    .join(",")}`,
+);
+assert(five.phases[0].isCanary, "第 1 批应是金丝雀（1 台）");
+assert(five.phases[4].isFinal, "末批应收尾全量");
+
+const assigned = five.phases.flatMap((phase) => phase.targetIds);
+assert(assigned.length === fleet.length, "每个 Agent 恰好出现一次");
+assert(new Set(assigned).size === fleet.length, "分配不得重叠");
+assert(phaseScaleLabel(five.phases[0]) === "1 台（金丝雀）", "金丝雀规模文字");
+assert(phaseScaleLabel(five.phases[4]) === "覆盖 ~100%", "收尾批规模文字");
+
+for (const count of PHASE_COUNTS) {
+  const plan = planPhases(fleet, count);
+  assert(
+    plan.error === null && plan.phases.length === count,
+    `${count} 阶段的段数与分配都不应报错`,
+  );
+}
+
+// 小机队：分段数不得大于台数，也不给空阶段。
+const tooMany = planPhases(["a", "b"], 3);
+assert(tooMany.error !== null, "2 台分不出 3 个非空阶段");
+const twoOnTwo = planPhases(["a", "b"], 2);
+assert(
+  twoOnTwo.error === null &&
+    twoOnTwo.phases.every((phase) => phase.targetIds.length === 1),
+  "2 台分 2 阶段应各 1 台",
+);
+assert(planPhases([], 2).error !== null, "空机队要报错");
+
+// 小机队不再多轮：可选阶段数按台数收窄。
+assert(availablePhaseCounts(0).length === 0, "空机队没有可选阶段数");
+assert(availablePhaseCounts(1).join(",") === "1", "单台机队退化为 1 阶段（不分批）");
+assert(availablePhaseCounts(2).join(",") === "2", "2 台只够 2 阶段");
+assert(availablePhaseCounts(3).join(",") === "2,3", "3 台最多 3 阶段");
+assert(availablePhaseCounts(100).join(",") === "2,3,4,5", "大机队给全预设");
+
+const single = planPhases(["only-one"], 1);
+assert(single.error === null && single.phases.length === 1, "单台机队可分 1 阶段");
+assert(
+  single.phases[0].isFinal && !single.phases[0].isCanary,
+  "单台一批算「全量」，不该叫金丝雀",
 );
 
 console.log(
