@@ -225,8 +225,9 @@ export function SubsystemAgentWorkView({
         </header>
 
         <p className={styles.gapNotice}>
-          注意：agentd 侧**尚未实现一次性工作的执行** —— 派下去会停在「已派发」或
-          「已接受」，不会被确认，也不会推进。当前适合用来验证派发与状态流转。
+          当前 agentd 只执行 `upgrade` 这一种动作（其余动作派下去会停在「已派发」）；
+          升级由分离进程 `wist-upgrader` 执行，进度与终态经 `work:result` 回报 ——
+          回滚在控制面上记为「失败」，说明里写清回到哪一版。
         </p>
 
         {agentWorkView.oneShot.length === 0 ? (
@@ -281,6 +282,7 @@ export function SubsystemAgentWorkView({
                   </span>
                   <span className={styles.historyMeta}>
                     {work.issuedBy} · {formatTimestamp(work.issuedAt)}
+                    {work.result?.detail ? ` · ${work.result.detail}` : ""}
                   </span>
                 </li>
               ))}
@@ -512,6 +514,20 @@ function OneShotWorkCard({ work, pending, onAction }: OneShotWorkCardProps) {
             {work.issuedBy} · {formatTimestamp(work.issuedAt)}
           </dd>
         </div>
+        {work.result ? (
+          <div className={styles.factRow}>
+            <dt>执行结果</dt>
+            <dd>
+              <span
+                className={`${styles.badge} ${toneClass(oneShotStatusTone(work.result.status))}`}
+              >
+                {oneShotStatusLabel(work.result.status)}
+              </span>{" "}
+              {work.result.detail ? `${work.result.detail} · ` : ""}
+              {formatTimestamp(work.result.reportedAt)}
+            </dd>
+          </div>
+        ) : null}
       </dl>
       <div className={styles.cardActions}>
         <button

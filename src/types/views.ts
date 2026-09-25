@@ -234,6 +234,22 @@ export interface WorkAck {
   acknowledgedAt: string;
 }
 
+/**
+ * agentd 上报的一次性工作**执行结果**（进度/终态）。
+ *
+ * 与 `WorkAck` 分开：确认回答「我收到了」，结果回答「我做得怎么样了」。
+ * 回滚在控制面上映射为 `failed`，回到哪一版写在 `detail` 里。
+ */
+export interface WorkResult {
+  workId: string;
+  agentId: string;
+  /** running | succeeded | failed（agent 可上报的真子集）。 */
+  status: string;
+  /** 人看的说明：失败原因原样带上（如「已回滚到 0.1.3」）。 */
+  detail: string;
+  reportedAt: string;
+}
+
 /** 一份常驻工作（一个采集面一份）。 */
 export interface StandingWork {
   workId: string;
@@ -275,6 +291,8 @@ export interface OneShotWork {
   issuedBy: string;
   issuedAt: string;
   ack: WorkAck | null;
+  /** agentd 上报的执行结果（进度/终态）；从未上报过是 null。 */
+  result: WorkResult | null;
 }
 
 /** 管理面「Agent 工作」视图（模型 `WorkGrant` + 历史留痕）。 */

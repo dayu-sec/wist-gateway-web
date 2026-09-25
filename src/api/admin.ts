@@ -23,6 +23,7 @@ import type {
   WorkAck,
   WorkKind,
   WorkReceipt,
+  WorkResult,
   WorkSpec,
 } from "../types";
 
@@ -1677,6 +1678,21 @@ function normalizeStandingWork(payload: any): StandingWork {
   };
 }
 
+function normalizeWorkResult(payload: unknown): WorkResult | null {
+  if (payload === null || payload === undefined) return null;
+  const record = requiredRecord(payload, "workResult");
+  return {
+    workId: requiredString(record.work_id ?? record.workId, "workResult.workId"),
+    agentId: requiredString(record.agent_id ?? record.agentId, "workResult.agentId"),
+    status: requiredString(record.status, "workResult.status"),
+    detail: requiredString(record.detail, "workResult.detail"),
+    reportedAt: requiredString(
+      record.reported_at ?? record.reportedAt,
+      "workResult.reportedAt",
+    ),
+  };
+}
+
 function normalizeOneShotWork(payload: any): OneShotWork {
   return {
     workId: requiredString(payload.work_id ?? payload.workId, "oneShotWork.workId"),
@@ -1706,6 +1722,7 @@ function normalizeOneShotWork(payload: any): OneShotWork {
     issuedBy: requiredString(payload.issued_by ?? payload.issuedBy, "oneShotWork.issuedBy"),
     issuedAt: requiredString(payload.issued_at ?? payload.issuedAt, "oneShotWork.issuedAt"),
     ack: normalizeWorkAck(payload.ack),
+    result: normalizeWorkResult(payload.result),
   };
 }
 

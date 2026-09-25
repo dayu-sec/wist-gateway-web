@@ -107,6 +107,28 @@ function standingPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function oneShotPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    work_id: "work-upgrade",
+    agent_id: "agent-001",
+    action: "upgrade",
+    spec: "0.1.4",
+    scheduled_at: "2026-09-23T00:00:00Z",
+    deadline_at: "2026-09-24T00:00:00Z",
+    timeout_seconds: 600,
+    interruptible: false,
+    status: "failed",
+    paused_at: null,
+    paused_total_seconds: 0,
+    attempt: 1,
+    issued_by: "admin",
+    issued_at: "2026-09-23T00:00:00Z",
+    ack: null,
+    result: null,
+    ...overrides,
+  };
+}
+
 function workViewPayload(overrides: Record<string, unknown> = {}) {
   return {
     agent_id: "agent-001",
@@ -191,23 +213,19 @@ const withHistory = normalizeAgentWorkView(
     standing: [],
     retired_standing: [standingPayload({ status: "revoked" })],
     settled_one_shot: [
-      {
-        work_id: "work-upgrade",
-        agent_id: "agent-001",
-        action: "upgrade",
-        spec: "0.1.4",
-        scheduled_at: "2026-09-23T00:00:00Z",
-        deadline_at: "2026-09-24T00:00:00Z",
-        timeout_seconds: 600,
-        interruptible: false,
-        status: "canceled",
-        paused_at: null,
-        paused_total_seconds: 0,
-        attempt: 1,
-        issued_by: "admin",
-        issued_at: "2026-09-23T00:00:00Z",
-        ack: null,
-      },
+      oneShotPayload({ status: "canceled" }),
+      // 了结之后仍带结果：失败原因/回滚到哪一版正是这时才最需要看的东西。
+      oneShotPayload({
+        work_id: "work-upgrade-2",
+        status: "failed",
+        result: {
+          work_id: "work-upgrade-2",
+          agent_id: "agent-001",
+          status: "failed",
+          detail: "已回滚到 0.1.3：新版 60s 没起来",
+          reported_at: "2026-09-23T00:10:00Z",
+        },
+      }),
     ],
   }),
 );
@@ -216,6 +234,20 @@ assert(withHistory.settledOneShot[0].status === "canceled", "settled one-shot lo
 assert(
   withHistory.settledOneShot[0].timeoutSeconds === 600,
   "one-shot timeout was not normalized",
+);
+assert(
+  withHistory.settledOneShot[0].result === null,
+  "没上报过结果必须是 null，而不是 undefined",
+);
+const settledResult = withHistory.settledOneShot[1].result;
+assert(settledResult?.status === "failed", "settled result was not normalized");
+assert(
+  settledResult?.detail === "已回滚到 0.1.3：新版 60s 没起来",
+  "rollback detail must survive on a settled work",
+);
+assert(
+  settledResult?.reportedAt === "2026-09-23T00:10:00Z",
+  "result.reported_at was not normalized",
 );
 
 // --- 3. 工作参数：坏形状要说出来，不当成「没事可采」 ------------------------
