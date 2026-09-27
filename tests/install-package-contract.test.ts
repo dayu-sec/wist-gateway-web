@@ -55,6 +55,13 @@ if (recorded.length !== 1) {
 if (readCall.url !== "/api/v1/admin/agent/install-package") {
   throw new Error(`unexpected view path: ${readCall.url}`);
 }
+// 复数 `/agent/install-packages` 是**另一个**端点（录入历史列表，见 install-packages 契约
+// 测试）；这里读写的是单数的「当前生效来源」。两条路径只差一个 `s`，别把读写打到列表上。
+if (readCall.url === "/api/v1/admin/agent/install-packages") {
+  throw new Error(
+    "the install-package view/set must not hit the plural install-packages list endpoint",
+  );
+}
 if (readCall.method !== "GET") {
   throw new Error(`install-package view must be GET, got ${readCall.method}`);
 }

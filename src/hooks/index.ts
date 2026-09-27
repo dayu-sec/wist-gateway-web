@@ -19,6 +19,7 @@ import {
   fetchAgentWork,
   fetchAllAgentsHostMetrics,
   fetchContentCatalog,
+  fetchInstallPackages,
   fetchPipelineTopology,
   fetchRegisteredAgents,
   fetchRolloutPlan,
@@ -120,6 +121,31 @@ export function useRegisteredAgents() {
     queryFn: () => fetchRegisteredAgents(),
     enabled,
     refetchInterval: enabled ? 5_000 : false,
+  });
+}
+
+/**
+ * 网关**已录入**的安装包历史。升级页从这里选包（而不是手输地址 + 摘要）；
+ * 包只在「Gateway 初始化」页录入时变化，所以不轮询。
+ */
+export function useInstallPackages() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["install-packages"],
+    queryFn: fetchInstallPackages,
+    enabled,
+    // 401（token 无效）是确定性的，重试只是白撞同一个错误，直接让页面提示重新填 token。
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 401) return false;
+      return failureCount < 3;
+    },
   });
 }
 

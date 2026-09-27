@@ -4,6 +4,7 @@ import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
 import { jsonUpgradeSpec, parseUpgradeSpec } from "../api/admin";
 import {
   useCreateRolloutPlan,
+  useInstallPackages,
   useRegisteredAgents,
   useRolloutPlans,
 } from "../hooks";
@@ -13,6 +14,14 @@ import {
   planPhases,
   selectUpgradeTargets,
 } from "./agentUpgradePhases";
+import {
+  canSubmitUpgrade,
+  findSelectedPackage,
+  indexPackagesByUrl,
+  isEmptyPackageHistory,
+  packageCellLabel,
+  packageOptionLabel,
+} from "./agentUpgradePackages";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { planStatusLabel, planStatusTone, planTargetCount } from "./rolloutStatus";
 import styles from "./SubsystemAgentUpgradePage.module.css";
@@ -74,33 +83,6 @@ function defaultDeadline(): string {
   return toLocalInputValue(new Date(Date.now() + 24 * 60 * 60 * 1000));
 }
 
-/**
- * 升级器取的包地址（`package_url`）：`https://…` 走网关取包，`/abs/path` 直接读本机。
- * 后者是**目标 Agent 主机上的绝对路径**（离线/联调把制品预置到目标机）。
- */
-function isValidPackageUrl(value: string): boolean {
-  const text = value.trim();
-  return text.startsWith("https://") || text.startsWith("/");
-}
-
-/** 制品摘要（`package_sha256`）：64 位 hex，可带 `sha256:` 前缀（与升级器口径一致）。 */
-function isValidPackageSha256(value: string): boolean {
-  return /^[0-9a-fA-F]{64}$/.test(value.trim().replace(/^sha256:/, ""));
-}
-
-/**
- * 包地址折成文件名（列表里只够放一格）。
- *
- * 目标版本现在由包决定，列表要认的就是「哪个包」：文件名里带着版本与目标架构
- * （`wist-agentd-0.1.5-aarch64-apple-darwin.tar.gz`），同版本不同 sha 的包则靠悬停看全地址。
- */
-function packageFileName(url: string | null): string {
-  if (!url) return "—";
-  const trimmed = url.trim().replace(/[/\\]+$/, "");
-  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
-  return cut >= 0 ? trimmed.slice(cut + 1) : trimmed;
-}
-
 /** 表单里的 `datetime-local` 值折成紧凑读法（`9/26 22:30`），用于提交前摘要。 */
 function formatDeadlineHint(value: string): string {
   const at = new Date(value);
@@ -130,15 +112,17 @@ function toneClass(tone: string): string {
  * （2/3/4/5），每个阶段的 agent_id 由 `planPhases` 按固定阶梯**自动分配**，不用手填。
  * 批准/推进在升级计划详情页 —— 那两个是灰度发布的**人工闸门**。
  *
- * 更具体地说，「升级」在这里只是一组参数（包地址 / 摘要）；目标版本由包决定（升级器从包内
- * agentd 自报取得）。它的推进方式（灰度阶段、阶段内并发、截止）由引擎提供。将来日志清理、
- * 数据备份等各是一片独立的页。
+ * 更具体地说，「升级」在这里只是一组参数（从网关已录入的安装包里选一个）；目标版本由包决定
+ * （升级器从包内 agentd 自报取得）。它的推进方式（灰度阶段、阶段内并发、截止）由引擎提供。
+ * 将来日志清理、数据备份等各是一片独立的页。
  */
 export function SubsystemAgentUpgradePage() {
   const plans = useRolloutPlans();
   // 机队 = **已注册**的 Agent（不是“有主机指标的”）：待命/新装的机器不上送指标，
   // 用指标列表会让它们从升级计划里彻底消失。
   const agents = useRegisteredAgents();
+  // 可选的升级包 = 网关**已录入**的安装包历史（不再让操作者手输地址 + 摘要）。
+  const packages = useInstallPackages();
   const create = useCreateRolloutPlan();
   const navigate = useNavigate();
 
@@ -150,13 +134,21 @@ export function SubsystemAgentUpgradePage() {
   );
 
   // ── 表单状态 ────────────────────────────────────────────────────────────
-  const [packageUrl, setPackageUrl] = useState("");
-  const [packageSha256, setPackageSha256] = useState("");
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [allowDowngrade, setAllowDowngrade] = useState(false);
   const [deadline, setDeadline] = useState(defaultDeadline);
   const [timeoutSeconds, setTimeoutSeconds] = useState("600");
   const [batchSize, setBatchSize] = useState("0");
   const [phaseCount, setPhaseCount] = useState(3);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const installPackages = packages.data ?? [];
+  const selectedPackage = findSelectedPackage(
+    installPackages,
+    selectedPackageId,
+  );
+  // 计划 → 包：新建计划写的就是所选包的下载地址，按它反查「哪个包」。
+  const packageByUrl = indexPackagesByUrl(installPackages);
 
   // 阶段数按机队台数收窄：每段至少 1 台，小机队就不再多轮。
   const phaseCounts = useMemo(
@@ -190,16 +182,8 @@ export function SubsystemAgentUpgradePage() {
     timeout: number;
     batch: number;
   } | null {
-    if (!isValidPackageUrl(packageUrl)) {
-      setFormError(
-        "包地址必须是 https:// 链接，或目标 Agent 主机上的绝对路径（如 /srv/wist/wist-agentd.tar.gz）。",
-      );
-      return null;
-    }
-    if (!isValidPackageSha256(packageSha256)) {
-      setFormError(
-        "安装包摘要必须是 64 位十六进制（可带 sha256: 前缀）—— 升级器按它校验制品。",
-      );
+    if (!selectedPackage) {
+      setFormError("请先选择一个已录入的安装包。");
       return null;
     }
     const at = new Date(deadline);
@@ -224,7 +208,12 @@ export function SubsystemAgentUpgradePage() {
     setFormError(null);
     return {
       // 不写 target_version：由升级器从包内 agentd 自报的版本取（单一事实来源）。
-      spec: jsonUpgradeSpec({ packageUrl, packageSha256 }),
+      // package_url / package_sha256 一律取自网关录入项：下载地址由网关派生，前端不自己拼。
+      spec: jsonUpgradeSpec({
+        packageUrl: selectedPackage.agentPackageUrl,
+        packageSha256: selectedPackage.packageSha256,
+        allowDowngrade,
+      }),
       // 推进一律人工确认（自动推进两种规则网关侧尚未实现）。
       phases: phasePlan.phases.map((phase) => ({
         targetIds: phase.targetIds,
@@ -334,6 +323,7 @@ export function SubsystemAgentUpgradePage() {
                   const done = plan.phases.filter(
                     (phase) => phase.status === "completed",
                   ).length;
+                  const spec = parseUpgradeSpec(plan.spec);
                   return (
                     <tr key={plan.planId}>
                       <td>
@@ -350,12 +340,13 @@ export function SubsystemAgentUpgradePage() {
                       </td>
                       <td className={styles.pkgCol}>
                         {/* 升级到哪个版本由包决定，所以这里认得是**哪个包**：
-                            文件名带着版本与目标架构，悬停给全地址。 */}
+                            能对上已录入项就显示「版本 · 架构」，对不上（旧计划写的是原始路径）
+                            退回文件名；悬停一律给全地址。 */}
                         <span
                           className={styles.pkgCell}
-                          title={parseUpgradeSpec(plan.spec).packageUrl ?? undefined}
+                          title={spec.packageUrl ?? undefined}
                         >
-                          {packageFileName(parseUpgradeSpec(plan.spec).packageUrl)}
+                          {packageCellLabel(spec.packageUrl, packageByUrl)}
                         </span>
                       </td>
                       <td>
@@ -423,39 +414,89 @@ export function SubsystemAgentUpgradePage() {
             <div className={styles.sectionHead}>
               <h3 className={styles.formSectionTitle}>升级参数</h3>
               <span className={styles.sectionNote}>
-                升到哪个版本由包决定 —— 升级器读包内 agentd 自报的版本，这里不再单填
+                从网关已录入的安装包里选一个 ——
+                升到哪个版本由包决定，升级器读包内 agentd 自报的版本
               </span>
             </div>
-            <div className={styles.fieldColumn}>
-              <label className={styles.field}>
-                <span>安装包地址</span>
+
+            {packages.isError ? (
+              isRateLimitedError(packages.error) ? (
+                <RateLimitNotice error={packages.error} />
+              ) : (
+                <div className={styles.errorBanner} role="alert">
+                  {loadErrorMessage(packages.error)}
+                </div>
+              )
+            ) : null}
+
+            {isEmptyPackageHistory({
+              isLoading: packages.isLoading,
+              isError: packages.isError,
+              count: installPackages.length,
+            }) ? (
+              <div className={styles.packageEmpty}>
+                <strong>还没有录入过安装包</strong>
+                <span>
+                  去 <Link to="/gateway-init">Gateway 初始化</Link>{" "}
+                  页填「安装包来源」（本地路径或 https
+                  均可），网关会把它存进自己的包目录，之后这里就能选。
+                </span>
+              </div>
+            ) : null}
+
+            {installPackages.length > 0 ? (
+              <div className={styles.fieldColumn}>
+                <label className={styles.field}>
+                  <span>安装包</span>
+                  <select
+                    value={selectedPackageId}
+                    onChange={(event) =>
+                      setSelectedPackageId(event.target.value)
+                    }
+                    required
+                  >
+                    <option value="">选择一个已录入的安装包…</option>
+                    {installPackages.map((pkg) => (
+                      <option key={pkg.packageId} value={pkg.packageId}>
+                        {packageOptionLabel(pkg)}
+                      </option>
+                    ))}
+                  </select>
+                  <small>
+                    列出网关包目录里已录入的制品；升级器按它的下载地址与摘要取件、校验。
+                  </small>
+                </label>
+
+                {selectedPackage ? (
+                  <div className={styles.packageDetail}>
+                    <span className={styles.packageDetailLabel}>下载地址</span>
+                    <span className={styles.mono}>
+                      {selectedPackage.agentPackageUrl}
+                    </span>
+                    <span className={styles.packageDetailLabel}>摘要</span>
+                    <span className={styles.mono}>
+                      {selectedPackage.packageSha256}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {installPackages.length > 0 ? (
+              <label className={styles.checkbox}>
                 <input
-                  type="text"
-                  value={packageUrl}
-                  onChange={(event) => setPackageUrl(event.target.value)}
-                  placeholder="/srv/wist/wist-agentd-0.1.4.tar.gz 或 https://网关/api/v1/agent/packages/current"
-                  autoComplete="off"
-                  spellCheck={false}
-                  required
+                  type="checkbox"
+                  checked={allowDowngrade}
+                  onChange={(event) => setAllowDowngrade(event.target.checked)}
                 />
-                <small>
-                  https 链接，或目标 Agent 主机上的绝对路径（离线/联调把制品预置到目标机）。
-                </small>
+                <span>
+                  允许降级
+                  <small className={styles.checkboxNote}>
+                    默认只允许更新（版本高于当前）；勾选后才允许同版本 / 降级。
+                  </small>
+                </span>
               </label>
-              <label className={styles.field}>
-                <span>安装包摘要 sha256</span>
-                <input
-                  type="text"
-                  value={packageSha256}
-                  onChange={(event) => setPackageSha256(event.target.value)}
-                  placeholder="64 位十六进制，可带 sha256: 前缀"
-                  autoComplete="off"
-                  spellCheck={false}
-                  required
-                />
-                <small>升级器按它校验制品，不符不换件。</small>
-              </label>
-            </div>
+            ) : null}
           </section>
 
           <section className={styles.formSection}>
@@ -610,11 +651,17 @@ export function SubsystemAgentUpgradePage() {
             <button
               type="submit"
               className={styles.primaryButton}
-              disabled={create.isPending || phasePlan.error !== null}
+              disabled={
+                !canSubmitUpgrade({
+                  isPending: create.isPending,
+                  phaseError: phasePlan.error,
+                  selectedPackage,
+                })
+              }
             >
               {create.isPending ? "正在创建…" : "创建升级计划（草稿）"}
             </button>
-            {/* 提交前把「这份计划长什么样」摊开：阶段 / 目标 / 并发 / 截止。 */}
+            {/* 提交前把「这份计划长什么样」摊开：阶段 / 目标 / 并发 / 降级 / 截止。 */}
             <dl className={styles.planSummary}>
               <div className={styles.planSummaryItem}>
                 <dt>阶段</dt>
@@ -627,6 +674,10 @@ export function SubsystemAgentUpgradePage() {
               <div className={styles.planSummaryItem}>
                 <dt>并发</dt>
                 <dd>{batchSize.trim() === "0" ? "不节流" : `${batchSize} 台 / 批`}</dd>
+              </div>
+              <div className={styles.planSummaryItem}>
+                <dt>降级</dt>
+                <dd>{allowDowngrade ? "允许" : "不允许"}</dd>
               </div>
               <div className={styles.planSummaryItem}>
                 <dt>截止</dt>

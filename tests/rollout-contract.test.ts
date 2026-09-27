@@ -274,6 +274,124 @@ assert(
   "package_url / package_sha256 键必须始终在（UpgradeSpec 对它们没有 serde default）",
 );
 
+// `allow_downgrade` 是可选的：不给 / false 都不写这个键，产物与旧 spec 字节一致（旧 agentd 也能用）。
+// 依据：agentd `UpgradeSpec.allow_downgrade` 是 `#[serde(default)] pub allow_downgrade: bool`
+// （wist-agentd/src/upgrade.rs:89-90，**不是** `Option<bool>`），缺键即反序列化成 `false` =
+// 「只前进」。所以刻意不写 `false` 这种显式关，不会漂成别的语义。
+const noDowngradeSpec = JSON.parse(
+  jsonUpgradeSpec({
+    packageUrl: "/srv/wist/wist-agentd.tar.gz",
+    packageSha256: `sha256:${"a".repeat(64)}`,
+  }),
+);
+assert(
+  !("allow_downgrade" in noDowngradeSpec),
+  "不给 allowDowngrade 时不得写出 allow_downgrade 键",
+);
+const explicitFalseSpec = JSON.parse(
+  jsonUpgradeSpec({
+    packageUrl: "/srv/wist/wist-agentd.tar.gz",
+    packageSha256: "sha256:abc",
+    allowDowngrade: false,
+  }),
+);
+assert(
+  !("allow_downgrade" in explicitFalseSpec),
+  "allowDowngrade:false 也不写该键（只允许更新是默认口径）",
+);
+const downgradeSpec = JSON.parse(
+  jsonUpgradeSpec({
+    packageUrl: "/srv/wist/wist-agentd.tar.gz",
+    packageSha256: "sha256:abc",
+    allowDowngrade: true,
+  }),
+);
+assert(
+  downgradeSpec.allow_downgrade === true,
+  'allowDowngrade:true 必须写成 "allow_downgrade":true',
+);
+
+// --- 4b. spec 的**字节级**形状（旧 agentd 兼容的关键）-----------------------
+//
+// 依据（核过源码，不是看文档）：`wist-agentd/src/upgrade.rs:79` 的
+// `#[derive(Debug, Clone, PartialEq, Eq, Deserialize)] pub struct UpgradeSpec` **没有**
+// `deny_unknown_fields`（容器上也没有任何 rename），所以「旧 agentd 遇到新键」是**忽略**而非
+// 报错 —— 这正是「不写 allow_downgrade 对旧 agentd 安全」的机制，但**不是**它能解析的硬前提；
+// 升级 spec 终究是给**旧版本** agentd 吃的，产物必须与旧 spec **逐字节一致**：
+// 键名、键序、trim 口径都不能漂。下面把整串钉死，而不是只检查某个键在不在。
+const shaA = `sha256:${"a".repeat(64)}`;
+const bytesNoDowngrade = jsonUpgradeSpec({
+  packageUrl: "/srv/wist/wist-agentd.tar.gz",
+  packageSha256: shaA,
+});
+assert(
+  bytesNoDowngrade ===
+    `{"package_url":"/srv/wist/wist-agentd.tar.gz","package_sha256":"${shaA}"}`,
+  `不勾降级时 spec 必须与旧形状逐字节一致，实际：${bytesNoDowngrade}`,
+);
+assert(
+  !bytesNoDowngrade.includes("allow_downgrade"),
+  "不勾降级时字节里不得出现 allow_downgrade",
+);
+
+// 显式给了 target_version：键序是 target_version → package_url → package_sha256（未变）。
+const bytesExplicitTarget = jsonUpgradeSpec({
+  targetVersion: "0.1.5",
+  packageUrl: "/srv/wist/p.tar.gz",
+  packageSha256: "abc",
+});
+assert(
+  bytesExplicitTarget ===
+    `{"target_version":"0.1.5","package_url":"/srv/wist/p.tar.gz","package_sha256":"abc"}`,
+  `带目标版本时键序与拼法必须不变，实际：${bytesExplicitTarget}`,
+);
+assert(
+  !bytesExplicitTarget.includes("allow_downgrade"),
+  "带目标版本也不写 allow_downgrade",
+);
+
+// `allowDowngrade:false` 必须与「不勾」逐字节相同（false 不是「显式关」，而是旧默认）。
+assert(
+  jsonUpgradeSpec({
+    packageUrl: "/srv/wist/p.tar.gz",
+    packageSha256: "abc",
+    allowDowngrade: false,
+  }) === `{"package_url":"/srv/wist/p.tar.gz","package_sha256":"abc"}`,
+  "allowDowngrade:false 必须与不勾逐字节一致",
+);
+
+// 勾了降级：只多一个键，且落在**最后**。
+const bytesDowngrade = jsonUpgradeSpec({
+  packageUrl: "/srv/wist/wist-agentd.tar.gz",
+  packageSha256: "sha256:abc",
+  allowDowngrade: true,
+});
+assert(
+  bytesDowngrade ===
+    `{"package_url":"/srv/wist/wist-agentd.tar.gz","package_sha256":"sha256:abc","allow_downgrade":true}`,
+  `勾降级时只多一个 allow_downgrade:true（且在最后），实际：${bytesDowngrade}`,
+);
+// 键名必须与 agentd 的 serde 字段名**逐字**一致（蛇形）。写成 camelCase 会让字段静默失效。
+assert(
+  bytesDowngrade.includes('"allow_downgrade":true'),
+  "键名必须是蛇形 allow_downgrade（与 agentd UpgradeSpec 逐字一致）",
+);
+assert(
+  !bytesDowngrade.includes("allowDowngrade"),
+  "不得写成 camelCase allowDowngrade",
+);
+
+// 拼法没变：两端空白一律 trim，别把空白带进 spec。
+assert(
+  jsonUpgradeSpec({
+    targetVersion: "  0.1.5  ",
+    packageUrl: "  /srv/wist/p.tar.gz  ",
+    packageSha256: "  sha256:abc  ",
+  }) ===
+    `{"target_version":"0.1.5","package_url":"/srv/wist/p.tar.gz","package_sha256":"sha256:abc"}`,
+  "拼 spec 前必须 trim（旧口径不能漂）",
+);
+
 // --- 5. 批准 / 推进：body 形状 ---------------------------------------------
 recorded = [];
 responder = () => Response.json(planPayload({ status: "rolling" }));
@@ -323,6 +441,117 @@ const derived = parseUpgradeSpec(
 assert(derived.error === null, "spec 缺 target_version 不是错误");
 assert(derived.targetVersion === null, "target_version 缺省读作 null");
 assert(derived.packageUrl === "/srv/wist/p.tar.gz", "包地址要读出来");
+
+// allow_downgrade 可省：旧 spec 没这个键 → 默认「只允许更新」。
+assert(
+  derived.allowDowngrade === false,
+  "缺 allow_downgrade 的旧 spec 读作 false",
+);
+const downgradeParsed = parseUpgradeSpec(
+  JSON.stringify({
+    package_url: "/srv/wist/p.tar.gz",
+    package_sha256: "abc",
+    allow_downgrade: true,
+  }),
+);
+assert(downgradeParsed.error === null, "带 allow_downgrade 的 spec 也要能解析");
+assert(
+  downgradeParsed.allowDowngrade === true,
+  "allow_downgrade:true 要读成 true",
+);
+
+// `jsonUpgradeSpec` 写、`parseUpgradeSpec` 读，往返一致（同一个 agentd 契约）。
+const roundTrip = parseUpgradeSpec(
+  jsonUpgradeSpec({
+    packageUrl: "/srv/wist/p.tar.gz",
+    packageSha256: "abc",
+    allowDowngrade: true,
+  }),
+);
+assert(
+  roundTrip.error === null && roundTrip.allowDowngrade === true,
+  "jsonUpgradeSpec 产出的 spec 必须能被 parseUpgradeSpec 读回 true",
+);
+
+// allow_downgrade 的容错：null 读作 false（与缺省同）；字符串 / 数字是坏值 → 报错不静默。
+const nullDowngrade = parseUpgradeSpec(
+  JSON.stringify({
+    package_url: "/srv/wist/p.tar.gz",
+    package_sha256: "abc",
+    allow_downgrade: null,
+  }),
+);
+assert(nullDowngrade.error === null, "allow_downgrade:null 不是错误");
+assert(
+  nullDowngrade.allowDowngrade === false,
+  "allow_downgrade:null 读作 false",
+);
+
+const stringDowngrade = parseUpgradeSpec(
+  JSON.stringify({
+    package_url: "/srv/wist/p.tar.gz",
+    package_sha256: "abc",
+    allow_downgrade: "true",
+  }),
+);
+assert(
+  stringDowngrade.error !== null,
+  "allow_downgrade 是字符串（坏值）必须报错，不静默当 true",
+);
+assert(
+  stringDowngrade.allowDowngrade === false,
+  "坏值下 allowDowngrade 落回 false",
+);
+assert(
+  stringDowngrade.raw.includes("allow_downgrade"),
+  "坏值也要保留原文供页面呈现",
+);
+
+const numberDowngrade = parseUpgradeSpec(
+  JSON.stringify({
+    package_url: "/srv/wist/p.tar.gz",
+    package_sha256: "abc",
+    allow_downgrade: 1,
+  }),
+);
+assert(
+  numberDowngrade.error !== null,
+  "allow_downgrade 是数字（坏值）必须报错",
+);
+
+// 未知键：spec 是网关不透明存着的字符串，多出来的键（将来字段）必须被容忍，
+// 不能当成契约漂移把整条计划显示成坏 spec。
+const unknownKey = parseUpgradeSpec(
+  JSON.stringify({
+    package_url: "/srv/wist/p.tar.gz",
+    package_sha256: "abc",
+    future_field: 1,
+  }),
+);
+assert(unknownKey.error === null, "spec 里的未知键必须被容忍");
+assert(
+  unknownKey.packageUrl === "/srv/wist/p.tar.gz",
+  "未知键不影响必填字段解析",
+);
+
+// 缺键（不是 null）与 null 不同：package_url 键整个缺失 → 报错。
+const missingUrlKey = parseUpgradeSpec(
+  JSON.stringify({ package_sha256: "abc" }),
+);
+assert(missingUrlKey.error !== null, "缺 package_url 键的 spec 必须报错");
+
+// camelCase 拼写也认（normalizer 同时接受两种），且口径一致。
+const camelDowngrade = parseUpgradeSpec(
+  JSON.stringify({
+    packageUrl: "/srv/wist/p.tar.gz",
+    packageSha256: "abc",
+    allowDowngrade: true,
+  }),
+);
+assert(
+  camelDowngrade.error === null && camelDowngrade.allowDowngrade === true,
+  "camelCase 拼写也要认，别只认蛇形",
+);
 
 // --- 7. 状态口径与闭合兜底 -------------------------------------------------
 assert(planStatusLabel("draft") === "草稿（待批准）", "draft label");

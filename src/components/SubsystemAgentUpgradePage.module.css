@@ -471,6 +471,77 @@
   line-height: 1.55;
 }
 
+/* 还没有录入安装包：这里不能手输，只能去「Gateway 初始化」页录入，所以给一条明确指引。 */
+.packageEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.packageEmpty strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.packageEmpty a {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+/* 选中包后把真正会用的下载地址与摘要摊开：它们是提交内容，别只藏在 option 文本里。 */
+.packageDetail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 3px 12px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.packageDetailLabel {
+  color: var(--text-4);
+  font-weight: 700;
+}
+
+/* 地址与摘要可能很长：允许换行，不要把容器撑破。 */
+.packageDetail .mono {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* 允许降级：默认不勾（只允许更新）。 */
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.checkbox input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.checkboxNote {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
 /* ---------- 灰度阶段：选阶段数 + 自动分配预览 ---------- */
 
 .countTabs {

@@ -857,6 +857,74 @@ export async function fetchRegisteredAgents(
   );
 }
 
+/** 网关**已录入**的一个安装包（`GET /api/v1/admin/agent/install-packages` 的一项）。 */
+export interface InstallPackageView {
+  /** 网关在包目录里分配的 id，`agentPackageUrl` 也由它派生。 */
+  packageId: string;
+  /** 录入时给网关的取包来源：本机绝对路径或 https 链接（人读用）。 */
+  source: string;
+  /** 制品摘要，形如 `sha256:<64 hex>`。 */
+  packageSha256: string;
+  /** 包内 agentd 自报的版本。 */
+  version: string;
+  /** 目标架构（如 `aarch64-apple-darwin`）。 */
+  arch: string;
+  /** 网关**派生好**的、可直接给 agent 下载的地址（前端不要自己拼）。 */
+  agentPackageUrl: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+function normalizeInstallPackage(
+  payload: unknown,
+  index: number,
+): InstallPackageView {
+  const at = `packages[${index}]`;
+  const record = requiredRecord(payload, at);
+  return {
+    packageId: requiredString(
+      record.package_id ?? record.packageId,
+      `${at}.packageId`,
+    ),
+    source: requiredString(record.source, `${at}.source`),
+    packageSha256: requiredString(
+      record.package_sha256 ?? record.packageSha256,
+      `${at}.packageSha256`,
+    ),
+    version: requiredString(record.version, `${at}.version`),
+    arch: requiredString(record.arch, `${at}.arch`),
+    agentPackageUrl: requiredString(
+      record.agent_package_url ?? record.agentPackageUrl,
+      `${at}.agentPackageUrl`,
+    ),
+    createdBy: requiredString(
+      record.created_by ?? record.createdBy,
+      `${at}.createdBy`,
+    ),
+    createdAt: requiredString(
+      record.created_at ?? record.createdAt,
+      `${at}.createdAt`,
+    ),
+  };
+}
+
+/**
+ * 网关**已录入**的安装包历史（`GET /api/v1/admin/agent/install-packages`）。
+ *
+ * 升级页从这里选包，而不是让操作者手输地址 + 摘要：来源在「Gateway 初始化」页录入时由网关
+ * 存进自己的包目录，`agent_package_url` 是网关派生好的下载地址。缺 `packages` 数组或某项缺
+ * 必填字段都**显式抛错**，不静默成空列表 —— 那会让页面说“一个包都没录入”，比报错更难查。
+ */
+export async function fetchInstallPackages(): Promise<InstallPackageView[]> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/install-packages",
+  );
+  const root = requiredRecord(payload, "packages");
+  return requiredArray(root.packages, "packages.packages").map(
+    normalizeInstallPackage,
+  );
+}
+
 export function normalizeAgentUplink(payload: any): AgentUplink {
   const setting = payload.uplink ?? payload;
   return {
@@ -1338,6 +1406,26 @@ function requiredStringArray(value: unknown, fieldName: string): string[] {
   return requiredArray(value, fieldName).map((item, index) =>
     requiredString(item, `${fieldName}[${index}]`),
   );
+}
+
+/**
+ * 键**可以不存在**的布尔字段：缺失 / `null` 都返回 `false`。
+ *
+ * 用于契约里**可省**且缺省即关的字段（如升级 spec 的 `allow_downgrade`）。写成开关语义 ——
+ * 没写就是默认的「不开启」，与 `optionalStringField` 把缺省读成 `null` 是同一套口径。
+ */
+function optionalBooleanField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): boolean {
+  const key = keys.find((candidate) =>
+    Object.prototype.hasOwnProperty.call(record, candidate),
+  );
+  if (key === undefined) return false;
+  const value = record[key];
+  if (value === null || value === undefined) return false;
+  return requiredBoolean(value, fieldName);
 }
 
 /**
@@ -2494,17 +2582,23 @@ export interface CreateRolloutPlanCommand {
  * 页面上不暴露这个键（版本以包内 agentd 自报为单一事实来源），需要时由调用方在此传入。
  * `package_url` 必须是 `https://…` 或**目标 Agent 主机上的绝对路径**；`package_sha256` 必须是
  * 64 位 hex（可带 `sha256:` 前缀）。这两个键永远写。
+ *
+ * `allow_downgrade` **可选**：agentd 默认只允许更新（版本必须更高），只有显式置 `true` 才允许
+ * 同版本 / 降级。`true` 才写进 JSON —— 不给 / `false` 都不写这个键，这样产物与旧 spec 字节一致，
+ * 还没认这个字段的旧 agentd 也能照常解析。
  */
 export function jsonUpgradeSpec(input: {
   targetVersion?: string;
   packageUrl: string;
   packageSha256: string;
+  allowDowngrade?: boolean;
 }): string {
   const target = input.targetVersion?.trim();
   return JSON.stringify({
     ...(target ? { target_version: target } : {}),
     package_url: input.packageUrl.trim(),
     package_sha256: input.packageSha256.trim(),
+    ...(input.allowDowngrade === true ? { allow_downgrade: true } : {}),
   });
 }
 
@@ -2512,13 +2606,15 @@ export function jsonUpgradeSpec(input: {
  * 解析 `upgrade` 计划的 `spec`（与 `jsonUpgradeSpec` 反向）。
  *
  * `target_version` 是**可省**的（版本由包内 agentd 自报决定），所以它缺省时返回 `null`、
- * 不当成错误；`package_url` / `package_sha256` 必须存在。解析失败**不抛错**，
+ * 不当成错误；`package_url` / `package_sha256` 必须存在。`allow_downgrade` 也是**可省**的，
+ * 缺省读作 `false`（旧 spec 没这个键 —— 那就是默认的「只允许更新」）。解析失败**不抛错**，
  * 而是把原文与原因交给页面如实呈现。
  */
 export function parseUpgradeSpec(raw: string): {
   targetVersion: string | null;
   packageUrl: string | null;
   packageSha256: string | null;
+  allowDowngrade: boolean;
   raw: string;
   error: string | null;
 } {
@@ -2540,6 +2636,11 @@ export function parseUpgradeSpec(raw: string): {
         ["package_sha256", "packageSha256"],
         "upgradeSpec.packageSha256",
       ),
+      allowDowngrade: optionalBooleanField(
+        record,
+        ["allow_downgrade", "allowDowngrade"],
+        "upgradeSpec.allowDowngrade",
+      ),
       raw,
       error: null,
     };
@@ -2548,6 +2649,7 @@ export function parseUpgradeSpec(raw: string): {
       targetVersion: null,
       packageUrl: null,
       packageSha256: null,
+      allowDowngrade: false,
       raw,
       error: (error as Error).message,
     };
