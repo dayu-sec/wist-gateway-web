@@ -1,0 +1,453 @@
+.container {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.main {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 26px 24px 56px;
+}
+
+.pageHeader {
+  max-width: 860px;
+  margin-bottom: 22px;
+}
+
+.pageTitle {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.pageSummary {
+  margin-top: 7px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+/* 一张卡 = 一个设置项 / 一段内容：卡头（标签/标题/说明）+ 只读的当前值 + 修改表单。
+   两段之间只用一条 hairline 分隔，不另起一张「平台维护操作」卡。 */
+.card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.card + .card {
+  margin-top: 18px;
+}
+
+.cardHead {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.cardTag {
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.cardHead h2 {
+  margin-top: 5px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.cardHead p {
+  max-width: 680px;
+  margin-top: 5px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 只读的当前值：卡片内通栏的行（不套第二层边框盒，避免「表里套表」）。
+   主值行给足字号并允许折行 —— 长 URL 要能一眼看全，不能截断在输入框里。 */
+.summaryList {
+  margin: 0;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 20px;
+}
+
+.summaryRow:first-child {
+  padding-top: 14px;
+}
+
+.summaryRow:last-child {
+  padding-bottom: 14px;
+}
+
+.summaryRow + .summaryRow {
+  border-top: 1px solid var(--border);
+}
+
+/* 主值行靠左侧 accent 色条锚定视线。用色条而不是边框，
+   避免又叠出第二层框线。 */
+.summaryRowPrimary {
+  position: relative;
+}
+
+.summaryRowPrimary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.summaryRow dt {
+  flex: 0 0 76px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* 值与复制按钮同一行块：值可压缩换行，按钮不参与换行，避免长 URL 把按钮
+   顶到第二行孤零零挂着。 */
+.summaryRow dd {
+  display: flex;
+  flex: 1;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  min-width: 0;
+}
+
+/* 主值：这一项的主角，字号与亮度都要压过其余几行。 */
+.summaryValuePrimary {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.summaryValueMono {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* 「未设置」是状态而非普通文本：网关在用内置的包。 */
+.summaryValueEmpty {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.summaryMeta {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.inlineCopyButton {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.inlineCopyButton:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.inlineCopyButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 当前值区里的状态提示（读取中 / 读失败）。 */
+.summaryNotices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.field input:focus {
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.field small {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.primaryButton {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primaryButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.primaryButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  cursor: not-allowed;
+}
+
+.actionHint {
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.errorBanner {
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.formNotice {
+  padding: 10px 12px;
+  border: 1px solid var(--ok-border);
+  border-radius: var(--radius-sm);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.notice {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.noticeDanger {
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+/* 已录入包列表：通栏行，靠 hairline 分隔，不套第二层边框盒。 */
+.packageList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.packageRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 20px;
+}
+
+.packageRow + .packageRow {
+  border-top: 1px solid var(--border);
+}
+
+.packageRowTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 版本 · 架构：一行里的主角，压过下面的来源与摘要。 */
+.packageLabel {
+  min-width: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.packageTime {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 来源与摘要都可能很长：各自 CSS 截断，全文放 title。 */
+.packageRowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 16px;
+  min-width: 0;
+}
+
+.packageSource,
+.packageSha {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 空历史不是错误，也不该是一句干瘪的「暂无数据」：顺带交代怎么让它有内容。 */
+.packageEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 20px;
+  padding: 18px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.packageEmpty strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .main {
+    padding: 22px 16px 40px;
+  }
+
+  .cardHead,
+  .form,
+  .summaryNotices {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .summaryRow,
+  .packageRow {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .summaryRow {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .summaryRow dt {
+    flex-basis: auto;
+  }
+
+  .formActions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .packageEmpty {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+}

@@ -23,6 +23,7 @@ export { SubsystemAdminTopNavigation } from "./SubsystemAdminTopNavigation";
 export { SubsystemAgentControlUsecaseBoard } from "./SubsystemAgentControlUsecaseBoard";
 export { SubsystemAgentInstallPage } from "./SubsystemAgentInstallPage";
 export { SubsystemGatewayInitializePage } from "./SubsystemGatewayInitializePage";
+export { SubsystemAgentPackagePage } from "./SubsystemAgentPackagePage";
 export { SubsystemShowAgentRuntimeStatusUsecaseCard } from "./SubsystemShowAgentRuntimeStatusUsecaseCard";
 export { SubsystemAgentRuntimeStatusResult } from "./SubsystemAgentRuntimeStatusResult";
 export { SubsystemRuntimeStatusAgentInput } from "./SubsystemRuntimeStatusAgentInput";

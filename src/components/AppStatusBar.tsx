@@ -48,6 +48,8 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "settings", crumbs: ["安装 Agent"] };
     case "/gateway-init":
       return { section: "settings", crumbs: ["Gateway 初始化"] };
+    case "/install-package":
+      return { section: "settings", crumbs: ["安装包"] };
     case "/link-upstream":
       return { section: "settings", crumbs: ["链接上级"] };
     case "/":

@@ -101,7 +101,7 @@ function IconInstall() {
   );
 }
 
-/** Gateway 初始化：齿轮 —— 网关侧两项初始设置（取包来源 / 上送目标）的归口。 */
+/** Gateway 初始化：齿轮 —— 网关侧两项初始设置的归口（网关对外地址 / 数据面上送目标）。 */
 function IconGatewayInit() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -114,6 +114,29 @@ function IconGatewayInit() {
         strokeWidth="1.4"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+/** 安装包：包裹 / 箱子外形 —— 网关包目录里的安装制品。 */
+function IconPackage() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M2 5.1 8 2.2l6 2.9v5.8L8 13.8 2 10.9Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2 5.1 8 8l6-2.9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M8 8v5.8" fill="none" stroke="currentColor" strokeWidth="1.4" />
     </svg>
   );
 }
@@ -183,8 +206,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       // 「链接上级」= 把本网关接入上级控制中心，与上面那项 Agent 远程运维的
       //「控制中心」是两回事，所以名字里点明动作与对象。
       { to: "/link-upstream", label: "链接上级", icon: <IconLinkUpstream /> },
-      // 取包来源与上送目标合成一页：两项都是网关侧的设置，只影响之后新签发的 Agent。
+      // 网关对外地址与上送目标合成一页：两项都是网关侧的设置，只影响之后新签发的 Agent。
       { to: "/gateway-init", label: "Gateway 初始化", icon: <IconGatewayInit /> },
+      // 取包来源单独一页（从 Gateway 初始化页拆回）：配网关从哪取件 + 看已录入的包历史。
+      { to: "/install-package", label: "安装包", icon: <IconPackage /> },
       { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
     ],
   },

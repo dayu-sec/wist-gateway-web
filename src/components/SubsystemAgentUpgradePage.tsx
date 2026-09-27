@@ -437,7 +437,7 @@ export function SubsystemAgentUpgradePage() {
               <div className={styles.packageEmpty}>
                 <strong>还没有录入过安装包</strong>
                 <span>
-                  去 <Link to="/gateway-init">Gateway 初始化</Link>{" "}
+                  去 <Link to="/install-package">安装包</Link>{" "}
                   页填「安装包来源」（本地路径或 https
                   均可），网关会把它存进自己的包目录，之后这里就能选。
                 </span>
