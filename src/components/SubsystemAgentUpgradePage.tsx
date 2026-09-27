@@ -3,11 +3,16 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
 import { jsonUpgradeSpec, parseUpgradeSpec } from "../api/admin";
 import {
-  useAllAgentsHostMetrics,
   useCreateRolloutPlan,
+  useRegisteredAgents,
   useRolloutPlans,
 } from "../hooks";
-import { availablePhaseCounts, phaseScaleLabel, planPhases } from "./agentUpgradePhases";
+import {
+  availablePhaseCounts,
+  phaseScaleLabel,
+  planPhases,
+  selectUpgradeTargets,
+} from "./agentUpgradePhases";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { planStatusLabel, planStatusTone, planTargetCount } from "./rolloutStatus";
 import styles from "./SubsystemAgentUpgradePage.module.css";
@@ -131,12 +136,16 @@ function toneClass(tone: string): string {
  */
 export function SubsystemAgentUpgradePage() {
   const plans = useRolloutPlans();
-  const agents = useAllAgentsHostMetrics();
+  // 机队 = **已注册**的 Agent（不是“有主机指标的”）：待命/新装的机器不上送指标，
+  // 用指标列表会让它们从升级计划里彻底消失。
+  const agents = useRegisteredAgents();
   const create = useCreateRolloutPlan();
   const navigate = useNavigate();
 
-  const agentIds = useMemo(
-    () => (agents.data ?? []).map((host) => host.agentId).sort(),
+  // 升级目标只取在线的机器（排掉明确离线的），并把被排掉的台数说出来 —— 不然一台离线
+  // 机器为何不在计划里会很难查。在线判据由**网关**给（不在这页重新定义一次“多久算掉线”）。
+  const { agentIds, fleetSize, offlineCount } = useMemo(
+    () => selectUpgradeTargets(agents.data ?? []),
     [agents.data],
   );
 
@@ -254,13 +263,12 @@ export function SubsystemAgentUpgradePage() {
       <header className={styles.pageHeader}>
         <div className={styles.titleRow}>
           <h1 className={styles.pageTitle}>Agent 升级</h1>
-          <Link className={styles.crossLink} to="/agent-init">
-            Agent 初始化 <span aria-hidden="true">→</span>
+          <Link className={styles.crossLink} to="/gateway-init">
+            Gateway 初始化 <span aria-hidden="true">→</span>
           </Link>
         </div>
         <p className={styles.pageSummary}>
-          按灰度节奏（金丝雀 → 扩大 → 全量）把 agentd 升到指定版本。计划只是编排：
-          批准后才派发，逐台成败由 agentd 上报回填。
+          按灰度节奏（金丝雀 → 扩大 → 全量）把 agentd 升到指定版本。计划只是编排：批准后才派发，逐台成败由 agentd 上报回填。
         </p>
       </header>
 
@@ -525,10 +533,12 @@ export function SubsystemAgentUpgradePage() {
             ) : null}
 
             <span className={styles.formNote}>
-              机队 {agentIds.length} 台，最多分
-              {phaseCounts.length > 0 ? phaseCounts[phaseCounts.length - 1] : 0} 批
-              —— 每段至少 1 台，按排序后的 agent_id 依次切片、互不重叠（一个 Agent 只升一次）。
-              推进一律人工确认。
+              在线 {agentIds.length} 台
+              {offlineCount > 0
+                ? `（机队 ${fleetSize} 台，已排除离线 ${offlineCount} 台）`
+                : null}
+              ，最多分
+              {phaseCounts.length > 0 ? phaseCounts[phaseCounts.length - 1] : 0} 批—— 每段至少 1 台，按排序后的 agent_id 依次切片、互不重叠（一个 Agent 只升一次）。推进一律人工确认。
             </span>
 
             {phasePlan.error ? (

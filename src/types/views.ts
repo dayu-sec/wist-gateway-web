@@ -295,6 +295,72 @@ export interface OneShotWork {
   result: WorkResult | null;
 }
 
+/**
+ * agentd 上报的**本机**采集任务（`local.standing[].tasks[]` 与 `local.local_inputs[]`）。
+ *
+ * 这是「这台机器实际会去 tail 哪个文件」的第一手答案：由 agent 自己折算，
+ * 网关只做透传。与授权侧的 `WorkSpec` 来源不同 —— 那是**期望**，这是**实际**。
+ */
+export interface AgentLocalTaskView {
+  /** 输入标识：常驻任务是 `work-<面>-<名>`，手工输入是本机配置里的键。 */
+  inputId: string;
+  /** 实际采的路径（`FileGlob` 展开后的具体文件）。 */
+  path: string;
+  /** 起始位置：`tail`（只看新增）/ `head`（从头）/ …。 */
+  startupPosition: string;
+}
+
+/** agentd 上报的一份**本机**常驻工作（与授权对照：期望版本 vs 回报版本）。 */
+export interface AgentLocalStandingWorkView {
+  workId: string;
+  /** 采集面（`CollectionFamily`）。 */
+  family: string;
+  /** 本机侧状态（`active` / `paused` / …）。 */
+  status: string;
+  /** 本机收到的计划版本。 */
+  planVersion: number;
+  /** 本机实际确认的版本：与 `planVersion` 不一致 = 还没跟上。 */
+  acknowledgedVersion: number;
+  effectiveFrom: string;
+  tasks: AgentLocalTaskView[];
+}
+
+/** agentd 上报的一份**本机**一次性工作。 */
+export interface AgentLocalOneShotWorkView {
+  workId: string;
+  /** 动作面：upgrade / snapshot / exec / …。 */
+  action: string;
+  /** 本机侧状态（`dispatched` / `running` / …）。 */
+  status: string;
+  /** 执行阶段：`unexecuted`（未开始）/ `executing` / `executed`。 */
+  execution: string;
+  scheduledAt: string;
+  deadlineAt: string;
+  timeoutSeconds: number;
+}
+
+/**
+ * agentd 上报的**本机**工作视图（`AgentWorkView.local`）。
+ *
+ * 这一份只有 agent 自己知道：网关授权说的是「期望它做什么」，这里记录的是
+ * 「它此刻实际在做什么」。`null` = 还没上报过（旧版 agentd 不上报此字段）——
+ * 与「上报了但解析不了」是两回事，后者看 `error`。
+ */
+export interface AgentLocalWorkView {
+  /** 本机时钟的上报时刻：与 `AgentWorkView.generatedAt`（网关时钟）不是同一只表。 */
+  recordedAt: string;
+  /** 上报时 Agent 手上那份快照的授权序号，与 `AgentWorkView.sequence` 对照即可看它落后多少。 */
+  gatewaySequence: number;
+  standing: AgentLocalStandingWorkView[];
+  oneShot: AgentLocalOneShotWorkView[];
+  /** 本机配置里手工加的输入（运维逃生舱）：不来自任何采集面，只本机知道。 */
+  localInputs: AgentLocalTaskView[];
+  /** 指标上送周期（秒）；没有指标来源时为 `null`。 */
+  metricsIntervalSeconds: number | null;
+  /** 解析/形状错误的原因；`null` = 解析成功。解析失败时数组为空、只保留原因。 */
+  error: string | null;
+}
+
 /** 管理面「Agent 工作」视图（模型 `WorkGrant` + 历史留痕）。 */
 export interface AgentWorkView {
   agentId: string;
@@ -309,6 +375,11 @@ export interface AgentWorkView {
   /** 已了结的一次性工作（审计用，不下发）。 */
   settledOneShot: OneShotWork[];
   generatedAt: string;
+  /**
+   * agentd 上报的本机工作视图；`null` = 这台 Agent 还没上报过（旧版本 agentd）。
+   * 缺失 / `null` 都收敛成 `null`，不抛错 —— 旧网关/旧 agent 没这个字段是正常的。
+   */
+  local: AgentLocalWorkView | null;
 }
 
 /** 管理面授权/撤回工作的回执（模型 `WorkReceipt`）。 */

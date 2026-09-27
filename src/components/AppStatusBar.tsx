@@ -23,6 +23,9 @@ function describeRoute(pathname: string): RouteMeta {
   if (matchPath("/agents/:agentId/purpose", pathname)) {
     return { section: "monitoring", crumbs: ["主机指标", "Agent 用途"] };
   }
+  if (matchPath("/agents/:agentId/work", pathname)) {
+    return { section: "monitoring", crumbs: ["采集工作", "工作清单"] };
+  }
   if (matchPath("/upgrade/:planId", pathname)) {
     return { section: "ops", crumbs: ["Agent 升级", "升级计划"] };
   }
@@ -35,14 +38,16 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "monitoring", crumbs: ["数据采集"] };
     case "/logs":
       return { section: "monitoring", crumbs: ["采集日志"] };
+    case "/work":
+      return { section: "monitoring", crumbs: ["采集工作"] };
     case "/upgrade":
       return { section: "ops", crumbs: ["Agent 升级"] };
     case "/control":
       return { section: "settings", crumbs: ["控制中心"] };
     case "/install":
       return { section: "settings", crumbs: ["安装 Agent"] };
-    case "/agent-init":
-      return { section: "settings", crumbs: ["Agent 初始化"] };
+    case "/gateway-init":
+      return { section: "settings", crumbs: ["Gateway 初始化"] };
     case "/link-upstream":
       return { section: "settings", crumbs: ["链接上级"] };
     case "/":

@@ -175,8 +175,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>主机指标</h1>
         <p className={styles.pageSummary}>
-          机队实时负载视图：一行一台已接入主机，按严重度排序，优先暴露需要处理的主机。
-          数据每 5 秒刷新。
+          机队实时负载视图：一行一台已接入主机，按严重度排序，优先暴露需要处理的主机。数据每 5 秒刷新。
         </p>
         <p className={styles.pageThresholds}>
           分级口径：内存 / 磁盘使用率 ≥90% 为危急、≥75% 为偏高；1 分钟负载按 8 核基准折算。
@@ -366,6 +365,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                     </td>
                     <td className={styles.tdAction}>
                       <div className={styles.actionLinks}>
+                        <Link
+                          className={styles.detailLink}
+                          to={`/agents/${encodeURIComponent(row.agentId)}/work`}
+                        >
+                          采集工作
+                        </Link>
                         <Link
                           className={styles.detailLink}
                           to={`/agents/${encodeURIComponent(row.agentId)}/purpose`}

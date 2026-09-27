@@ -107,11 +107,8 @@ export function SubsystemSoftwareInventoryPage({}: SubsystemSoftwareInventoryPag
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>资产清单</h1>
         <p className={styles.pageSummary}>
-          网关把每台机器上报的事实摘要<strong>机械归并</strong>成「这台机器上有什么」。
-          条目只有名字，而名字来自路径归并（`.app` 取包名、其余取路径末段）：
-          <strong>没有版本、没有 vendor</strong> ——
-          识别需要在被管机器上读 <code className={styles.code}>Info.plist</code> / 包管理器，
-          属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。
+          网关把每台机器上报的事实摘要<strong>机械归并</strong>成「这台机器上有什么」。条目只有名字，而名字来自路径归并（<code className={styles.code}>.app</code> 取包名、其余取路径末段）：
+          <strong>没有版本、没有 vendor</strong> ——识别需要在被管机器上读 <code className={styles.code}>Info.plist</code> / 包管理器，属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。
         </p>
         <p className={styles.pageThresholds}>
           清单是<strong>当前快照</strong>：它是事实摘要的投影，随每次上报覆盖式重建，
@@ -187,10 +184,7 @@ function FleetInventory({
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>按软件看机器</h2>
         <span className={styles.sectionHint}>
-          按<strong>持有机器数</strong>降序；同一个键下会列出持有它的每台机器，
-          以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览
-          —— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」
-          不等于这台机器没注册。
+          按<strong>持有机器数</strong>降序；同一个键下会列出持有它的每台机器，以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览—— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」不等于这台机器没注册。
         </span>
       </div>
 
@@ -218,9 +212,7 @@ function FleetInventory({
         <div className={styles.empty} role="status">
           <strong className={styles.emptyTitle}>还没有任何机器上报过清单</strong>
           <span className={styles.emptyText}>
-            网关里暂时没有任何软件键。这与「接口读不到」不同：请求成功了，只是
-            还没有机器上报过带可执行路径的事实摘要。确认 Agent 已启动并完成上报后，
-            用右上角「刷新」重取。
+            网关里暂时没有任何软件键。这与「接口读不到」不同：请求成功了，只是还没有机器上报过带可执行路径的事实摘要。确认 Agent 已启动并完成上报后，用右上角「刷新」重取。
           </span>
         </div>
       ) : null}
@@ -455,8 +447,7 @@ function AgentInventory({
           <strong className={styles.emptyTitle}>未选择机器</strong>
           <span className={styles.emptyText}>
             上面填入 agent_id 后点「查看清单」，或用带{" "}
-            <code className={styles.code}>?agent=&lt;agent_id&gt;</code> 的链接直接进入。
-            清单是按机器上报的事实摘要归并出来的，「按软件看机器」则不需要先选机器。
+            <code className={styles.code}>?agent=&lt;agent_id&gt;</code> 的链接直接进入。清单是按机器上报的事实摘要归并出来的，「按软件看机器」则不需要先选机器。
           </span>
         </div>
       ) : null}
@@ -468,9 +459,7 @@ function AgentInventory({
         <section className={styles.unknownAgent} role="alert">
           <h2 className={styles.unknownTitle}>未知 Agent</h2>
           <p className={styles.unknownText}>
-            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。
-            这与「还没上报过清单」是两回事：后者是已知的 Agent 还没报过带可执行路径的
-            摘要，网关会返回空清单与 0 计数，而不是 404。
+            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。这与「还没上报过清单」是两回事：后者是已知的 Agent 还没报过带可执行路径的摘要，网关会返回空清单与 0 计数，而不是 404。
           </p>
           <p className={styles.unknownHint}>
             请确认 agent_id 拼写是否正确；已注册的机器可以在
@@ -509,9 +498,7 @@ function AgentInventory({
               <Metric label="条目组（按键）" value={groups.length} />
             </div>
             <p className={styles.summaryNote}>
-              前两列是<strong>行数</strong>，<strong>都不是「软件个数」</strong>：
-              同一个 <code className={styles.code}>.app</code> 包里跑了几个可执行文件就是几行，
-              所以「行数」总是远大于「组数」。组数才是「这台机器上有多少个条目」。
+              前两列是<strong>行数</strong>，<strong>都不是「软件个数」</strong>：同一个 <code className={styles.code}>.app</code> 包里跑了几个可执行文件就是几行，所以「行数」总是远大于「组数」。组数才是「这台机器上有多少个条目」。
             </p>
           </div>
 
@@ -519,9 +506,7 @@ function AgentInventory({
             <div className={styles.empty} role="status">
               <strong className={styles.emptyTitle}>这台机器还没有上报过清单</strong>
               <span className={styles.emptyText}>
-                网关里存在这台 Agent（不是 404），但它的事实摘要里还没有可执行路径：
-                返回的是 0 条清单，而不是错误。清单随每次上报覆盖式重建，
-                等它上报一次就会出现在这里。
+                网关里存在这台 Agent（不是 404），但它的事实摘要里还没有可执行路径：返回的是 0 条清单，而不是错误。清单随每次上报覆盖式重建，等它上报一次就会出现在这里。
               </span>
             </div>
           ) : (

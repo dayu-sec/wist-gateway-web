@@ -147,6 +147,12 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
         </Link>
         <Link
           className={styles.purposeLink}
+          to={`/agents/${encodeURIComponent(agent.agentId)}/work`}
+        >
+          查看采集工作 →
+        </Link>
+        <Link
+          className={styles.purposeLink}
           to={`/agents/${encodeURIComponent(agent.agentId)}/purpose`}
         >
           查看用途 →

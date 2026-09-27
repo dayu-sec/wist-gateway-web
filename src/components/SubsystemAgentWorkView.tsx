@@ -1,11 +1,17 @@
 import { useState } from "react";
 import type {
+  AgentLocalOneShotWorkView,
+  AgentLocalStandingWorkView,
+  AgentLocalTaskView,
+  AgentLocalWorkView,
   AgentWorkView,
   ContentCatalogView,
   MachineClass,
   OneShotWork,
   StandingWork,
+  StandingWorkStatus,
 } from "../types";
+import type { GrantableFamily } from "./agentWorkStatus";
 import type {
   GrantOneShotWorkCommand,
   GrantStandingWorkCommand,
@@ -16,16 +22,21 @@ import {
   STANDING_STATUS_LABEL,
   STANDING_STATUS_TONE,
   blockedFamilies,
+  collectedLogFiles,
   driftingCount,
+  duplicatedCollectedPaths,
   grantableFamilies,
+  localExecutionLabel,
   metricIntervalSeconds,
   oneShotStatusLabel,
   oneShotStatusTone,
   platformForMachineClass,
-  sourceLabel,
+  sourceText,
   specCounts,
   standingDrift,
-  workCapabilities,
+  ungrantedFamilies,
+  unsupportedSourceCount,
+  unsupportedSourceReason,
 } from "./agentWorkStatus";
 import styles from "./SubsystemAgentWorkView.module.css";
 
@@ -74,10 +85,16 @@ function toneClass(tone: string): string {
 /**
  * Agent 工作视图（模型 `WorkGrant` + 授权/撤回/暂停/恢复的入口）。
  *
- * 页面要回答三件事，分节就是为了这三件事互不干扰：
- *   1. **在采什么** —— 生效中的常驻工作与它们的采集单元（`spec` 里的条目）；
- *   2. **派下去到了没有** —— 期望版本 vs Agent 确认版本（漂移）；
- *   3. **能派什么** —— 面就绪度闸门下的可选面，与派不了的面的原因。
+ * 常驻工作那一节就是**一个采集面一格卡**，三种面在里面各就各位：
+ *   · 已授权（生效中 / 已暂停）—— 卡上是「期望」与「本机实际」的对照；
+ *   · 可派未授权 —— 卡上就一个「授权这份工作」，不用另开一节、再在下拉里把面挑一遍；
+ *   · 不能派 —— 卡里放不下（它不是一件事），收在节末的理由里。
+ *
+ * 每张已授权的卡说两件事：上半是网关的**期望**（授权里写了什么、谁改的、漂移到哪一步），
+ * 下半是 agentd 自报的**本机实际**（它手上是哪一版、实际从什么时候起效、真在采哪些文件）。
+ * 两者对不上才是要查的事 —— 所以自报不单独占一节：同一批采集面列两遍，读者就得自己
+ * 逐行对差，那正是这个视图该替他做的事。自报里「网关这边根本没有」的部分
+ * （本机残留的工作、手工加的输入）无处可并，单独列一节。
  */
 export function SubsystemAgentWorkView({
   agentWorkView,
@@ -96,16 +113,35 @@ export function SubsystemAgentWorkView({
   const drift = driftingCount(agentWorkView.standing);
   const grantable =
     catalog && machineClass ? grantableFamilies(catalog, machineClass) : [];
+  // 能派但还没授权的面：它们也占一格卡（授权按钮就在卡上），不再另开一节挑面。
+  const ungranted = ungrantedFamilies(grantable, agentWorkView.standing);
   const blocked = catalog && machineClass ? blockedFamilies(catalog, machineClass) : [];
+  // 自报存在且解析成功时才有「本机实际」可言：`null` 是没上报（旧 agentd），
+  // `error` 是有上报但读不了 —— 两种都不该把卡片标成「本机没在做」。
+  const local = agentWorkView.local && !agentWorkView.local.error
+    ? agentWorkView.local
+    : null;
+  const lag = local ? agentWorkView.sequence - local.gatewaySequence : 0;
+  // 本机报了、网关这边没有的工作：撤回刚发生而 Agent 还没跟到下一版快照，或本机残留。
+  const orphanStanding = local
+    ? local.standing.filter(
+        (work) =>
+          !agentWorkView.standing.some((entry) => entry.workId === work.workId),
+      )
+    : [];
+  const manualInputs = local ? local.localInputs : [];
+  const sharedPaths = duplicatedCollectedPaths(agentWorkView.standing);
 
   return (
     <div className={styles.view}>
       <section className={styles.summary} aria-label="工作摘要">
-        <div className={styles.summaryItem}>
+        <div className={`${styles.summaryItem} ${lag > 0 ? styles.summaryWarn : ""}`}>
           <span className={styles.summaryLabel}>授权序号</span>
           <span className={styles.summaryValue}>{agentWorkView.sequence}</span>
           <span className={styles.summaryHint}>
-            Agent 据此判断快照有没有变（每 30 秒拉一次）
+            {lag > 0
+              ? `本机上报时还停在 ${agentWorkView.sequence - lag}（落后 ${lag} 版）`
+              : "本机上报时已跟到这一版（它每 30 秒拉一次快照）"}
           </span>
         </div>
         <div className={styles.summaryItem}>
@@ -128,6 +164,8 @@ export function SubsystemAgentWorkView({
         </div>
       </section>
 
+      <LocalReportStrip local={agentWorkView.local} />
+
       {actionError ? (
         <div className={styles.errorBanner} role="alert">
           {actionError}
@@ -142,18 +180,16 @@ export function SubsystemAgentWorkView({
       <section className={styles.section} aria-labelledby="agent-work-standing-title">
         <header className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle} id="agent-work-standing-title">
-            生效中的常驻工作
+            常驻工作
           </h2>
           <span className={styles.sectionHint}>
-            一个采集面一份；暂停是**期望状态的一部分**（Agent 没在做不算漂移），
-            撤回才是停止
+            一个采集面一份，可派的面直接在这张卡上授权。已授权的卡：头两行是网关<strong>期望</strong>的样子，下面那行「本机实际」是 agentd 自报的 —— 两者对不上才是要查的事。暂停是<strong>期望状态的一部分</strong>（Agent 没在做不算漂移），撤回才是停止；要改这份采什么，撤回后重新授权（同一份工作、版本 +1，按最新事实重新派生）
           </span>
         </header>
 
-        {agentWorkView.standing.length === 0 ? (
+        {agentWorkView.standing.length === 0 && ungranted.length === 0 ? (
           <p className={styles.emptyNotice}>
-            这台机器当前**没有**生效中的工作：它不做采集（也不上送指标）。
-            在下面选一个采集面派下去。
+            这台机器当前<strong>没有</strong>生效中的常驻工作，也没有可派的采集面。
           </p>
         ) : (
           <ul className={styles.cardList}>
@@ -161,6 +197,8 @@ export function SubsystemAgentWorkView({
               <StandingWorkCard
                 key={work.workId}
                 work={work}
+                local={local}
+                sharedPaths={sharedPaths}
                 pending={pending}
                 onAction={onAction}
                 revokeTarget={revokeTarget}
@@ -169,25 +207,21 @@ export function SubsystemAgentWorkView({
                 setRevokeReason={setRevokeReason}
               />
             ))}
+            {ungranted.map((entry) => (
+              <GrantCandidateCard
+                key={entry.family}
+                entry={entry}
+                pending={pending}
+                onSubmit={onGrantStanding}
+              />
+            ))}
           </ul>
         )}
-      </section>
 
-      <section className={styles.section} aria-labelledby="agent-work-grant-title">
-        <header className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle} id="agent-work-grant-title">
-            派一份常驻工作
-          </h2>
-          <span className={styles.sectionHint}>
-            工作参数留空即由网关**按这台机器的事实**从采集目录展开；同一面再授一次是
-            改这一份（版本 +1），不是多出一份
-          </span>
-        </header>
-
+        {/* 派活的前置与摆不到卡上的面：卡里放不下的部分，在这里说清。 */}
         {!machineClass ? (
           <p className={styles.blockedNotice}>
-            派活的前置是**用途判定**：它决定取哪份模板、也就决定了能派哪些面。
-            这台机器还没归档判定 ——
+            派活的前置是<strong>用途判定</strong>：它决定取哪份模板、也就决定了能派哪些面。这台机器还没归档判定 ——
             <a className={styles.inlineLink} href="./purpose">
               先去用途页归档
             </a>
@@ -195,24 +229,45 @@ export function SubsystemAgentWorkView({
           </p>
         ) : catalogUnavailable ? (
           <p className={styles.blockedNotice}>
-            采集内容目录未装载（网关未配置 `[content]` 三件套）：无法展开工作参数，
-            也就无法派活。配好内容目录并重启网关后再来。
+            采集内容目录未装载（网关未配置 <span className={styles.mono}>[content]</span> 三件套）：无法展开工作参数，也就无法派活。配好内容目录并重启网关后再来。
           </p>
         ) : !catalog ? (
           <p className={styles.blockedNotice}>
             正在加载采集内容目录（可派的面来自它）。
           </p>
         ) : (
-          <GrantStandingForm
-            grantable={grantable}
-            blocked={blocked}
-            platform={platformForMachineClass(machineClass)}
-            machineClass={machineClass}
-            pending={pending}
-            onSubmit={onGrantStanding}
-          />
+          <>
+            {grantable.length === 0 ? (
+              <p className={styles.blockedNotice}>
+                <strong>{machineClass}</strong>（{platformForMachineClass(machineClass)}
+                ）当前<strong>没有任何可采的采集面</strong>：所有面都还没有采集就绪的单元（没有{" "}
+                <span className={styles.mono}>status = active</span>），因此无可授权。
+              </p>
+            ) : null}
+            {blocked.length > 0 ? (
+              <details className={styles.blockedDetails}>
+                <summary className={styles.muted}>
+                  另有 {blocked.length} 个面还不能派（规则未就绪 / 平台不适用）
+                </summary>
+                <ul className={styles.blockedList}>
+                  {blocked.map((entry) => (
+                    <li key={entry.family}>
+                      <span className={styles.mono}>{entry.family}</span> —— {entry.reason}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </>
         )}
       </section>
+
+      {orphanStanding.length > 0 || manualInputs.length > 0 ? (
+        <LocalOnlySection
+          orphanStanding={orphanStanding}
+          manualInputs={manualInputs}
+        />
+      ) : null}
 
       <section className={styles.section} aria-labelledby="agent-work-oneshot-title">
         <header className={styles.sectionHeader}>
@@ -220,14 +275,12 @@ export function SubsystemAgentWorkView({
             一次性工作
           </h2>
           <span className={styles.sectionHint}>
-            有计划开始时间与绝对截止，有明确终态；暂停也照走截止
+            有计划开始时间与绝对截止，有明确终态；暂停也照走截止。每张卡下面的「本机实际」是 agentd 自报的执行阶段
           </span>
         </header>
 
         <p className={styles.gapNotice}>
-          当前 agentd 只执行 `upgrade` 这一种动作（其余动作派下去会停在「已派发」）；
-          升级由分离进程 `wist-upgrader` 执行，进度与终态经 `work:result` 回报 ——
-          回滚在控制面上记为「失败」，说明里写清回到哪一版。
+          当前 agentd 只执行 <span className={styles.mono}>upgrade</span> 这一种动作（其余动作派下去会停在「已派发」）；升级由分离进程 <span className={styles.mono}>wist-upgrader</span> 执行，进度与终态经 <span className={styles.mono}>work:result</span> 回报 ——回滚在控制面上记为「失败」，说明里写清回到哪一版。
         </p>
 
         {agentWorkView.oneShot.length === 0 ? (
@@ -238,6 +291,7 @@ export function SubsystemAgentWorkView({
               <OneShotWorkCard
                 key={work.workId}
                 work={work}
+                local={local}
                 pending={pending}
                 onAction={onAction}
               />
@@ -257,8 +311,7 @@ export function SubsystemAgentWorkView({
                 历史留痕
               </span>
               <span className={styles.sectionHint}>
-                已撤回 / 已被取代的常驻工作 {agentWorkView.retiredStanding.length} 条，
-                已了结的一次性工作 {agentWorkView.settledOneShot.length} 条
+                已撤回 / 已被取代的常驻工作 {agentWorkView.retiredStanding.length} 条，已了结的一次性工作 {agentWorkView.settledOneShot.length} 条
               </span>
             </summary>
             <ul className={styles.historyList}>
@@ -294,8 +347,144 @@ export function SubsystemAgentWorkView({
   );
 }
 
+/**
+ * agentd 自报的元信息：一行说清这份自报有多新、覆盖到哪。
+ *
+ * 自报的**内容**都并进了各工作卡（每张卡的「本机实际」），这里只留那些「没有归属」
+ * 的事实：它什么时候报的、指标多久上送一次。不摆成独立一节 —— 独立一节就得把
+ * 五个采集面再列一遍，与下面的卡片逐行重复。
+ *
+ * 三种状态分开呈现，因为处置不同：
+ *   · `null`：旧版 agentd 不上报 ——「没数据」，卡片上的「本机实际」整行都不显示；
+ *   · `error`：报了但读不了（多半是网关与 agentd 版本不一致）——「有数据但读不了」，要修版本。
+ */
+function LocalReportStrip({ local }: { local: AgentLocalWorkView | null }) {
+  if (!local) {
+    return (
+      <p className={styles.localStripEmpty}>
+        这台 Agent 还没上报本机视图（旧版本 agentd 不上报此字段）——下面每张工作卡的「本机实际」都看不到。
+      </p>
+    );
+  }
+
+  if (local.error) {
+    return (
+      <p className={styles.localStripError} role="alert">
+        本机工作上报无法解析（可能是网关与 agentd 版本不一致）：{local.error}
+      </p>
+    );
+  }
+
+  return (
+    <div className={styles.localStrip} aria-label="agentd 自报">
+      <span className={styles.localStripLabel}>agentd 自报</span>
+      <span className={styles.localStripItem}>
+        上报于{" "}
+        <span className={styles.localStripValue}>
+          {formatTimestamp(local.recordedAt)}
+        </span>
+      </span>
+      <span className={styles.localStripItem}>
+        指标上送周期{" "}
+        <span className={styles.localStripValue}>
+          {local.metricsIntervalSeconds === null
+            ? "—"
+            : `${local.metricsIntervalSeconds}s`}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+/**
+ * 「本机多出来的」：agentd 报的、而网关这边没有对应授权的东西。
+ *
+ * 这一类**无处可并**，所以要单独列：上面每张卡都是「网关期望一份、本机对着它回话」，
+ * 而这两样东西在网关侧根本没有对象 —— 网关撤不回它们，也不该假装它们不存在。
+ *
+ * 两类成因不同，文案要分开说，否则运维会去网关找一个不存在的开关：
+ *   · 本机手上还有的工作：多半是刚撤回、Agent 还没跟到下一版快照；也可能是本机残留；
+ *   · 本机手工加的输入：本机配置里的运维逃生舱，网关从来不知道它。
+ */
+function LocalOnlySection({
+  orphanStanding,
+  manualInputs,
+}: {
+  orphanStanding: AgentLocalStandingWorkView[];
+  manualInputs: AgentLocalTaskView[];
+}) {
+  return (
+    <section className={styles.section} aria-labelledby="agent-work-localonly-title">
+      <header className={styles.sectionHeader}>
+        <h2 className={styles.sectionTitle} id="agent-work-localonly-title">
+          本机多出来的
+        </h2>
+        <span className={styles.sectionHint}>
+          本机在做、网关这边没有对应授权的东西：网关撤不回，也不在上面那些卡片里
+        </span>
+      </header>
+
+      {orphanStanding.length > 0 ? (
+        <div className={styles.localGroup}>
+          <span className={styles.localGroupTitle}>
+            本机手上还有的工作（{orphanStanding.length}）
+          </span>
+          <ul className={styles.localList}>
+            {orphanStanding.map((work) => (
+              <li key={work.workId} className={styles.localItem}>
+                <span className={styles.mono}>{work.family}</span>
+                <span
+                  className={`${styles.badge} ${toneClass(
+                    STANDING_STATUS_TONE[work.status as StandingWorkStatus] ??
+                      "unknown",
+                  )}`}
+                >
+                  {STANDING_STATUS_LABEL[work.status as StandingWorkStatus] ??
+                    work.status}
+                </span>
+                <span className={styles.localItemMeta}>
+                  v{work.planVersion} · {work.tasks.length} 个采集任务 · 生效自{" "}
+                  {formatTimestamp(work.effectiveFrom)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.localNote}>
+            网关这边已经没有这些工作的授权了 —— 多半是刚撤回、本机还没拉到下一版快照；若它一直不退，就是本机残留，只能在本机处理。
+          </p>
+        </div>
+      ) : null}
+
+      {manualInputs.length > 0 ? (
+        <div className={styles.localGroup}>
+          <span className={styles.localGroupTitle}>
+            本机手工加的输入（{manualInputs.length}）
+          </span>
+          <ul className={styles.localFileList}>
+            {manualInputs.map((input) => (
+              <li key={input.path} className={styles.localFileRow}>
+                <span className={styles.mono}>{input.path}</span>
+                <span className={`${styles.badge} ${styles.toneWarn}`}>
+                  本机手工加的
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.localNote}>
+            它们来自本机配置（<span className={styles.mono}>[telemetry.logs] file_inputs</span>，运维逃生舱），不来自任何采集面：网关不知道、也不会撤回，该不该留只在本机判。
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 interface StandingWorkCardProps {
   work: StandingWork;
+  /** agentd 自报（解析成功才是非 null）；`null` = 这份自报看不到，卡片不出现「本机实际」行。 */
+  local: AgentLocalWorkView | null;
+  /** 被两份以上工作声明的路径 → 声明它的采集面（重复采集要标出来）。 */
+  sharedPaths: Map<string, string[]>;
   pending: boolean;
   onAction: (command: WorkActionCommand) => void;
   revokeTarget: string | null;
@@ -306,6 +495,8 @@ interface StandingWorkCardProps {
 
 function StandingWorkCard({
   work,
+  local,
+  sharedPaths,
   pending,
   onAction,
   revokeTarget,
@@ -316,8 +507,46 @@ function StandingWorkCard({
   const drift = standingDrift(work);
   const counts = specCounts(work.spec);
   const interval = metricIntervalSeconds(work.spec);
+  // 「今天真会去 tail 的文件」：与 agentd `state/work.json` 的 tasks 同口径。
+  const files = collectedLogFiles(work.spec);
+  // 「今天采不到」的来源条数：授权里可能有 agentd 还不承接的 kind（通配 / 导出器 / 谓词），
+  // 页面要把它标出来，否则看起来和真采上的一样。
+  const unsupported = unsupportedSourceCount(work.spec);
+  // 本机对这份工作的自报：`null` = 网关这边有、agent 没报（它还没拉到这一版授权）。
+  const localWork = local
+    ? local.standing.find((entry) => entry.workId === work.workId) ?? null
+    : null;
+  // 本机自报「实际在采」的文件：与上面的 `files`（期望折算）配对，两者不同就要说清差在哪。
+  const localFiles = localWork ? localWork.tasks.map((task) => task.path) : null;
+  const filesMismatch =
+    localFiles !== null &&
+    (localFiles.some((path) => !files.includes(path)) ||
+      files.some((path) => !localFiles.includes(path)));
+  // 同一路径还有别的工作在采 = agentd 会把它 tail 两遍，藏在两张卡里谁也看不见。
+  const sharedFiles = files.filter((path) => {
+    const owners = sharedPaths.get(path);
+    return owners ? owners.some((family) => family !== work.family) : false;
+  });
+  // 本机手上还不是当前版本：比「漂移」更靠前一步 —— 漂移说的是确认回执，这是它手里那一份。
+  const staleLocalVersion = localWork ? localWork.planVersion < work.planVersion : false;
+  const localAckBehind = localWork
+    ? localWork.acknowledgedVersion !== localWork.planVersion
+    : false;
   return (
-    <li className={styles.card}>
+    <li
+      className={styles.card}
+      // 审计信息（目录版本 / 谁改的 / 本机生效自 / 采集任务数）不常看，收进 tooltip，
+      // 不占正文行 —— 正文只留「现在该知道的」。
+      title={[
+        `目录 v${work.catalogVersion}（换版不追改）`,
+        `${work.updatedBy} 改于 ${formatTimestamp(work.updatedAt)}`,
+        localWork
+          ? `本机生效自 ${formatTimestamp(localWork.effectiveFrom)}，${localWork.tasks.length} 个采集任务`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+    >
       <div className={styles.cardHeader}>
         <span className={styles.family}>{work.family}</span>
         <span className={`${styles.badge} ${toneClass(STANDING_STATUS_TONE[work.status])}`}>
@@ -328,55 +557,104 @@ function StandingWorkCard({
         </span>
       </div>
 
-      <dl className={styles.factGrid}>
-        <div className={styles.factRow}>
-          <dt>期望版本</dt>
-          <dd className={styles.mono}>{work.planVersion}</dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>Agent 确认</dt>
-          <dd className={styles.mono}>
-            {work.ack
-              ? `版本 ${work.ack.planVersion} · ${formatTimestamp(work.ack.acknowledgedAt)}`
-              : "从未确认"}
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>目录版本</dt>
-          <dd className={styles.mono}>
-            {work.catalogVersion}
-            <span className={styles.muted}>
-              （目录换版不追改已授权工作）
-            </span>
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>工作参数</dt>
-          <dd>
-            {work.spec.error ? (
-              <span className={styles.critText}>
-                参数无法解析：{work.spec.error}
+      {work.spec.error ? (
+        <span className={styles.critText}>
+          参数无法解析：{work.spec.error}
+        </span>
+      ) : (
+        <div className={styles.workMeta}>
+          <span className={styles.workMetaMain}>
+            <span className={styles.mono}>v{work.planVersion}</span>
+            {/* 已确认且版本一致时，「确认」这件事没什么可说 —— 对不上的时候才值得占一行。 */}
+            {drift === "in-sync" ? null : (
+              <span className={styles.mono}>
+                {work.ack ? `已确认 v${work.ack.planVersion}` : "从未确认"}
               </span>
-            ) : (
-              <>
-                <span className={styles.mono}>
-                  {counts.units} 个单元 · {counts.sources} 条来源
-                  {interval === null ? "" : ` · 指标 ${interval}s`}
-                </span>
-                <span className={styles.muted}>
-                  承接：{workCapabilities(work.spec).join("、") || "—"}
-                </span>
-              </>
             )}
-          </dd>
+            <span className={styles.mono}>
+              {counts.units} 单元 · {counts.sources} 来源
+              {unsupported > 0 ? ` · ${unsupported} 未接` : ""}
+              {interval === null ? "" : ` · 指标 ${interval}s`}
+            </span>
+          </span>
         </div>
-        <div className={styles.factRow}>
-          <dt>谁改的</dt>
-          <dd>
-            {work.updatedBy} · {formatTimestamp(work.updatedAt)}
-          </dd>
+      )}
+
+      {/* 「本机实际」只在**对不上**时才出现：一致就是没话说，不必占一行。 */}
+      {local && localWork === null ? (
+        <div className={styles.localRow}>
+          <span className={styles.localRowLabel}>本机实际</span>
+          <span className={`${styles.badge} ${styles.toneWarn}`}>
+            本机未报这份工作
+          </span>
+          <span className={styles.muted}>
+            它还没拉到这一版授权（每 30 秒拉一次快照）
+          </span>
         </div>
-      </dl>
+      ) : null}
+
+      {local &&
+      localWork !== null &&
+      (localWork.status !== work.status || staleLocalVersion || localAckBehind) ? (
+        <div className={styles.localRow}>
+          <span className={styles.localRowLabel}>本机实际</span>
+          <span className={styles.mono}>
+            {STANDING_STATUS_LABEL[localWork.status as StandingWorkStatus] ??
+              localWork.status}
+          </span>
+          {localWork.status !== work.status ? (
+            <span className={`${styles.badge} ${styles.toneWarn}`}>
+              网关期望「{STANDING_STATUS_LABEL[work.status]}」
+            </span>
+          ) : null}
+          {staleLocalVersion ? (
+            <span className={`${styles.badge} ${styles.toneWarn}`}>
+              手上还是 v{localWork.planVersion}
+            </span>
+          ) : null}
+          {localAckBehind ? (
+            <span className={`${styles.badge} ${styles.toneWarn}`}>
+              只确认到 v{localWork.acknowledgedVersion}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!work.spec.error ? (
+        <div
+          className={`${styles.collectedInline} ${
+            filesMismatch ? styles.collectedAlert : ""
+          }`}
+        >
+          <span className={styles.collectedLabel}>
+            {work.status === "paused" ? "恢复后将采" : "在采"}（{files.length}）
+          </span>
+          {localFiles !== null && filesMismatch ? (
+            // 对不上就把两份清单各写各的：只报两个数字、清单却取自期望，
+            // 读者会把「本机 1」看成在采期望那一个，正好把差异读反。
+            <>
+              <span className={styles.mono}>
+                期望 {files.length}（{files.join(" · ") || "—"}）
+              </span>
+              <span className={styles.mono}>
+                本机 {localFiles.length}（{localFiles.join(" · ") || "—"}）
+              </span>
+            </>
+          ) : files.length === 0 ? (
+            <span className={styles.muted}>
+              —（这份授权里没有今天能采的日志文件）
+            </span>
+          ) : (
+            // 一致时不重复「期望 1 / 本机 1」：一致就是没话说，只列文件。
+            <span className={styles.mono}>{files.join(" · ")}</span>
+          )}
+          {sharedFiles.length > 0 ? (
+            <span className={`${styles.badge} ${styles.toneWarn}`}>
+              {sharedFiles.join(" · ")} 另有一份工作在采
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {work.spec.error ? (
         <pre className={styles.specRaw}>{work.spec.raw}</pre>
@@ -384,19 +662,54 @@ function StandingWorkCard({
         <ul className={styles.unitList}>
           {work.spec.units.map((unit) => (
             <li key={unit.unitId} className={styles.unitItem}>
-              <span className={styles.mono}>{unit.unitId}</span>
-              <span className={styles.unitMeta}>
-                {unit.capability}
-                {unit.ruleRef ? ` · 规则 ${unit.ruleRef}` : " · 未绑定规则"}
-                {unit.requiresPrivilege && unit.requiresPrivilege !== "none"
-                  ? ` · 需 ${unit.requiresPrivilege}`
-                  : ""}
+              <span className={styles.unitHead}>
+                <span className={styles.unitId}>{unit.unitId}</span>
+                <span className={styles.unitMeta}>
+                  {unit.capability}
+                  {unit.ruleRef ? ` · ${unit.ruleRef}` : ""}
+                  {unit.requiresPrivilege && unit.requiresPrivilege !== "none"
+                    ? ` · 需 ${unit.requiresPrivilege}`
+                    : ""}
+                </span>
               </span>
-              <span className={styles.unitMeta}>
-                {unit.sources
-                  .map((_, index) => sourceLabel(unit, index))
-                  .join("；") || "无来源声明"}
-              </span>
+              {unit.sources.length === 0 ? (
+                <span className={styles.unitMeta}>无来源声明</span>
+              ) : (
+                <ul className={styles.sourceList}>
+                  {unit.sources.map((source, index) => {
+                    const reason = unsupportedSourceReason(
+                      source.kind,
+                      source.target,
+                    );
+                    return (
+                      <li
+                        key={`${index}-${source.kind}-${source.target}`}
+                        className={styles.sourceRow}
+                      >
+                        <span className={styles.mono}>
+                          {sourceText(source)}
+                        </span>
+                        <span
+                          className={`${styles.badge} ${
+                            reason === null ? styles.toneOk : styles.toneWarn
+                          }`}
+                          // 完整解释放 hover：「未接」的含义一句话就能记住，不必每张卡重复一长句。
+                          title={
+                            reason === null
+                              ? "本地采集器今天能 tail 这个来源"
+                              : `${reason}：agentd 今天还采不到，已在授权里如实列出`
+                          }
+                        >
+                          {reason === null ? "可采" : "未接"}
+                        </span>
+                        {reason === null ? null : (
+                          <span className={styles.muted}>{reason}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
@@ -465,7 +778,7 @@ function StandingWorkCard({
             确认撤回
           </button>
           <span className={styles.muted}>
-            撤回后 Agent 不再收到这份工作；从撤回恢复要走新的授权
+            撤回后 Agent 不再收到这份工作；要改这份采什么，就撤回后重新授权—— 同一份工作（id 不变）、版本 +1，并按最新事实重新派生
           </span>
         </div>
       ) : null}
@@ -475,11 +788,17 @@ function StandingWorkCard({
 
 interface OneShotWorkCardProps {
   work: OneShotWork;
+  /** agentd 自报（解析成功才是非 null）；`null` = 这份自报看不到，卡片不出现「本机实际」行。 */
+  local: AgentLocalWorkView | null;
   pending: boolean;
   onAction: (command: WorkActionCommand) => void;
 }
 
-function OneShotWorkCard({ work, pending, onAction }: OneShotWorkCardProps) {
+function OneShotWorkCard({ work, local, pending, onAction }: OneShotWorkCardProps) {
+  // 本机侧的执行阶段：网关只知道「已派发/已接受」，它知道的是「开始执行了没有」。
+  const localWork: AgentLocalOneShotWorkView | null = local
+    ? local.oneShot.find((entry) => entry.workId === work.workId) ?? null
+    : null;
   return (
     <li className={styles.card}>
       <div className={styles.cardHeader}>
@@ -528,6 +847,31 @@ function OneShotWorkCard({ work, pending, onAction }: OneShotWorkCardProps) {
             </dd>
           </div>
         ) : null}
+        {local ? (
+          <div className={styles.factRow}>
+            <dt>本机实际</dt>
+            <dd>
+              {localWork === null ? (
+                <span className={`${styles.badge} ${styles.toneWarn}`}>
+                  本机未报这件活
+                </span>
+              ) : (
+                <>
+                  <span
+                    className={`${styles.badge} ${toneClass(
+                      oneShotStatusTone(localWork.status),
+                    )}`}
+                  >
+                    {oneShotStatusLabel(localWork.status)}
+                  </span>{" "}
+                  <span className={styles.mono}>
+                    执行阶段 {localExecutionLabel(localWork.execution)}
+                  </span>
+                </>
+              )}
+            </dd>
+          </div>
+        ) : null}
       </dl>
       <div className={styles.cardActions}>
         <button
@@ -543,105 +887,52 @@ function OneShotWorkCard({ work, pending, onAction }: OneShotWorkCardProps) {
   );
 }
 
-interface GrantStandingFormProps {
-  grantable: {
-    family: string;
-    activeUnits: number;
-    totalUnits: number;
-    parseReady: boolean;
-  }[];
-  blocked: { family: string; reason: string }[];
-  platform: string;
-  machineClass: MachineClass;
+interface GrantCandidateCardProps {
+  entry: GrantableFamily;
   pending: boolean;
   onSubmit: (command: GrantStandingWorkCommand) => void;
 }
 
-function GrantStandingForm({
-  grantable,
-  blocked,
-  platform,
-  machineClass,
-  pending,
-  onSubmit,
-}: GrantStandingFormProps) {
-  const [family, setFamily] = useState("");
-  const [spec, setSpec] = useState("");
-  const selected = family || grantable[0]?.family || "";
-
-  if (grantable.length === 0) {
-    return (
-      <div className={styles.blockedNotice}>
-        <strong>{machineClass}</strong>（{platform}）当前**没有任何可采的采集面**：
-        所有面都还没有采集就绪的单元（没有 `status = active`），因此无可授权。
-        <ul className={styles.blockedList}>
-          {blocked.map((entry) => (
-            <li key={entry.family}>
-              <span className={styles.mono}>{entry.family}</span> —— {entry.reason}
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
-  }
-
+/**
+ * 一个**还没授权**的采集面，就摆成一格卡 —— 授权按钮在卡上，与旁边的已授权卡同一片网格。
+ *
+ * 「哪些面在采」与「哪些面还能派」于是是同一屏里的一件事：不需要另开一节、再在下拉里
+ * 把这台机器的面挑一遍（同一批面列两遍，读者还得自己对着看）。面名就是卡头，所以
+ * 也没有「选错面」这一步。
+ *
+ * 卡上**不**给「手写采集单元」的口子：派什么都由网关按这台机器的事实从采集目录展开
+ * （`derive_spec` —— 逐单元求目录里的 `match`），手写就是绕过它，而且这个页面上
+ * 根本看不到该面的目录单元 id。要让某台机器多采/少采一个单元，改的是目录，不是这张卡。
+ */
+function GrantCandidateCard({ entry, pending, onSubmit }: GrantCandidateCardProps) {
   return (
-    <div className={styles.form}>
-      <div className={styles.formRow}>
-        <label className={styles.fieldLabel}>
-          采集面
-          <select
-            className={styles.input}
-            value={selected}
-            onChange={(event) => setFamily(event.target.value)}
-          >
-            {grantable.map((entry) => (
-              <option key={entry.family} value={entry.family}>
-                {entry.family}（{entry.activeUnits}/{entry.totalUnits} 单元可采
-                {entry.parseReady ? "" : "，原文未归类"}）
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.fieldLabel}>
-          工作参数（留空 = 网关按事实展开）
-          <input
-            className={styles.input}
-            value={spec}
-            placeholder="留空最稳；手写时必须是该面上的目录单元，逗号分隔"
-            onChange={(event) => setSpec(event.target.value)}
-          />
-        </label>
+    <li className={styles.card}>
+      <div className={styles.cardHeader}>
+        <span className={styles.family}>{entry.family}</span>
+        <span className={`${styles.badge} ${styles.toneUnknown}`}>未授权</span>
+        {entry.parseReady ? null : <span className={styles.muted}>原文未归类</span>}
+      </div>
+
+      <div className={styles.workMeta}>
+        <span className={styles.workMetaMain}>
+          <span className={styles.mono}>
+            {entry.activeUnits}/{entry.totalUnits} 单元可采
+          </span>
+          <span className={styles.muted}>—— 授权后由网关按这台机器的事实展开</span>
+        </span>
+      </div>
+
+      <div className={styles.cardActions}>
         <button
           type="button"
-          className={styles.primaryButton}
-          disabled={pending || !selected}
-          onClick={() => {
-            onSubmit({
-              family: selected,
-              spec: spec.trim() ? spec.trim() : undefined,
-            });
-            setSpec("");
-          }}
+          className={styles.grantButton}
+          disabled={pending}
+          onClick={() => onSubmit({ family: entry.family })}
         >
           {pending ? "提交中…" : "授权这份工作"}
         </button>
       </div>
-      {blocked.length > 0 ? (
-        <details className={styles.blockedDetails}>
-          <summary className={styles.muted}>
-            另有 {blocked.length} 个面还不能派（规则未就绪 / 平台不适用）
-          </summary>
-          <ul className={styles.blockedList}>
-            {blocked.map((entry) => (
-              <li key={entry.family}>
-                <span className={styles.mono}>{entry.family}</span> —— {entry.reason}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-    </div>
+    </li>
   );
 }
 

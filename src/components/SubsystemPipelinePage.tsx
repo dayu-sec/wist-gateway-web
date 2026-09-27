@@ -126,12 +126,10 @@ export function SubsystemPipelinePage() {
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>数据采集</h1>
         <p className={styles.pageSummary}>
-          数据面（wparse）三层的实时吞吐：来源接入 → 规则解析 → 落存储。
-          点击任意节点，下方会画出它的速率与累计量曲线。
+          数据面（wparse）三层的实时吞吐：来源接入 → 规则解析 → 落存储。点击任意节点，下方会画出它的速率与累计量曲线。
         </p>
         <p className={styles.pageNote}>
-          聚合粒度 1 分钟 —— 数据面写入 VictoriaMetrics 的间隔实测为 60 秒，
-          指标按 2 个周期（120 秒）计算速率。所以这里是「近一分钟的平均吞吐」，不是逐秒瞬时值。
+          聚合粒度 1 分钟 —— 数据面写入 VictoriaMetrics 的间隔实测为 60 秒，指标按 2 个周期（120 秒）计算速率。所以这里是「近一分钟的平均吞吐」，不是逐秒瞬时值。
         </p>
       </header>
 
@@ -143,8 +141,7 @@ export function SubsystemPipelinePage() {
               ? "所选时间窗内没有任何采样点，页面内容不代表当前状态。"
               : `最后采样 ${formatClock(data?.latestSampleAt)}（${formatRelativeSeconds(sampleAgeSeconds).text}前），页面内容已不代表当前状态。`}
             {" "}这通常意味着数据面的 VictoriaMetrics 推送失败（数据面日志关键字{" "}
-            <code>VictoriaMetric periodic push failed</code>），重启数据面即可恢复；
-            通道正常时是看不出解析规则是空的。
+            <code>VictoriaMetric periodic push failed</code>），重启数据面即可恢复；通道正常时是看不出解析规则是空的。
           </span>
         </div>
       ) : null}
@@ -154,8 +151,7 @@ export function SubsystemPipelinePage() {
           <RateLimitNotice error={error} />
         ) : (
           <div className={styles.errorBanner}>
-            无法获取采集指标。请确认数据面（wparse）与 VictoriaMetrics 都在运行，
-            并在左下角设置 Admin Token。
+            无法获取采集指标。请确认数据面（wparse）与 VictoriaMetrics 都在运行，并在左下角设置 Admin Token。
           </div>
         )
       ) : null}

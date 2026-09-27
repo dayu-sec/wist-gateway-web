@@ -116,8 +116,7 @@ export function SubsystemAgentUpgradeDetailPage() {
           ) : null}
         </div>
         <p className={styles.pageSummary}>
-          这份计划把 agentd 升级按灰度阶段铺到它覆盖的 Agent：批准/推进时才真正派发升级，
-          逐台成败由 agentd 上报回填。本页不自动轮询，操作后或点右上角「刷新」重取。
+          这份计划把 agentd 升级按灰度阶段铺到它覆盖的 Agent：批准/推进时才真正派发升级，逐台成败由 agentd 上报回填。本页不自动轮询，操作后或点右上角「刷新」重取。
         </p>
       </header>
 
@@ -383,8 +382,7 @@ export function SubsystemAgentUpgradeDetailPage() {
 
             {!activeSettled && plan.status === "rolling" ? (
               <p className={styles.gateWarn} role="note">
-                本阶段未全部了结就推进，未了结目标的结果仍会回填到条目，但阶段会被标记为已完成
-                —— 人工闸门的判断权在你。
+                本阶段未全部了结就推进，未了结目标的结果仍会回填到条目，但阶段会被标记为已完成—— 人工闸门的判断权在你。
               </p>
             ) : null}
 
@@ -410,7 +408,10 @@ export function SubsystemAgentUpgradeDetailPage() {
                       </span>
                       <span className={styles.phaseMeta}>
                         {phase.targetIds.length} 个 Agent ·{" "}
-                        {advanceRuleLabel(phase.advanceRule)}
+                        {advanceRuleLabel(
+                          phase.advanceRule,
+                          phase.phaseIndex === plan.phases.length,
+                        )}
                       </span>
                     </div>
                     <div className={styles.phaseProgress}>

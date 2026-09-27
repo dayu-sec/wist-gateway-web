@@ -1,0 +1,124 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.headline {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.detail {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.muted {
+  color: var(--text-4);
+  font-size: 12.5px;
+}
+
+.error {
+  color: var(--crit);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 2px 0 0;
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.fact dt {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* 已上送：绿。 */
+.ok {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+}
+
+.ok .pill {
+  border-color: var(--ok-border);
+  background: transparent;
+  color: var(--ok);
+}
+
+/* 待命：中性。这是正常状态，不该看起来像故障。 */
+.standby {
+  border-color: var(--border-strong);
+}
+
+/* 已启用但出口失败：真正的故障，报警。 */
+.crit {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+}
+
+.crit .pill {
+  border-color: var(--crit-border);
+  background: transparent;
+  color: var(--crit);
+}
+
+.crit .headline {
+  color: var(--crit);
+}
+
+/* 未上报：说不清，保持中性偏灰。 */
+.unknown .pill {
+  color: var(--text-3);
+}

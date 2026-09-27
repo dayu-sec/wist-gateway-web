@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
 import {
   useAgentPurpose,
+  useAgentRuntimeStatus,
   useAgentWork,
   useClassifyAgentPurpose,
   useContentCatalog,
@@ -14,6 +15,7 @@ import {
   SubsystemAgentWorkView,
   type WorkActionCommand,
 } from "./SubsystemAgentWorkView";
+import { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPanel";
 import styles from "./SubsystemAgentWorkPage.module.css";
 
 interface SubsystemAgentWorkPageProps {
@@ -86,6 +88,7 @@ function formatTimestamp(value: string): string {
 export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
   const { agentId = "" } = useParams<{ agentId: string }>();
   const work = useAgentWork(agentId);
+  const runtime = useAgentRuntimeStatus(agentId);
   const catalog = useContentCatalog();
   const purpose = useAgentPurpose(agentId);
   const grantStanding = useGrantStandingWork(agentId);
@@ -94,6 +97,11 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
   const classify = useClassifyAgentPurpose(agentId);
 
   const unknownAgent = work.isError && isUnknownAgentError(work.error);
+  // 未知 Agent（404）由上面的横幅负责；这里只把**其它**运行态读取错误报出来。
+  const runtimeLoadError =
+    runtime.isError && !isUnknownAgentError(runtime.error)
+      ? loadErrorMessage(runtime.error)
+      : null;
   const pending =
     grantStanding.isPending || grantOneShot.isPending || workAction.isPending;
   const mutationError =
@@ -133,8 +141,7 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
             </span>
           ) : null}
           <span className={styles.metaItemMuted}>
-            不自动轮询：授权由管理面人工操作、Agent 按 30 秒的节拍拉快照。
-            提交操作后会自动重取，确认到达即可见 —— 需要重取用右上角「刷新」。
+            不自动轮询：授权由管理面人工操作、Agent 按 30 秒的节拍拉快照。提交操作后会自动重取，确认到达即可见 —— 需要重取用右上角「刷新」。
           </span>
         </div>
       </header>
@@ -143,8 +150,7 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
         <section className={styles.unknownAgent} role="alert">
           <h2 className={styles.unknownTitle}>未知 Agent</h2>
           <p className={styles.unknownText}>
-            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。
-            没有注册记录就没有可授权工作的对象。
+            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。没有注册记录就没有可授权工作的对象。
           </p>
           <p className={styles.unknownHint}>
             请确认 agent_id 拼写是否正确；已注册的主机可以在
@@ -194,6 +200,11 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
               {notice}
             </div>
           ) : null}
+          <SubsystemAgentUplinkStatusPanel
+            uplinkState={runtime.data?.uplinkState ?? null}
+            loading={runtime.isLoading}
+            loadError={runtimeLoadError}
+          />
           <SubsystemAgentWorkView
             agentWorkView={work.data}
             catalog={catalog.data ?? null}

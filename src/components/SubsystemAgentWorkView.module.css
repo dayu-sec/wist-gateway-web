@@ -28,6 +28,12 @@
   background: var(--crit-soft);
 }
 
+/* 本机还停在旧快照上：不是故障（它 30 秒拉一次），但决定了下面看到的是哪一版。 */
+.summaryWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
 .summaryLabel {
   color: var(--text-4);
   font-size: 11.5px;
@@ -147,10 +153,14 @@
 
 /* ---------- 工作卡片 ---------- */
 
+/* 宽屏排两列：每张卡至少 440px，放不下就自然回落成一列（窄屏/侧边栏展开时）。
+   门槛取 440 而不是更小：再窄下去单元头与来源会被折断成三四行，反而难读。
+   同排卡片拉齐成等高（默认 stretch）—— 两列的框、按钮行才落在同一条水平线上。 */
 .cardList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  /* `min(440px, 100%)`：容器窄于 440px（窄窗 434px）时，固定 min 会把网格撑出横向溢出。 */
+  grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr));
+  gap: 9px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -159,8 +169,8 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 9px;
+  padding: 11px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
@@ -264,10 +274,14 @@
 
 /* ---------- 采集单元 ---------- */
 
+/* 单元块吃掉卡内多出来的空白（同排卡片等高后产生）：
+   一格单元时整块拉长，框底与邻卡对齐，不把空白散在框外。
+   用 flex-grow 而不是 flex:1 —— 基准尺寸仍是内容，卡高按内容算，不会塌。 */
 .unitList {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-grow: 1;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -277,10 +291,27 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 10px;
+  flex-grow: 1;
+  padding: 6px 9px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
+}
+
+.unitHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.unitId {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
 }
 
 .unitMeta {
@@ -288,6 +319,61 @@
   font-size: 11.5px;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+/* 一个单元下的来源清单：每条单独一行，带「可采 / 未接」标记。 */
+.sourceList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sourceRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11.5px;
+}
+
+
+/* 一份工作的摘要：两行说清「期望/确认/参数」与「目录/谁改的/暂停」。 */
+.workMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.workMetaMain {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+
+
+/* 「在采文件」：一行说清到底采哪几个文件。 */
+.collectedInline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 11.5px;
+}
+
+.collectedLabel {
+  color: var(--text-3);
+  font-weight: 600;
 }
 
 .specRaw {
@@ -309,10 +395,12 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  margin-top: auto;
 }
 
 .actionButton,
 .dangerButton,
+.grantButton,
 .primaryButton {
   min-height: 32px;
   padding: 0 12px;
@@ -357,8 +445,21 @@
   background: var(--accent-hover);
 }
 
+/* 卡上的主色按钮：与同一张卡（以及邻卡）的暂停/撤回同尺寸 ——
+   同排卡片的操作行才在同一水平线上，不会因为高 4px 而看起来错位。 */
+.grantButton {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.grantButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
 .actionButton:disabled,
 .dangerButton:disabled,
+.grantButton:disabled,
 .primaryButton:disabled {
   border-color: var(--border-strong);
   background: var(--border-strong);
@@ -368,6 +469,7 @@
 
 .actionButton:focus-visible,
 .dangerButton:focus-visible,
+.grantButton:focus-visible,
 .primaryButton:focus-visible {
   box-shadow: var(--ring);
   outline: none;
@@ -475,6 +577,161 @@
 }
 
 .historyMeta {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+/* ---------- 本机工作（agentd 上报） ---------- */
+
+/*
+ * 「本机实际」行：卡片的第二层。上半是网关的期望，这一行是 agent 的自报 —— 两者
+ * 对不上才是要查的事，所以它贴着期望那两行放，且自成一条底色带。
+ */
+.localRow {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.localRowLabel {
+  color: var(--text-4);
+  font-weight: 700;
+}
+
+/* 期望与实际的采集文件对不上：这一条要跳出来，否则差异会混在一堆灰字里。 */
+.collectedAlert {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
+/*
+ * agentd 自报的元信息条：一行，只有「没有归属」的事实（什么时候报的、上送周期）。
+ * 自报的内容都并进各工作卡，所以这里刻意做成一条细带，而不是一节。
+ */
+.localStrip {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.localStripLabel {
+  color: var(--text-2);
+  font-weight: 700;
+}
+
+.localStripItem {
+  color: var(--text-4);
+}
+
+.localStripValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 旧版 agentd 不上报：说清是「没数据」，别让卡片看起来像本机没在做。 */
+.localStripEmpty {
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* 报了但读不了：这是要修的（多半版本不一致），所以用告警色而不是灰。 */
+.localStripError {
+  margin: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.localGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.localGroupTitle {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.localNote {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* 「本机手工加的输入」：每行一个路径，后面挂标记。 */
+.localFileList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  list-style: none;
+}
+
+.localFileRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.localList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.localItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.localItemMeta {
   color: var(--text-4);
   font-size: 11.5px;
 }

@@ -15,8 +15,11 @@
     "test:agent-purpose": "tsx tests/agent-purpose-contract.test.ts",
     "test:software-inventory": "tsx tests/software-inventory-contract.test.ts",
     "test:uplink": "tsx tests/uplink-contract.test.ts",
+    "test:advertise-url": "tsx tests/advertise-url-contract.test.ts",
     "preview": "vite preview",
     "test:agent-work": "tsx tests/agent-work-contract.test.ts",
+    "test:runtime-status": "tsx tests/runtime-status-contract.test.ts",
+    "test:registered-agents": "tsx tests/registered-agents-contract.test.ts",
     "test:rollout": "tsx tests/rollout-contract.test.ts",
     "test:agent-logs": "tsx tests/agent-logs-contract.test.ts",
     "test:live": "tsx tests/live-gateway-check.ts"

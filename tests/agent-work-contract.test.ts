@@ -17,15 +17,24 @@ import {
 import {
   DRIFT_LABEL,
   blockedFamilies,
+  collectedLogFiles,
   driftingCount,
+  duplicatedCollectedPaths,
   grantableFamilies,
+  isExecutableSource,
+  isExplicitPath,
+  localExecutionLabel,
   metricIntervalSeconds,
   oneShotStatusLabel,
   parseIntervalSeconds,
   platformForMachineClass,
   specCounts,
   standingDrift,
+  ungrantedFamilies,
+  unsupportedSourceCount,
+  unsupportedSourceReason,
 } from "../src/components/agentWorkStatus";
+import type { StandingWork } from "../src/types";
 
 // 契约测试：管理面「Agent 工作」（模型 `Control.Agent.Work` 的查看 + 授权/暂停/恢复/撤回）。
 //
@@ -250,6 +259,95 @@ assert(
   "result.reported_at was not normalized",
 );
 
+// --- 2b. 本机工作：网关透传 agentd 自报的 `local` -------------------------------
+const localPayload = {
+  recorded_at: "2026-09-26T08:00:00Z",
+  gateway_sequence: 4,
+  standing: [
+    {
+      work_id: WORK_ID,
+      family: "SystemLogs",
+      status: "active",
+      plan_version: 3,
+      acknowledged_version: 3,
+      effective_from: "2026-09-26T07:00:00Z",
+      tasks: [
+        {
+          input_id: "work-SystemLogs-syslog",
+          path: "/var/log/system.log",
+          startup_position: "tail",
+        },
+      ],
+    },
+  ],
+  one_shot: [
+    {
+      work_id: "work-upgrade",
+      action: "upgrade",
+      status: "dispatched",
+      execution: "unexecuted",
+      scheduled_at: "2026-09-26T08:00:00Z",
+      deadline_at: "2026-09-26T08:10:00Z",
+      timeout_seconds: 600,
+    },
+  ],
+  local_inputs: [
+    { input_id: "app", path: "/var/log/app.log", startup_position: "tail" },
+  ],
+  metrics_interval_seconds: 15,
+};
+
+const withLocal = normalizeAgentWorkView(workViewPayload({ local: localPayload }));
+assert(withLocal.local !== null, "local 存在时必须解析出来");
+assert(withLocal.local?.error === null, `local 应解析成功：${withLocal.local?.error}`);
+assert(
+  withLocal.local?.recordedAt === "2026-09-26T08:00:00Z",
+  "local.recorded_at was not normalized",
+);
+assert(withLocal.local?.gatewaySequence === 4, "local.gateway_sequence was not normalized");
+assert(withLocal.local?.standing.length === 1, "local.standing was not normalized");
+assert(
+  withLocal.local?.standing[0].acknowledgedVersion === 3,
+  "local.standing[].acknowledged_version was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].tasks[0].path === "/var/log/system.log",
+  "local.standing[].tasks[] was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].tasks[0].startupPosition === "tail",
+  "local task startup_position was not normalized",
+);
+assert(
+  withLocal.local?.oneShot[0].execution === "unexecuted",
+  "local.one_shot[] was not normalized",
+);
+assert(
+  withLocal.local?.oneShot[0].timeoutSeconds === 600,
+  "local.one_shot[].timeout_seconds was not normalized",
+);
+assert(
+  withLocal.local?.localInputs[0].path === "/var/log/app.log",
+  "local.local_inputs[] was not normalized",
+);
+assert(
+  withLocal.local?.metricsIntervalSeconds === 15,
+  "local.metrics_interval_seconds was not normalized",
+);
+
+// 缺键 / null 都得到 null 且**不抛错**：旧网关/旧 agent 没这个字段是正常的。
+const noLocal = normalizeAgentWorkView(workViewPayload());
+assert(noLocal.local === null, "local 缺键必须得到 null，不能抛错");
+const nullLocal = normalizeAgentWorkView(workViewPayload({ local: null }));
+assert(nullLocal.local === null, "local: null 必须得到 null，不能抛错");
+
+// local 存在但形状不对：不抛错，`error` 带原因 —— 与「缺失 = null」区分开。
+const brokenLocal = normalizeAgentWorkView(
+  workViewPayload({ local: { recorded_at: "t", gateway_sequence: "四十二" } }),
+);
+assert(brokenLocal.local !== null, "坏 local 不应被当成「没上报」");
+assert(brokenLocal.local?.error !== null, "坏 local 要带出原因，不能静默");
+
 // --- 3. 工作参数：坏形状要说出来，不当成「没事可采」 ------------------------
 const brokenJson = parseWorkSpec("mac-host-metrics");
 assert(brokenJson.error !== null, "非 JSON 的 spec 必须报错而不是当空工作");
@@ -368,6 +466,21 @@ assert(
   "采集就绪但解析未就绪的面照样可派，且要标明原文未归类",
 );
 
+// 可派的面里，已经有常驻工作的那些不当「待授权」摆 —— 同一面会摆成两张卡。
+const ungranted = ungrantedFamilies(grantable, [standing]);
+assert(
+  ungranted.length === 1 && ungranted[0].family === "PrivacyTcc",
+  `已授权的面要从待授权清单里去掉，得到 ${ungranted.map((entry) => entry.family).join(",")}`,
+);
+assert(
+  ungrantedFamilies(grantable, []).length === 2,
+  "一件工作都没有时，可派的面全是待授权",
+);
+assert(
+  ungrantedFamilies(grantable, [{ ...standing, status: "revoked" }]).length === 1,
+  "传进来的就是当前生效的那一批；已撤回的面不在其中，自然回到待授权",
+);
+
 const blocked = blockedFamilies(catalog, "MacDev");
 assert(blocked.length === 1, `不可派的面要列出来，得到 ${blocked.length}`);
 assert(
@@ -450,6 +563,70 @@ assert(parseIntervalSeconds("15") === null, "没有单位的周期不猜");
 assert(parseIntervalSeconds("0s") === null, "非正周期不算有效值");
 const counts = specCounts(metricsOnly);
 assert(counts.units === 2 && counts.sources === 3, "单元与来源计数要分别给出");
+
+// --- 6b. 来源「可采 / 未接」判据（与 agentd 的 `is_executable_source` 同口径）--
+//
+// 页面要是把这个判据写歪，就会出现「页面说可采、agent 拿到后报 unsupported」这种
+// 没人能发现的矛盾；下面把两侧共同认的几条边界锁住。
+assert(isExecutableSource("FileGlob", "/var/log/app.log"), "显式绝对路径可采");
+assert(!isExecutableSource("FileGlob", "/var/log/app*"), "通配路径不算可采");
+assert(!isExecutableSource("FileGlob", "~/Library/Logs/a.log"), "~ 不展开，不算可采");
+assert(isExecutableSource("MetricInterval", "15s"), "指标周期可采");
+assert(!isExecutableSource("Exporter", "last,lastb"), "导出器还没接");
+assert(!isExecutableSource("UnifiedLogPredicate", "syspolicyd"), "统一日志谓词还没接");
+assert(isExplicitPath("/var/log/app.log"), "绝对路径无通配 = 显式路径");
+assert(!isExplicitPath("/var/log/app?.log"), "? 也是通配元字符");
+assert(!isExplicitPath("/var/log/app[12].log"), "[ 也是通配元字符");
+assert(unsupportedSourceReason("FileGlob", "/var/log/app.log") === null, "可采来源不该报原因");
+assert(
+  (unsupportedSourceReason("FileGlob", "/var/log/app*") ?? "").includes("通配"),
+  "通配要说清原因",
+);
+assert(
+  (unsupportedSourceReason("Exporter", "last") ?? "").includes("导出器"),
+  "导出器要说清原因",
+);
+assert(
+  unsupportedSourceCount(metricsOnly) === 1,
+  "上面那份 spec 里只有 FileGlob /x/* 未接（两条 MetricInterval 都可采）",
+);
+
+// --- 6c. 「在采的日志文件」= work.json tasks 的来源 --------------------------
+//
+// 只有可采的 FileGlob 会变成采集文件；指标不是文件，通配/谓词今天采不到。
+const mixed = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "none",
+        sources: [
+          { kind: "FileGlob", target: "/var/log/system.log" },
+          { kind: "FileGlob", target: "/var/log/system.log.*" },
+          { kind: "UnifiedLogPredicate", target: "syspolicyd" },
+        ],
+      },
+      {
+        unit_id: "b",
+        capability: "collect_metrics",
+        rule_ref: "r",
+        requires_privilege: "none",
+        sources: [{ kind: "MetricInterval", target: "15s" }],
+      },
+    ],
+  }),
+);
+const collectedFiles = collectedLogFiles(mixed);
+assert(
+  collectedFiles.length === 1 && collectedFiles[0] === "/var/log/system.log",
+  "只有可采的 FileGlob 会变成采集文件",
+);
+assert(
+  collectedLogFiles(metricsOnly).length === 0,
+  "纯通配/指标的工作不产生日志文件",
+);
 
 // --- 7. 授权/暂停/恢复/撤回的请求形状 --------------------------------------
 recorded = [];
@@ -627,6 +804,69 @@ try {
 assert(unavailable instanceof ApiError, "503 must surface as ApiError");
 assert((unavailable as ApiError).status === 503, "503 status must be preserved");
 
+// --- 9. 本机自报并进工作卡之后留下的两条判据 --------------------------------
+// 同一路径被两份工作声明 = agentd 会把它 tail 两遍。原先这件事靠一张汇总表看出来，
+// 汇总表并进各卡的「在采文件」行之后就只剩这个判据，所以它必须准。
+const fileSource = (target: string) => ({
+  kind: "FileGlob",
+  target,
+  multiline: "none",
+});
+const sharedSpec = JSON.stringify({
+  units: [
+    {
+      unit_id: "u1",
+      capability: "collect_logs",
+      rule_ref: "",
+      requires_privilege: "none",
+      sources: [fileSource("/var/log/shared.log"), fileSource("/var/log/only-a.log")],
+    },
+  ],
+});
+const singleSpec = JSON.stringify({
+  units: [
+    {
+      unit_id: "u2",
+      capability: "collect_logs",
+      rule_ref: "",
+      requires_privilege: "none",
+      sources: [fileSource("/var/log/shared.log")],
+    },
+  ],
+});
+const asWork = (family: string, raw: string) =>
+  ({
+    workId: `work-${family}`,
+    family,
+    spec: parseWorkSpec(raw),
+  }) as unknown as StandingWork;
+
+const sharedPaths = duplicatedCollectedPaths([
+  asWork("A", sharedSpec),
+  asWork("B", singleSpec),
+]);
+assert(
+  sharedPaths.get("/var/log/shared.log")?.join(",") === "A,B",
+  `两份工作采同一路径必须报出来：${JSON.stringify([...sharedPaths])}`,
+);
+assert(!sharedPaths.has("/var/log/only-a.log"), "只被一份工作采的路径不算重复");
+assert(
+  duplicatedCollectedPaths([asWork("A", sharedSpec)]).size === 0,
+  "只有一份工作时没有重复",
+);
+assert(
+  duplicatedCollectedPaths([
+    asWork("A", sharedSpec),
+    asWork("A", sharedSpec),
+  ]).size === 0,
+  "同一个面不把自己算成两遍（否则每张卡都会自称重复采集）",
+);
+
+// 本机执行阶段：网关只知道「已派发/已接受」，阶段是 agent 侧才有的词，要给出中文口径。
+assert(localExecutionLabel("unexecuted") === "未开始", "本机执行阶段要有中文口径");
+assert(localExecutionLabel("executed") === "已执行", "本机执行阶段要有中文口径");
+assert(localExecutionLabel("wat") === "wat", "认不出的阶段原样露出，不编造");
+
 console.log(
-  "agent work contract ok: request shapes + spec parsing (fail loud) + drift三态 + grant gate + closed sets + 503/409",
+  "agent work contract ok: request shapes + spec parsing (fail loud) + drift三态 + grant gate + closed sets + 503/409 + 本机工作 local",
 );

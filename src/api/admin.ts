@@ -3,6 +3,10 @@ import type {
   AgentFactSummary,
   AgentLogRecord,
   AgentLogsView,
+  AgentLocalOneShotWorkView,
+  AgentLocalStandingWorkView,
+  AgentLocalTaskView,
+  AgentLocalWorkView,
   AgentPurposeView,
   AgentSoftwareEntry,
   AgentSoftwareInventory,
@@ -31,6 +35,28 @@ import type {
   WorkSpec,
 } from "../types";
 
+/**
+ * Agent **实际生效**的数据面上送状态（`GET /api/v1/admin/agents/{agent_id}/runtime-status`
+ * 的 `uplink_state`）。它与网关下发的「数据面上送授权」是一对：一个说「要它怎样」，
+ * 一个说「它实际成了怎样」。
+ *
+ * 为什么页面需要它：**待命与故障别处长得一样** —— 两种情况都没数据。`enabled` 说开关、
+ * `source` 说这份状态是谁定的（控制面 / 本机）、`outputWriteFailing` 说「启用了但发不出去」。
+ * `null` = 这台 agent 还没上报过（旧版本 agentd 不发这个字段）。
+ */
+export interface AgentUplinkStateView {
+  /** 生效总闸：false = 待命（不采集、不上送）。 */
+  enabled: boolean;
+  /** 生效输出类型：`tcp`（上送数据面）| `file`（写本机文件，不是上送）。 */
+  kind: string;
+  /** 生效目标（`tcp` 且有目标时）；null = 本机文件输出，或 tcp 但没目标。 */
+  target: string | null;
+  /** 这份状态的来源：`grant`（控制面下发）| `local`（未下发，用本机配置）。 */
+  source: string;
+  /** 最近的出口写失败是否**尚未恢复**（细节在 agentd 日志：目标与原因）。 */
+  outputWriteFailing: boolean;
+}
+
 export interface AgentRuntimeStatusView {
   agentId: string;
   instanceId: string;
@@ -38,6 +64,24 @@ export interface AgentRuntimeStatusView {
   status: "online" | "offline";
   health: "healthy" | "degraded" | "unhealthy";
   lastSeenAt: string;
+  /** agent 实际生效的数据面上送状态；null = 还没上报过（旧版本 agentd 不发）。 */
+  uplinkState: AgentUplinkStateView | null;
+}
+
+/**
+ * **已注册** Agent 的一条（`GET /api/v1/admin/agents` = `list_agents`）。
+ *
+ * 为什么单独有它：机队索引页（升级 / 采集工作）要的是「**注册表里的机器**」，而不是
+ * 「有主机指标的机器」—— 后者会把待命/新装的 Agent 漏掉（它们不上送指标），于是那些机器
+ * 在页面上彻底不可见。
+ */
+export interface AgentListEntryView {
+  agentId: string;
+  instanceId: string;
+  hostname: string;
+  version: string;
+  status: string;
+  health: string;
 }
 
 export interface AgentOverviewMetrics {
@@ -157,11 +201,14 @@ export interface SetAgentInstallPackageCommand {
 /**
  * Agent 的数据面上送地址（管理面设置）。
  *
- * Agent 通过 TCP 把采集到的日志与指标上送到数据面的 `host:port`，
- * 网关把它渲染进之后新签发的 Agent 初始配置。
+ * Agent 通过 TCP 把采集到的日志与指标上送到数据面的 `host:port`。
+ * 它现在是**运行期**的目标：网关在 `uplink:poll` 上现算上送授权（是否启用 + 目标），
+ * 所以改这里对**已在网**的 Agent 下一个 poll（≤30s）就生效，不需要重装。
  *
- * `updatedAt` 为 null 表示从未在管理面设置过（此时 `host` 为空串），
- * 新安装的 Agent 只上报自身状态、不采集日志、也不向数据面上送；
+ * 是否启用由控制面派活决定：有生效工作且设了地址 → 启用；否则 Agent 待命
+ * （不采集日志、也不向数据面上送）。
+ *
+ * `updatedAt` 为 null 表示从未在管理面设置过（此时 `host` 为空串）；
  * `port` 始终有值，未设置时是约定的默认端口。
  */
 export interface AgentUplink {
@@ -175,6 +222,33 @@ export interface AgentUplink {
 export interface SetAgentUplinkCommand {
   host: string;
   port: number;
+  requestedBy?: string;
+}
+
+/**
+ * 网关对外地址（管理面设置）：控制平台对 Agent **宣告**的地址。
+ *
+ * 它是「新装 Agent 会连到哪」的唯一来源 —— 渲染成初始配置里的
+ * `[control_plane] endpoint`，同时是安装命令 / install.sh / 安装包分发 URL 的基址。
+ * 之所以要能从管理面改：配置文件里的 `server.public_base_url` 是启动期值，而对外入口
+ * （域名、端口、反代）常由部署侧决定并会随后调整；拿内部地址当 agent 的默认控制面
+ * 地址，装出来的 agent 必然连不上。
+ *
+ * `updatedAt` 为 null 表示管理面从未设置过，此时网关实际用的是配置文件里的值，
+ * 也就是 `fallbackUrl`。界面要显示「当前生效地址」，不能只显示一个空值。
+ */
+export interface AgentAdvertiseUrl {
+  settingId: string;
+  /** 管理面设置值；未设置时为空串。 */
+  url: string;
+  /** 未设置时网关**实际**使用的基址（配置文件值）。 */
+  fallbackUrl: string;
+  updatedBy: string;
+  updatedAt: string | null;
+}
+
+export interface SetAgentAdvertiseUrlCommand {
+  url: string;
   requestedBy?: string;
 }
 
@@ -525,6 +599,42 @@ function normalizeInstallCode(payload: any): AgentInstallCode {
   };
 }
 
+function normalizeAgentListEntry(payload: any, index: number): AgentListEntryView {
+  const at = `agents[${index}]`;
+  return {
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      `${at}.agentId`,
+    ),
+    instanceId: requiredString(
+      payload.instance_id ?? payload.instanceId ?? "",
+      `${at}.instanceId`,
+    ),
+    hostname: requiredString(payload.hostname ?? "", `${at}.hostname`),
+    version: requiredString(payload.version ?? "", `${at}.version`),
+    status: requiredString(payload.status ?? "", `${at}.status`),
+    health: requiredString(payload.health ?? "", `${at}.health`),
+  };
+}
+
+function normalizeAgentUplinkState(
+  value: unknown,
+): AgentUplinkStateView | null {
+  // 缺失或 null 都是「还没上报过」：与 `local_work` 同口径，不当作形状错误。
+  if (value === null || value === undefined) return null;
+  const record = requiredRecord(value, "agent.uplinkState");
+  return {
+    enabled: requiredBoolean(record.enabled, "agent.uplinkState.enabled"),
+    kind: requiredString(record.kind, "agent.uplinkState.kind"),
+    target: nullableString(record.target ?? null, "agent.uplinkState.target"),
+    source: requiredString(record.source, "agent.uplinkState.source"),
+    outputWriteFailing: requiredBoolean(
+      record.output_write_failing ?? record.outputWriteFailing,
+      "agent.uplinkState.outputWriteFailing",
+    ),
+  };
+}
+
 function normalizeRuntimeStatus(payload: any): AgentRuntimeStatusView {
   return {
     agentId: requiredString(
@@ -541,6 +651,9 @@ function normalizeRuntimeStatus(payload: any): AgentRuntimeStatusView {
     lastSeenAt: requiredString(
       payload.last_seen_at ?? payload.lastSeenAt,
       "agent.lastSeenAt",
+    ),
+    uplinkState: normalizeAgentUplinkState(
+      payload.uplink_state ?? payload.uplinkState,
     ),
   };
 }
@@ -709,6 +822,41 @@ export async function fetchAllAgentsHostMetrics(): Promise<
   return normalizeHostMetricsSummaries(payload);
 }
 
+/**
+ * 单台 Agent 的运行态视图（`GET /api/v1/admin/agents/{agent_id}/runtime-status`）。
+ *
+ * 页面用它回答「这台为什么不上送」：`uplinkState` 是 agent **实际生效**的输出状态
+ * （待命 / 已启用 / 出口失败），而不只是「网关下发了什么」。
+ */
+export async function fetchAgentRuntimeStatus(
+  agentId: string,
+): Promise<AgentRuntimeStatusView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/runtime-status`,
+  );
+  return normalizeRuntimeStatus(payload);
+}
+
+/**
+ * **已注册**的 Agent 清单（`GET /api/v1/admin/agents`）。
+ *
+ * 机队索引页（升级 / 采集工作）用它，而不是拿「有主机指标的 Agent」当机队：待命或新装的
+ * Agent 不上送指标，用指标列表会让它们彻底从页面上消失（也就无法被升级 / 派活）。
+ *
+ * `limit` 封顶 500（网关侧 `MAX_AGENT_PAGE_LIMIT`）；超出得翻页 —— 当前页面只需要 id。
+ */
+export async function fetchRegisteredAgents(
+  limit = 500,
+): Promise<AgentListEntryView[]> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents?limit=${limit}`,
+  );
+  const root = requiredRecord(payload, "agents");
+  return requiredArray(root.agents, "agents.agents").map(
+    normalizeAgentListEntry,
+  );
+}
+
 export function normalizeAgentUplink(payload: any): AgentUplink {
   const setting = payload.uplink ?? payload;
   return {
@@ -725,6 +873,31 @@ export function normalizeAgentUplink(payload: any): AgentUplink {
     updatedAt: nullableString(
       setting.updated_at ?? setting.updatedAt ?? null,
       "agentUplink.updatedAt",
+    ),
+  };
+}
+
+export function normalizeAgentAdvertiseUrl(payload: any): AgentAdvertiseUrl {
+  const setting = payload.advertise_url ?? payload.advertiseUrl ?? payload;
+  return {
+    settingId: requiredString(
+      setting.setting_id ?? setting.settingId,
+      "agentAdvertiseUrl.settingId",
+    ),
+    // 未设置过时后端回空串（不是缺字段）：空串 = 没设置，与「设置成空」同义，
+    // 真正的回落值在 fallbackUrl 里。
+    url: requiredString(setting.url, "agentAdvertiseUrl.url"),
+    fallbackUrl: requiredString(
+      setting.fallback_url ?? setting.fallbackUrl,
+      "agentAdvertiseUrl.fallbackUrl",
+    ),
+    updatedBy: requiredString(
+      setting.updated_by ?? setting.updatedBy,
+      "agentAdvertiseUrl.updatedBy",
+    ),
+    updatedAt: nullableString(
+      setting.updated_at ?? setting.updatedAt ?? null,
+      "agentAdvertiseUrl.updatedAt",
     ),
   };
 }
@@ -788,6 +961,37 @@ export async function setAgentUplink(
     }),
   });
   return normalizeAgentUplink(payload);
+}
+
+export async function fetchAgentAdvertiseUrl(): Promise<AgentAdvertiseUrl> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/advertise-url",
+  );
+  return normalizeAgentAdvertiseUrl(payload);
+}
+
+/**
+ * 设置网关对外地址（管理面）。
+ *
+ * 必须是 https 基址 —— 它会被拼进安装命令与 install.sh 的 URL，并写成 Agent 的
+ * 控制面 endpoint；后端拒绝明文 http、非 URL 以及含 shell 元字符的写法（400 纯文本）。
+ * 尾斜杠由后端裁掉。设置只影响之后签发的安装代码与新装 Agent：已安装的 agent
+ * 要重跑安装脚本才会拿到新值（初始配置只在安装时拉一次）。
+ */
+export async function setAgentAdvertiseUrl(
+  command: SetAgentAdvertiseUrlCommand,
+): Promise<AgentAdvertiseUrl> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/advertise-url",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        url: command.url,
+        requested_by: command.requestedBy,
+      }),
+    },
+  );
+  return normalizeAgentAdvertiseUrl(payload);
 }
 
 /**
@@ -1097,6 +1301,17 @@ function nullableStringField(
   const value = presentField(record, keys, fieldName);
   if (value === null) return null;
   return requiredString(value, fieldName);
+}
+
+/** 键必须存在、值可为 `null` 的数值字段（`null` 与「缺失」不同）。 */
+function nullableNumberField(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): number | null {
+  const value = presentField(record, keys, fieldName);
+  if (value === null) return null;
+  return requiredNumber(value, fieldName);
 }
 
 /**
@@ -1750,8 +1965,125 @@ function normalizeOneShotWork(payload: any): OneShotWork {
   };
 }
 
+/** 本机上报的一个采集任务 / 手工输入（两者形状相同）。 */
+function normalizeAgentLocalTask(payload: any): AgentLocalTaskView {
+  return {
+    inputId: requiredString(
+      payload.input_id ?? payload.inputId,
+      "agentLocalTask.inputId",
+    ),
+    path: requiredString(payload.path, "agentLocalTask.path"),
+    startupPosition: requiredString(
+      payload.startup_position ?? payload.startupPosition,
+      "agentLocalTask.startupPosition",
+    ),
+  };
+}
+
+function normalizeAgentLocalStandingWork(payload: any): AgentLocalStandingWorkView {
+  return {
+    workId: requiredString(
+      payload.work_id ?? payload.workId,
+      "agentLocalStandingWork.workId",
+    ),
+    family: requiredString(payload.family, "agentLocalStandingWork.family"),
+    // 本机状态是 agent 自报的开放值：认不出来不编造，但也不因此把整块判成坏数据。
+    status: requiredString(payload.status, "agentLocalStandingWork.status"),
+    planVersion: requiredNumber(
+      payload.plan_version ?? payload.planVersion,
+      "agentLocalStandingWork.planVersion",
+    ),
+    acknowledgedVersion: requiredNumber(
+      payload.acknowledged_version ?? payload.acknowledgedVersion,
+      "agentLocalStandingWork.acknowledgedVersion",
+    ),
+    effectiveFrom: requiredString(
+      payload.effective_from ?? payload.effectiveFrom,
+      "agentLocalStandingWork.effectiveFrom",
+    ),
+    tasks: requiredArray(payload.tasks, "agentLocalStandingWork.tasks").map(
+      normalizeAgentLocalTask,
+    ),
+  };
+}
+
+function normalizeAgentLocalOneShotWork(payload: any): AgentLocalOneShotWorkView {
+  return {
+    workId: requiredString(
+      payload.work_id ?? payload.workId,
+      "agentLocalOneShotWork.workId",
+    ),
+    action: requiredString(payload.action, "agentLocalOneShotWork.action"),
+    status: requiredString(payload.status, "agentLocalOneShotWork.status"),
+    execution: requiredString(payload.execution, "agentLocalOneShotWork.execution"),
+    scheduledAt: requiredString(
+      payload.scheduled_at ?? payload.scheduledAt,
+      "agentLocalOneShotWork.scheduledAt",
+    ),
+    deadlineAt: requiredString(
+      payload.deadline_at ?? payload.deadlineAt,
+      "agentLocalOneShotWork.deadlineAt",
+    ),
+    timeoutSeconds: requiredNumber(
+      payload.timeout_seconds ?? payload.timeoutSeconds,
+      "agentLocalOneShotWork.timeoutSeconds",
+    ),
+  };
+}
+
+/**
+ * 规范化 `AgentLocalWorkView`（`AgentWorkView.local`）。
+ *
+ * 与 `local` 缺失/为 `null` **分开**：这里只在字段确实存在时调用。形状不对时
+ * **不抛错**（那会把一个整页视图弄挂），而是把原因放进 `error` 并返回空骨架 ——
+ * 与 `parseWorkSpec` 同一口径：「上报了但对不上契约」要能说出来，不能静默成「没上报」。
+ */
+function normalizeAgentLocalWorkView(payload: any): AgentLocalWorkView {
+  try {
+    const record = requiredRecord(payload, "agentWork.local");
+    return {
+      recordedAt: requiredString(
+        record.recorded_at ?? record.recordedAt,
+        "agentWork.local.recordedAt",
+      ),
+      gatewaySequence: requiredNumber(
+        record.gateway_sequence ?? record.gatewaySequence,
+        "agentWork.local.gatewaySequence",
+      ),
+      standing: requiredArray(record.standing, "agentWork.local.standing").map(
+        normalizeAgentLocalStandingWork,
+      ),
+      oneShot: requiredArray(
+        record.one_shot ?? record.oneShot,
+        "agentWork.local.oneShot",
+      ).map(normalizeAgentLocalOneShotWork),
+      localInputs: requiredArray(
+        record.local_inputs ?? record.localInputs,
+        "agentWork.local.localInputs",
+      ).map(normalizeAgentLocalTask),
+      metricsIntervalSeconds: nullableNumberField(
+        record,
+        ["metrics_interval_seconds", "metricsIntervalSeconds"],
+        "agentWork.local.metricsIntervalSeconds",
+      ),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      recordedAt: "",
+      gatewaySequence: 0,
+      standing: [],
+      oneShot: [],
+      localInputs: [],
+      metricsIntervalSeconds: null,
+      error: (error as Error).message,
+    };
+  }
+}
+
 /** 规范化 `AgentWorkView`（`GET /api/v1/admin/agents/{agent_id}/work`）。 */
 export function normalizeAgentWorkView(payload: any): AgentWorkView {
+  const hasLocal = Object.prototype.hasOwnProperty.call(payload, "local");
   return {
     agentId: requiredString(payload.agent_id ?? payload.agentId, "agentWork.agentId"),
     sequence: requiredNumber(payload.sequence, "agentWork.sequence"),
@@ -1773,6 +2105,11 @@ export function normalizeAgentWorkView(payload: any): AgentWorkView {
       payload.generated_at ?? payload.generatedAt,
       "agentWork.generatedAt",
     ),
+    // 缺键 / `null` 都当 `null`：旧网关/旧 agent 没这个字段是正常的，不能抛错。
+    local:
+      hasLocal && payload.local !== null && payload.local !== undefined
+        ? normalizeAgentLocalWorkView(payload.local)
+        : null,
   };
 }
 

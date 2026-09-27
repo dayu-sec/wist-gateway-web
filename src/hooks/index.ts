@@ -7,17 +7,20 @@ import {
   approveRolloutPlan,
   classifyAgentPurpose,
   createRolloutPlan,
+  fetchAgentAdvertiseUrl,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
   fetchAgentInstallPackage,
   fetchAgentOverview,
   fetchAgentPurpose,
+  fetchAgentRuntimeStatus,
   fetchAgentSoftwareInventory,
   fetchAgentUplink,
   fetchAgentWork,
   fetchAllAgentsHostMetrics,
   fetchContentCatalog,
   fetchPipelineTopology,
+  fetchRegisteredAgents,
   fetchRolloutPlan,
   fetchRolloutPlans,
   fetchSoftwareFleetInventory,
@@ -28,6 +31,7 @@ import {
   pauseWork,
   resumeWork,
   revokeWork,
+  setAgentAdvertiseUrl,
   setAgentInstallPackage,
   setAgentUplink,
   viewAgentLogs,
@@ -35,6 +39,7 @@ import {
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
   type GrantStandingWorkCommand,
+  type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
   type SetAgentUplinkCommand,
 } from "../api";
@@ -89,6 +94,30 @@ export function useAllAgentsHostMetrics() {
   return useQuery({
     queryKey: ["all-agents-host-metrics"],
     queryFn: fetchAllAgentsHostMetrics,
+    enabled,
+    refetchInterval: enabled ? 5_000 : false,
+  });
+}
+
+/**
+ * **已注册**的 Agent 清单（注册表口径，不是“有指标的 Agent”）。
+ *
+ * 机队索引页（升级 / 采集工作）用它当机队：待命 / 新装的 Agent 不上送指标，用主机指标列
+ * 会让它们从页面上消失（也就无法被升级 / 派活）。所以两个口径要分开用：
+ * 看指标用 `useAllAgentsHostMetrics`，选目标用本 hook。
+ */
+export function useRegisteredAgents() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["registered-agents"],
+    queryFn: () => fetchRegisteredAgents(),
     enabled,
     refetchInterval: enabled ? 5_000 : false,
   });
@@ -181,6 +210,38 @@ export function useSetAgentUplink() {
     mutationFn: (command: SetAgentUplinkCommand) => setAgentUplink(command),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["agent-uplink"] });
+    },
+  });
+}
+
+/**
+ * 当前生效的网关对外地址（管理面设置值 + 未设置时的配置文件回落值）。
+ * 同样不轮询：值只在管理面变更时变化，保存成功后由 useSetAgentAdvertiseUrl 失效重取。
+ */
+export function useAgentAdvertiseUrl() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["agent-advertise-url"],
+    queryFn: fetchAgentAdvertiseUrl,
+    enabled,
+  });
+}
+
+/** 保存网关对外地址；成功后刷新当前生效值。 */
+export function useSetAgentAdvertiseUrl() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: SetAgentAdvertiseUrlCommand) =>
+      setAgentAdvertiseUrl(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["agent-advertise-url"] });
     },
   });
 }
@@ -301,6 +362,37 @@ export function useAgentWork(agentId: string) {
   return useQuery({
     queryKey: ["agent-work", agentId],
     queryFn: () => fetchAgentWork(agentId),
+    enabled,
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+
+/**
+ * 单台 Agent 的运行态（含**实际生效**的数据面上送状态）。
+ *
+ * 与工作页其它查询同一口径：401（token 无效）与 404（未知 Agent）是确定性的，不重试。
+ * 数据是 agent 按节拍上报后落库的（网关现算不了），所以只读一次、靠右上角「刷新」重取。
+ */
+export function useAgentRuntimeStatus(agentId: string) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(agentId);
+  return useQuery({
+    queryKey: ["agent-runtime-status", agentId],
+    queryFn: () => fetchAgentRuntimeStatus(agentId),
     enabled,
     retry: (failureCount, error) => {
       if (

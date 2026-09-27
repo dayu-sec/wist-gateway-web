@@ -29,6 +29,7 @@ import {
   availablePhaseCounts,
   phaseScaleLabel,
   planPhases,
+  selectUpgradeTargets,
 } from "../src/components/agentUpgradePhases";
 
 // 契约测试：管理面「灰度发布计划」（模型 `Control.Rollout` 的列表/创建/批准/推进/查看）。
@@ -343,6 +344,11 @@ assert(
   "success_rate rule label",
 );
 assert(advanceRuleLabel("wat") === "wat", "认不出的闸门原样露出");
+// 末阶段没有「下一段」：闸门不适用，全部了结后自动收尾。
+assert(
+  advanceRuleLabel("manual", true) === "末阶段：全部了结后自动收尾",
+  "末阶段不该再说「人工确认后推进」",
+);
 
 // 缺字段的响应必须抛错（不静默成空计划）。
 let missingPhase: unknown;
@@ -432,6 +438,29 @@ assert(
   "单台一批算「全量」，不该叫金丝雀",
 );
 
+// --- 7c. 升级目标：排掉明确离线的机器（未知 ≠ 离线）---------------------------
+const pick = selectUpgradeTargets([
+  { agentId: "agent-b", status: "online" },
+  { agentId: "agent-a", status: "offline" }, // 掉线：不进目标
+  { agentId: "agent-d", status: "online" },
+  { agentId: "agent-c", status: "" }, // 状态未知：不能当离线丢掉
+]);
+assert(
+  pick.agentIds.join(",") === "agent-b,agent-c,agent-d",
+  `只排离线的、其余保留并按 id 排序，实际 ${pick.agentIds.join(",")}`,
+);
+assert(pick.fleetSize === 4, "机队台数含离线");
+assert(pick.offlineCount === 1, "离线台数要算出来（页面上要说）");
+assert(
+  selectUpgradeTargets([{ agentId: "only", status: "offline" }]).agentIds
+    .length === 0,
+  "全离线时目标为空（页面会报阶段错误，而不是悄悄升）",
+);
+assert(
+  selectUpgradeTargets([]).agentIds.length === 0,
+  "空机队给空目标（不是报错）",
+);
+
 console.log(
-  "rollout plan contract ok: list/detail/create/approve/advance shapes + spec 拼/解(fail loud) + phase 派生 + 状态口径",
+  "rollout plan contract ok: list/detail/create/approve/advance shapes + spec 拼/解(fail loud) + phase 派生 + 升级目标排除离线 + 状态口径",
 );

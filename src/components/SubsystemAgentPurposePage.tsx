@@ -90,8 +90,7 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
             </span>
           ) : null}
           <span className={styles.metaItemMuted}>
-            不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 ——
-            需要重取用右上角「刷新」。
+            不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 ——需要重取用右上角「刷新」。
           </span>
         </div>
       </header>
@@ -101,9 +100,7 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
         <section className={styles.unknownAgent} role="alert">
           <h2 className={styles.unknownTitle}>未知 Agent</h2>
           <p className={styles.unknownText}>
-            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。
-            这与「尚未上报事实」是两回事：后者是已知的 Agent 还没报过摘要，网关会返回空的事实与
-            建议，而不是 404。
+            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。这与「尚未上报事实」是两回事：后者是已知的 Agent 还没报过摘要，网关会返回空的事实与建议，而不是 404。
           </p>
           <p className={styles.unknownHint}>
             请确认 agent_id 拼写是否正确；已注册的主机可以在
@@ -204,15 +201,13 @@ function ClassifyPanel({
           归档用途判定
         </h2>
         <span className={styles.classifyHint}>
-          判定是**授权工作模板的前置**（它决定取哪份模板、能派哪些采集面）；
-          改判就是改采集范围，所以留判的人与时间
+          判定是<strong>授权工作模板的前置</strong>（它决定取哪份模板、能派哪些采集面）；改判就是改采集范围，所以留判的人与时间
         </span>
       </header>
 
       {!hasFacts ? (
         <p className={styles.classifyBlocked}>
-          这台机器还没上报过事实摘要：网关无法确认它的平台，因此**拒绝**归档判定
-          （不默认放行）。等它上报后再来。
+          这台机器还没上报过事实摘要：网关无法确认它的平台，因此<strong>拒绝</strong>归档判定（不默认放行）。等它上报后再来。
         </p>
       ) : (
         <div className={styles.classifyForm}>

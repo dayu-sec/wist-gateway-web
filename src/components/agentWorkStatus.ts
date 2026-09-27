@@ -4,6 +4,7 @@ import type {
   StandingWork,
   StandingWorkStatus,
   WorkSpec,
+  WorkSpecSource,
   WorkSpecUnit,
 } from "../types";
 
@@ -100,7 +101,126 @@ export function workCapabilities(spec: WorkSpec): string[] {
 export function sourceLabel(unit: WorkSpecUnit, index: number): string {
   const source = unit.sources[index];
   if (!source) return "";
+  return sourceText(source);
+}
+
+/** 一条来源的可读写法（`kind target`）；与 [`sourceLabel`] 同一口径。 */
+export function sourceText(source: WorkSpecSource): string {
   return `${source.kind} ${source.target}`;
+}
+
+/** 目标里有没有通配元字符（与模型 `has_glob_meta` 同一口径：`* ? [`）。 */
+export function hasGlobMeta(target: string): boolean {
+  return ["*", "?", "["].some((meta) => target.includes(meta));
+}
+
+/**
+ * 这个目标是不是采集端今天**真能打开**的路径：**绝对路径、无通配**。
+ *
+ * `~` 展开与 glob 展开都不在 agentd 第一版的能力边界内，所以两者都不算显式路径。
+ */
+export function isExplicitPath(target: string): boolean {
+  return target.startsWith("/") && !hasGlobMeta(target);
+}
+
+/**
+ * 一条来源今天**能不能被采**（与模型 / agentd 的 `is_executable_source` 同一口径）。
+ *
+ * 这个判据必须与 agentd 完全一致：不一致就会出现「页面说可采、agent 拿到后报 unsupported」
+ * 这种没人能发现的矛盾。加一种可采 kind 时，两侧一起改。
+ */
+export function isExecutableSource(kind: string, target: string): boolean {
+  if (kind === "FileGlob") return isExplicitPath(target);
+  if (kind === "MetricInterval") return true;
+  return false;
+}
+
+/**
+ * 一条来源**今天采不到**的原因；能采返回 `null`。
+ *
+ * 页面要把它如实标出来 —— 否则通配路径/导出器看起来和普通路径一样，运维会以为「已经采上了」。
+ */
+export function unsupportedSourceReason(
+  kind: string,
+  target: string,
+): string | null {
+  if (isExecutableSource(kind, target)) return null;
+  if (kind === "FileGlob") return "通配路径";
+  if (kind === "Exporter") return "导出器";
+  if (kind === "UnifiedLogPredicate") return "统一日志谓词";
+  return `未知类型 ${kind}`;
+}
+
+/** 工作里「今天采不到」的来源条数（摘要与告警用）。 */
+export function unsupportedSourceCount(spec: WorkSpec): number {
+  let total = 0;
+  for (const unit of spec.units) {
+    for (const source of unit.sources) {
+      if (!isExecutableSource(source.kind, source.target)) total += 1;
+    }
+  }
+  return total;
+}
+
+/**
+ * 本机**实际会去 tail 的日志文件**（从授权折算，去重）。
+ *
+ * 这就是 agentd `state/work.json` 里 `standing[].tasks[].path` 的来源：agentd 用**同一份判据**
+ * 折算（`is_executable_source`）。只有「可采的 `FileGlob`」会成为采集任务 ——
+ * 指标周期不是文件；通配 / `~` / 导出器 / 统一日志谓词今天采不到。
+ *
+ * 注意：本机配置里手工加的 `[telemetry.logs] file_inputs`（运维逃生舱）**不**在这里，
+ * 也**不在** `work.json` 里 —— 它不来自任何采集面，只网关不知道、agent 自己知道。
+ */
+export function collectedLogFiles(spec: WorkSpec): string[] {
+  const files: string[] = [];
+  for (const unit of spec.units) {
+    for (const source of unit.sources) {
+      if (source.kind !== "FileGlob") continue;
+      if (!isExecutableSource(source.kind, source.target)) continue;
+      if (!files.includes(source.target)) files.push(source.target);
+    }
+  }
+  return files;
+}
+
+/**
+ * 同一个文件被**两份以上工作**声明的路径 → 声明它的采集面清单（去重后只留 2+）。
+ *
+ * 一条路径被两份工作采 = agentd 会把它 tail 两遍（重复采集）。原先这件事是靠
+ * 「本机在采的日志文件」那张汇总表看出来的（同一路径只列一行、把归属都挂上），
+ * 那份汇总表已并进各工作卡的「在采文件」行，这个判据就得单独留着 ——
+ * 不标出来，重复采集会藏在两张卡里，谁都看不见。
+ */
+export function duplicatedCollectedPaths(
+  works: StandingWork[],
+): Map<string, string[]> {
+  const byPath = new Map<string, string[]>();
+  for (const work of works) {
+    for (const path of collectedLogFiles(work.spec)) {
+      const owners = byPath.get(path);
+      if (!owners) {
+        byPath.set(path, [work.family]);
+      } else if (!owners.includes(work.family)) {
+        owners.push(work.family);
+      }
+    }
+  }
+  for (const [path, owners] of byPath) {
+    if (owners.length < 2) byPath.delete(path);
+  }
+  return byPath;
+}
+
+/** 本机侧一次性工作的执行阶段（`AgentLocalOneShotWorkView.execution`）。 */
+export const LOCAL_EXECUTION_LABEL: Record<string, string> = {
+  unexecuted: "未开始",
+  executing: "执行中",
+  executed: "已执行",
+};
+
+export function localExecutionLabel(execution: string): string {
+  return LOCAL_EXECUTION_LABEL[execution] ?? execution;
 }
 
 /**
@@ -150,26 +270,29 @@ export function platformForMachineClass(
     : "linux";
 }
 
+/** 一个可派的采集面及其就绪度（页面上就是一张「待授权」卡）。 */
+export interface GrantableFamily {
+  family: string;
+  activeUnits: number;
+  totalUnits: number;
+  parseReady: boolean;
+}
+
 /**
  * 这台机器**能派**的采集面 = 该机器类别模板覆盖的面 ∩ 该平台上**采集就绪**的面。
  *
  * 两个条件都得满足，而且各有各的理由：
  *   · 模板覆盖：不在模板里的面派了也取不到内容（网关回 409「模板不含此面」）；
  *   · 采集就绪：还没有能采的单元（没有 `status = active`）的面不许授权（渐进启用）。
- * 把两者取交集，运维在表单里看不到注定失败的选项。
+ * 把两者取交集，页面上就不会摆出注定失败的选项。
  *
  * **不看解析就绪**（`ruleRef`）：采原文不需要解析规则。`parseReady` 只是随行带出去，
- * 让表单能如实标一句「原文未归类」，而不是把两者搅在一起。
+ * 让卡片能如实标一句「原文未归类」，而不是把两者搅在一起。
  */
 export function grantableFamilies(
   catalog: ContentCatalogView,
   machineClass: MachineClass,
-): {
-  family: string;
-  activeUnits: number;
-  totalUnits: number;
-  parseReady: boolean;
-}[] {
+): GrantableFamily[] {
   const platform = platformForMachineClass(machineClass);
   const template = catalog.templates.find(
     (candidate) => candidate.machineClass === machineClass,
@@ -191,17 +314,25 @@ export function grantableFamilies(
         parseReady: entry.parseReady,
       };
     })
-    .filter(
-      (
-        entry,
-      ): entry is {
-        family: string;
-        activeUnits: number;
-        totalUnits: number;
-        parseReady: boolean;
-      } => entry !== null,
-    )
+    .filter((entry): entry is GrantableFamily => entry !== null)
     .sort((left, right) => left.family.localeCompare(right.family));
+}
+
+/**
+ * **还没授权**的可派面 = 可派的面 − 已经有常驻工作的面。
+ *
+ * 页面直接把这份清单摆成待授权的卡（授权按钮就在卡上），于是「哪些面在采」与
+ * 「哪些面还能派」是同一屏里的一件事，不必另开一节再挑一遍面。
+ *
+ * 已经有工作的面**不**在这里：那一份就在它自己的卡上改参数重授（版本 +1），
+ * 再摆一张卡就是同一个面两张卡了；被撤回的面不在 `standing` 里，自然回到这里。
+ */
+export function ungrantedFamilies(
+  grantable: GrantableFamily[],
+  standing: StandingWork[],
+): GrantableFamily[] {
+  const granted = new Set(standing.map((work) => work.family));
+  return grantable.filter((entry) => !granted.has(entry.family));
 }
 
 /**

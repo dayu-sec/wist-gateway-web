@@ -136,18 +136,14 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>采集日志</h1>
         <p className={styles.pageSummary}>
-          Agent 采集到的日志原文。链路是 agentd → 数据面（warp-parse）→ 网关内部接入端点，
-          最终落在<strong>网关主机上的本地 NDJSON 文件</strong>（没有数据库表）——
-          这里读的是文件<strong>尾部窗口</strong>，返回最新的 N 条。
+          Agent 采集到的日志原文。链路是 agentd → 数据面（warp-parse）→ 网关内部接入端点，最终落在<strong>网关主机上的本地 NDJSON 文件</strong>（没有数据库表）——这里读的是文件<strong>尾部窗口</strong>，返回最新的 N 条。
         </p>
         <p className={styles.pageThresholds}>
           每条的两个时间不同：<strong>观测时刻</strong>是 Agent 自己采到它的时刻，
-          <strong>到达网关</strong>是网关把它写入磁盘的时刻，中间隔着上行链路与数据面处理。
-          一条多行日志在文件里仍是一行（换行被转义），这里按原文保留换行展示。
+          <strong>到达网关</strong>是网关把它写入磁盘的时刻，中间隔着上行链路与数据面处理。一条多行日志在文件里仍是一行（换行被转义），这里按原文保留换行展示。
           <code className={styles.code}>family</code> 是这条来自哪个<strong>采集面</strong>（点它即可只看该面），
           <code className={styles.code}>category</code> 是日志类别，正文规则未就绪时恒为{" "}
-          <code className={styles.code}>agent.log</code> —— 几张日志面一起跑时，
-          只有前一个字段能把它们分开。
+          <code className={styles.code}>agent.log</code> —— 几张日志面一起跑时，只有前一个字段能把它们分开。
         </p>
       </header>
 
@@ -258,8 +254,7 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
               <div className={styles.truncatedNotice} role="status">
                 <span>
                   只返回了最近 {logs.length} 条（本次上限 {data.limit}）：
-                  <strong>更早的日志没有返回</strong>。想看更早的记录，把「条数」调大，
-                  或直接到下面的日志文件里{" "}
+                  <strong>更早的日志没有返回</strong>。想看更早的记录，把「条数」调大，或直接到下面的日志文件里{" "}
                   <code className={styles.code}>tail</code> /{" "}
                   <code className={styles.code}>grep</code>。
                 </span>
@@ -282,18 +277,14 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
                 <div className={styles.empty} role="status">
                   <strong className={styles.emptyTitle}>筛选没有匹配到记录</strong>
                   <span className={styles.emptyText}>
-                    返回的最新 {data.limit} 条里没有符合当前筛选（{filterSummary}）的记录。
-                    这不等于这台机器从来没上报过 —— 只是文件尾部窗口内没有它。
-                    可以清除筛选看全部，或把「条数」调大。
+                    返回的最新 {data.limit} 条里没有符合当前筛选（{filterSummary}）的记录。这不等于这台机器从来没上报过 —— 只是文件尾部窗口内没有它。可以清除筛选看全部，或把「条数」调大。
                   </span>
                 </div>
               ) : (
                 <div className={styles.empty} role="status">
                   <strong className={styles.emptyTitle}>还没有采集到日志</strong>
                   <span className={styles.emptyText}>
-                    网关的日志文件里暂时是空的。这与「读不到」不同：请求成功了，
-                    只是还没有 Agent 通过数据面上报过日志。确认 Agent 已启动、已配置
-                    数据面上送地址、且数据面（warp-parse）在运行；上报后用右上角「刷新」重取。
+                    网关的日志文件里暂时是空的。这与「读不到」不同：请求成功了，只是还没有 Agent 通过数据面上报过日志。确认 Agent 已启动、已配置数据面上送地址、且数据面（warp-parse）在运行；上报后用右上角「刷新」重取。
                   </span>
                 </div>
               )

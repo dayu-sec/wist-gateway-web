@@ -97,8 +97,14 @@ export function isEntrySettled(status: string): boolean {
   return status === "succeeded" || status === "failed";
 }
 
-/** 推进闸门的可读写法（模型里的三种取值）。 */
-export function advanceRuleLabel(rule: string): string {
+/**
+ * 推进闸门的可读写法（模型里的三种取值）。
+ *
+ * `isLastPhase` = 末阶段：闸门管的是「进入**下一阶段**」，而末阶段没有下一段 —— 推进它不派任何
+ * 新活，只是把计划收尾，所以它全部了结后会**自动**收敛为 completed（不看闸门）。
+ */
+export function advanceRuleLabel(rule: string, isLastPhase = false): string {
+  if (isLastPhase) return "末阶段：全部了结后自动收尾";
   const text = rule.trim();
   if (text === "manual") return "人工确认后推进";
   if (text === "all_succeeded") return "本阶段全部成功自动推进";

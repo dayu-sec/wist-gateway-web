@@ -65,12 +65,28 @@ function IconControl() {
   );
 }
 
-function IconInit() {
+/**
+ * 链接上级：本机向上接入上级控制中心 —— 上面那圈是**上级侧的插槽**（开口朝下），
+ * 下面实心圆点是本网关，中间一截颈把两者接上。
+ *
+ * 为什么不用箭头：运维组已有「Agent 升级 ↑」、设置组已有「安装 Agent ↓」，
+ * 再加一支向上的箭头，三项在 15px 下会读成同一个东西。所以这里只留「凹槽 + 节点」
+ * （2026-09-26 先试过带箭头的版本，就是被这条否掉的，见产物目录里的候选对照图）。
+ * 此前用的电源符号（IconInit）是历史遗留：那图形的语义是「通电/开关」，
+ * 与本页「把网关挂到上级」是两件事。
+ */
+function IconLinkUpstream() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <path d="M8 1.6v4.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M4.6 3.4a5.4 5.4 0 1 0 6.8 0" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <path d="M8 9.6v4.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path
+        d="M3.3 7V4.2a1.6 1.6 0 0 1 1.6-1.6h6.2a1.6 1.6 0 0 1 1.6 1.6V7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path d="M8 9.6V7.4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <circle cx="8" cy="11.6" r="1.9" fill="currentColor" />
     </svg>
   );
 }
@@ -85,8 +101,8 @@ function IconInstall() {
   );
 }
 
-/** Agent 初始化：齿轮 —— Agent 端初始配置（取包来源 / 上送目标）的归口。 */
-function IconAgentInit() {
+/** Gateway 初始化：齿轮 —— 网关侧两项初始设置（取包来源 / 上送目标）的归口。 */
+function IconGatewayInit() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
       <circle cx="8" cy="8" r="5.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
@@ -134,12 +150,23 @@ function IconUpgrade() {
   );
 }
 
+/** 采集工作：带勾选的行列表形 —— 「这台机器在干什么」的清单。 */
+function IconWork() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path d="M3 2.6h10v10.8H3z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M5.4 6h5.2M5.4 8.6h5.2M5.4 11.2h3.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
     items: [
       { to: "/", label: "Agent 总览", icon: <IconOverview />, end: true },
       { to: "/hosts", label: "主机指标", icon: <IconHost /> },
+      { to: "/work", label: "采集工作", icon: <IconWork /> },
       { to: "/software", label: "资产清单", icon: <IconSoftware /> },
       { to: "/pipeline", label: "数据采集", icon: <IconPipeline /> },
       { to: "/logs", label: "采集日志", icon: <IconLogs /> },
@@ -155,9 +182,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: "/control", label: "控制中心", icon: <IconControl /> },
       // 「链接上级」= 把本网关接入上级控制中心，与上面那项 Agent 远程运维的
       //「控制中心」是两回事，所以名字里点明动作与对象。
-      { to: "/link-upstream", label: "链接上级", icon: <IconInit /> },
-      // 取包来源与上送目标合成一页：两项都只写进新签发 Agent 的初始配置。
-      { to: "/agent-init", label: "Agent 初始化", icon: <IconAgentInit /> },
+      { to: "/link-upstream", label: "链接上级", icon: <IconLinkUpstream /> },
+      // 取包来源与上送目标合成一页：两项都是网关侧的设置，只影响之后新签发的 Agent。
+      { to: "/gateway-init", label: "Gateway 初始化", icon: <IconGatewayInit /> },
       { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
     ],
   },

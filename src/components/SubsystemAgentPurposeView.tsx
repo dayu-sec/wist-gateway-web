@@ -168,8 +168,7 @@ function PurposeStateNotice({
       <div className={`${styles.notice} ${styles.noticeUnknown}`} role="status">
         <span className={styles.noticeTitle}>尚未上报事实</span>
         <span className={styles.noticeText}>
-          agentd 还没上报过这台机器的采集事实（新注册的 Agent 常见）。网关不伪造结论：
-          事实与建议都为空，等下一次上报或人工判定。
+          agentd 还没上报过这台机器的采集事实（新注册的 Agent 常见）。网关不伪造结论：事实与建议都为空，等下一次上报或人工判定。
         </span>
       </div>
     );
@@ -180,8 +179,7 @@ function PurposeStateNotice({
       <div className={`${styles.notice} ${styles.noticeWeak}`} role="status">
         <span className={styles.noticeTitle}>有事实，但无建议</span>
         <span className={styles.noticeText}>
-          事实摘要已经在，网关却没有给出用途建议：可能没有任何规则命中、且该平台规则册没有
-          基线类别，也可能这台机器的平台还没有规则册（宁可不猜）。事实仍然完整保留。
+          事实摘要已经在，网关却没有给出用途建议：可能没有任何规则命中、且该平台规则册没有基线类别，也可能这台机器的平台还没有规则册（宁可不猜）。事实仍然完整保留。
         </span>
       </div>
     );
@@ -191,8 +189,7 @@ function PurposeStateNotice({
     <div className={`${styles.notice} ${styles.noticeOk}`} role="status">
       <span className={styles.noticeTitle}>事实 / 推断 / 判定 并列展示</span>
       <span className={styles.noticeText}>
-        推断由规则表算出、可变可过期；判定是人定的、留痕。两者冲突时以判定为准，
-        但推断仍然并列展示 —— 不是谁盖掉谁。
+        推断由规则表算出、可变可过期；判定是人定的、留痕。两者冲突时以判定为准，但推断仍然并列展示 —— 不是谁盖掉谁。
       </span>
     </div>
   );
@@ -286,8 +283,7 @@ function VerdictBand({
           <div className={styles.verdictEmpty}>
             <strong>尚未人工判定</strong>
             <span>
-              管理面的判定写入端点还没实现，所以现在不可能有判定值 ——
-              旁边的推断只是建议，不代表这台机器已被归类。
+              管理面的判定写入端点还没实现，所以现在不可能有判定值 ——旁边的推断只是建议，不代表这台机器已被归类。
             </span>
           </div>
         )}
@@ -316,8 +312,7 @@ function VerdictBand({
         <div className={`${styles.notice} ${styles.noticeWeak} ${styles.bandConflict}`} role="status">
           <span className={styles.noticeTitle}>与网关推断不一致</span>
           <span className={styles.noticeText}>
-            推断为 {MACHINE_CLASS_LABEL[conflict.suggestedClass]}（{conflict.suggestedClass}）。
-            冲突时以人工判定为准，但推断仍然并列展示，不被盖掉。
+            推断为 {MACHINE_CLASS_LABEL[conflict.suggestedClass]}（{conflict.suggestedClass}）。冲突时以人工判定为准，但推断仍然并列展示，不被盖掉。
           </span>
         </div>
       ) : null}
@@ -444,8 +439,7 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
           <dd>
             <span className={styles.mono}>{factSummary.hostId || EMPTY}</span>
             <span className={styles.factMeta}>
-              发现方向 host 的 host.id；仅留痕、不参与内容摘要，改机器名或换网不触发重报与重算。
-              空值（{EMPTY}）表示这台还没上报过 —— 旧版 agentd 不带这些字段
+              发现方向 host 的 host.id；仅留痕、不参与内容摘要，改机器名或换网不触发重报与重算。空值（{EMPTY}）表示这台还没上报过 —— 旧版 agentd 不带这些字段
             </span>
           </dd>
         </div>
@@ -592,8 +586,7 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
             />
           )}
           <p className={styles.listCaption}>
-            每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，
-            换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。
+            每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。
           </p>
         </div>
       </div>
@@ -691,8 +684,7 @@ function EvidenceSection({
         </div>
         {suggestion.signals.length === 0 ? (
           <p className={styles.listEmpty}>
-            这次建议没有逐条依据：它来自规则册的基线类别兜底（置信度 0），
-            需要人工判定才能定下来。
+            这次建议没有逐条依据：它来自规则册的基线类别兜底（置信度 0），需要人工判定才能定下来。
           </p>
         ) : (
           <div className={styles.signalWrap}>
