@@ -136,7 +136,7 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>采集日志</h1>
         <p className={styles.pageSummary}>
-          Agent 采集到的日志原文。链路是 agentd → 数据面（warp-parse）→ 网关内部接入端点，最终落在<strong>网关主机上的本地 NDJSON 文件</strong>（没有数据库表）——这里读的是文件<strong>尾部窗口</strong>，返回最新的 N 条。
+          Agent 采集到的日志原文。链路是 agentd → 数据面（warp-parse）→ 网关内部接入端点，最终落在<strong>网关主机上的本地 NDJSON 文件</strong>（没有数据库表）—— 这里读的是文件<strong>尾部窗口</strong>，返回最新的 N 条。
         </p>
         <p className={styles.pageThresholds}>
           每条的两个时间不同：<strong>观测时刻</strong>是 Agent 自己采到它的时刻，

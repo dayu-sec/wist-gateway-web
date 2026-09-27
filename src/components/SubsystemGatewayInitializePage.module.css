@@ -72,6 +72,12 @@
   line-height: 1.6;
 }
 
+/* 行内强调：导语本身是 --text-3，加粗不抬色会读不出重点（与 SoftwareInventory 同口径）。 */
+.cardHead p strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* 只读的当前值：卡片内通栏的行（不套第二层边框盒，避免「表里套表」）。
    主值行给足字号并允许折行 —— 长 URL 要能一眼看全，不能截断在输入框里。 */
 .summaryList {

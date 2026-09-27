@@ -42,6 +42,8 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "monitoring", crumbs: ["采集工作"] };
     case "/upgrade":
       return { section: "ops", crumbs: ["Agent 升级"] };
+    case "/fleet":
+      return { section: "ops", crumbs: ["Agent 机队"] };
     case "/control":
       return { section: "settings", crumbs: ["控制中心"] };
     case "/install":

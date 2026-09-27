@@ -296,10 +296,9 @@ export function SubsystemGatewayInitializePage() {
           <header className={styles.cardHead}>
             <span className={styles.cardTag}>Agent 上送目标</span>
             <h2 id="gateway-init-uplink">数据面上送地址</h2>
+            {/* 中文长句整句写一行：JSX 里行间换行会折叠成一个可见空格，折在句号/逗号后也一样。 */}
             <p>
-              记录 ≠ 启用：Agent 默认待命，不采集日志也不上送（指标同样不上送）。派活后，
-              下一个上报周期（≤30s）Agent 自动带上这个目标开始上送 —— 不需要改 Agent 配置，也不需要重装。
-              改这里的地址对**已在网**的 Agent 立即生效。
+              记录 ≠ 启用：Agent 默认待命，不采集日志也不上送（指标同样不上送）。派活后，下一个上报周期（≤30s）Agent 自动带上这个目标开始上送 —— 不需要改 Agent 配置，也不需要重装。改这里的地址对<strong>已在网</strong>的 Agent 立即生效。
             </p>
           </header>
 

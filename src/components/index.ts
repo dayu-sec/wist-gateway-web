@@ -65,6 +65,7 @@ export { SubsystemAgentPurposePage } from "./SubsystemAgentPurposePage";
 export { SubsystemAgentLogsPage } from "./SubsystemAgentLogsPage";
 export { SubsystemWorkListPage } from "./SubsystemWorkListPage";
 export { SubsystemAgentUpgradePage } from "./SubsystemAgentUpgradePage";
+export { SubsystemAgentFleetPage } from "./SubsystemAgentFleetPage";
 export { SubsystemAgentUpgradeDetailPage } from "./SubsystemAgentUpgradeDetailPage";
 export { AppLayout } from "./AppLayout";
 export { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPanel";

@@ -7,12 +7,17 @@ import {
   setAdminApiToken,
 } from "../src/api/admin";
 import {
+  PACKAGE_HISTORY_DISPLAY_LIMIT,
   canSubmitUpgrade,
+  findCurrentPackage,
   findSelectedPackage,
   indexPackagesByUrl,
   isEmptyPackageHistory,
   packageCellLabel,
+  packageLabel,
   packageOptionLabel,
+  packageShaLabel,
+  recentPackages,
 } from "../src/components/agentUpgradePackages";
 
 // 契约测试：网关**已录入**的安装包历史（`GET /api/v1/admin/agent/install-packages`）。
@@ -23,7 +28,8 @@ import {
 //   2. `packages[]` 的 snake_case → camelCase 映射，尤其 `agent_package_url`（网关派生好的
 //      下载地址）必须原样透出 —— 前端**不自己拼** URL；
 //   3. **形状漂移必须显式失败**（缺 `packages` 数组 / 某项缺 `package_id` 或 `agent_package_url`），
-//      不静默成「一个包都没录入」或空地址 —— 那比报错更难查。
+//      不静默成「一个包都没录入」或空地址 —— 那比报错更难查；
+//   4. 「安装包」页的显示口径：当前生效的那一份按**摘要**对齐、历史列表最多列 5 条。
 
 interface Recorded {
   url: string;
@@ -474,6 +480,108 @@ if (packageCellLabel("/srv/legacy/", byUrl) !== "legacy") {
 }
 if (packageCellLabel(null, byUrl) !== "—") {
   throw new Error("a missing package url must read as —");
+}
+
+// packageLabel：版本 · 架构；读不出的部分不留悬空分隔符。
+if (packageLabel(pkgB) !== "0.1.10 · x86_64-unknown-linux-gnu") {
+  throw new Error(`unexpected package label: ${packageLabel(pkgB)}`);
+}
+// 包身份读不出来时网关给的是空串（见上面「空串是合法的」那一段），两个都空必须说未识别，
+// 而不是渲染成一个孤零零的「 · 」。
+if (packageLabel(view({ version: "", arch: "" })) !== "未识别") {
+  throw new Error("an unreadable package identity must read as 未识别");
+}
+// 只读出一半时只报这一半（`parse_agent_package_dir_name` 实际是全有全无，但契约允许半空）。
+if (packageLabel(view({ arch: "" })) !== "0.1.9") {
+  throw new Error("a half-known identity must not render a dangling separator");
+}
+if (packageLabel(view({ version: "", arch: "x86_64-unknown-linux-gnu" })) !== "x86_64-unknown-linux-gnu") {
+  throw new Error("a half-known identity must report the half it knows");
+}
+
+// --- 摘要在「当前安装包」两行里的紧凑形式 ---------------------------------------
+//
+// 那一卡只给两行，摘要并排在来源之后，64 位十六进制铺开会把来源挤掉。前 12 位足够区分两个包，
+// 完整值仍在复制按钮与 title 上。这里钉住「截多少、什么形状不截」。
+const fullSha = `sha256:${"a".repeat(64)}`;
+if (packageShaLabel(fullSha) !== "aaaaaaaaaaaa…") {
+  throw new Error(`unexpected short digest: ${packageShaLabel(fullSha)}`);
+}
+// 网关的 `set_agent_install_package` 两种形状都收（带 / 不带 `sha256:` 前缀），显示要一致。
+if (packageShaLabel("b".repeat(64)) !== "bbbbbbbbbbbb…") {
+  throw new Error("a bare hex digest must shorten the same way");
+}
+// 摘要比较是十六进制，大小写等价，短形式上不该突然区分大小写。
+if (packageShaLabel(`sha256:${"C".repeat(64)}`) !== "CCCCCCCCCCCC…") {
+  throw new Error("an uppercase digest must shorten the same way");
+}
+// 形状**不认识的原样返回**：把一段说不上是摘要的字符串截掉只会造成误读（截出来的前缀
+// 反而像真的）。16 位以下、非十六进制都走这条路。
+if (packageShaLabel("sha256:abc") !== "sha256:abc") {
+  throw new Error("a too-short digest must be printed as-is");
+}
+if (packageShaLabel("not-a-digest-at-all") !== "not-a-digest-at-all") {
+  throw new Error("a non-hex value must be printed as-is");
+}
+// 未设置（null：网关对从未添加过返回 null）读 `—`，与其余只读值一致。
+if (packageShaLabel(null) !== "—" || packageShaLabel("") !== "—") {
+  throw new Error("a missing digest must read as —");
+}
+
+// --- 「当前安装包」：按摘要对齐到包目录里的那一条 --------------------------------
+//
+// 录入时来源地址与制品摘要由**同一个**请求写进设置与包目录（网关 set_agent_install_package），
+// 所以摘要是两侧唯一的公共键；版本 / 架构只有包目录那一侧有。对不上不能编。
+const shaA = `sha256:${"a".repeat(64)}`;
+if (findCurrentPackage([pkgA, pkgB], shaA)?.packageId !== "pkg-a") {
+  throw new Error("the current package must be matched by its digest");
+}
+// 设置侧还没有摘要（旧库行 / 未设置）：没有键可对，返回 null 而不是撞上第一条。
+if (findCurrentPackage([pkgA, pkgB], null) !== null) {
+  throw new Error("a missing digest must not match any recorded package");
+}
+if (findCurrentPackage([pkgA, pkgB], "") !== null) {
+  throw new Error("an empty digest must not match any recorded package");
+}
+// 摘要对不上（设置早于包目录表，或摘要在库外被改过）：如实返回 null。
+if (findCurrentPackage([pkgA, pkgB], `sha256:${"f".repeat(64)}`) !== null) {
+  throw new Error("an unmatched digest must read as no current package");
+}
+if (findCurrentPackage([], shaA) !== null) {
+  throw new Error("an empty history must read as no current package");
+}
+// 同一份内容从两个来源各录一次仍是同一行（内容寻址），所以不会同时匹配到两条。
+if (findCurrentPackage([pkgA], pkgA.packageSha256)?.packageId !== "pkg-a") {
+  throw new Error("an exact digest match must resolve the entry");
+}
+
+// --- 历史列表的显示上限 ------------------------------------------------------
+//
+// 显示上限是 5（产品口径）；网关侧不截断 —— 升级页要能选到任意一个录过的包。
+if (PACKAGE_HISTORY_DISPLAY_LIMIT !== 5) {
+  throw new Error(
+    `the history display limit is pinned at 5, got ${PACKAGE_HISTORY_DISPLAY_LIMIT}`,
+  );
+}
+const many = Array.from({ length: 7 }, (_, index) =>
+  view({ packageId: `pkg-${index}`, createdAt: `2026-09-2${index}T08:30:00Z` }),
+);
+const capped = recentPackages(many, PACKAGE_HISTORY_DISPLAY_LIMIT);
+if (capped.length !== PACKAGE_HISTORY_DISPLAY_LIMIT) {
+  throw new Error(`expected the list to be capped at 5, got ${capped.length}`);
+}
+// 只截断、不重排：后端已按录入时间倒序，页面不许自作主张改顺序。
+if (capped.map((pkg) => pkg.packageId).join(",") !== "pkg-0,pkg-1,pkg-2,pkg-3,pkg-4") {
+  throw new Error(`the newest entries must be kept in order: ${capped.map((p) => p.packageId)}`);
+}
+if (recentPackages(many.slice(0, 3), PACKAGE_HISTORY_DISPLAY_LIMIT).length !== 3) {
+  throw new Error("a short history must be returned as-is");
+}
+if (recentPackages(many, 0).length !== 0) {
+  throw new Error("a zero limit must list nothing");
+}
+if (recentPackages(many, -1).length !== 0) {
+  throw new Error("a negative limit must list nothing, not everything");
 }
 
 // isEmptyPackageHistory：只有「加载完 + 无错 + 空」才算空历史。

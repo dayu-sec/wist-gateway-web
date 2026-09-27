@@ -108,7 +108,7 @@ export function SubsystemSoftwareInventoryPage({}: SubsystemSoftwareInventoryPag
         <h1 className={styles.pageTitle}>资产清单</h1>
         <p className={styles.pageSummary}>
           网关把每台机器上报的事实摘要<strong>机械归并</strong>成「这台机器上有什么」。条目只有名字，而名字来自路径归并（<code className={styles.code}>.app</code> 取包名、其余取路径末段）：
-          <strong>没有版本、没有 vendor</strong> ——识别需要在被管机器上读 <code className={styles.code}>Info.plist</code> / 包管理器，属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。
+          <strong>没有版本、没有 vendor</strong> —— 识别需要在被管机器上读 <code className={styles.code}>Info.plist</code> / 包管理器，属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。
         </p>
         <p className={styles.pageThresholds}>
           清单是<strong>当前快照</strong>：它是事实摘要的投影，随每次上报覆盖式重建，
@@ -184,7 +184,7 @@ function FleetInventory({
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>按软件看机器</h2>
         <span className={styles.sectionHint}>
-          按<strong>持有机器数</strong>降序；同一个键下会列出持有它的每台机器，以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览—— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」不等于这台机器没注册。
+          按<strong>持有机器数</strong>降序；同一个键下会列出持有它的每台机器，以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览 —— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」不等于这台机器没注册。
         </span>
       </div>
 

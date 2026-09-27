@@ -30,8 +30,8 @@
   line-height: 1.65;
 }
 
-/* 一张卡 = 一个设置项 / 一段内容：卡头（标签/标题/说明）+ 只读的当前值 + 修改表单。
-   两段之间只用一条 hairline 分隔，不另起一张「平台维护操作」卡。 */
+/* 一张卡 = 一段内容：卡头（标题 + 一行说明）+ 卡体。卡体各不相同 —— 只读的两行、历史列表、
+   录入表单；卡与卡之间留 18px，卡内一律通栏、不套第二层边框盒。 */
 .card {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -44,96 +44,47 @@
   margin-top: 18px;
 }
 
+/* 卡头只留两层：标题 + 一行说明。原先还在标题上挂一个 accent 小标签，三张卡堆出九行文字，
+   而标签基本是标题的同义复述（「当前安装包」/「网关当前分发包」）。底色也一并去掉 ——
+   卡头是分隔与命名，不是要读的内容。 */
 .cardHead {
-  padding: 16px 20px;
+  padding: 14px 20px 13px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface-2);
-}
-
-.cardTag {
-  color: var(--accent-strong);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
 }
 
 .cardHead h2 {
-  margin-top: 5px;
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 16px;
+  font-weight: 600;
   line-height: 1.35;
 }
 
 .cardHead p {
   max-width: 680px;
-  margin-top: 5px;
+  margin-top: 4px;
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
-/* 只读的当前值：卡片内通栏的行（不套第二层边框盒，避免「表里套表」）。
-   主值行给足字号并允许折行 —— 长 URL 要能一眼看全，不能截断在输入框里。 */
-.summaryList {
-  margin: 0;
+/* 当前生效的一份：两行，通栏、不套第二层边框盒。它只回答两问 —— 「是哪一份」
+   （版本 · 架构 + 生效时间）与「从哪来」（来源 + 摘要）；四行 dt/dd 会把一张纯只读的卡
+   铺得比下面的录入表单还高。 */
+.currentBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 20px 16px;
 }
 
-.summaryRow {
+.currentLine {
   display: flex;
   align-items: baseline;
-  gap: 16px;
-  padding: 12px 20px;
+  flex-wrap: wrap;
+  gap: 2px 16px;
 }
 
-.summaryRow:first-child {
-  padding-top: 14px;
-}
-
-.summaryRow:last-child {
-  padding-bottom: 14px;
-}
-
-.summaryRow + .summaryRow {
-  border-top: 1px solid var(--border);
-}
-
-/* 主值行靠左侧 accent 色条锚定视线。用色条而不是边框，
-   避免又叠出第二层框线。 */
-.summaryRowPrimary {
-  position: relative;
-}
-
-.summaryRowPrimary::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-  background: var(--accent);
-}
-
-.summaryRow dt {
-  flex: 0 0 76px;
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-/* 值与复制按钮同一行块：值可压缩换行，按钮不参与换行，避免长 URL 把按钮
-   顶到第二行孤零零挂着。 */
-.summaryRow dd {
-  display: flex;
-  flex: 1;
-  flex-wrap: nowrap;
-  align-items: baseline;
-  gap: 6px 10px;
-  min-width: 0;
-}
-
-/* 主值：这一项的主角，字号与亮度都要压过其余几行。 */
-.summaryValuePrimary {
-  flex: 1 1 auto;
+/* 主值：这一卡的主角，字号与亮度都压过下面一行。允许折行显示全 ——「是哪一份」不能截断。 */
+.currentLabel {
   min-width: 0;
   color: var(--text);
   font-family: var(--font-mono);
@@ -143,28 +94,76 @@
   overflow-wrap: anywhere;
 }
 
-.summaryValueMono {
-  flex: 1 1 auto;
+/* 「有值但对不上包目录记录」（报不出版本）：如实说未识别，别装作有值、也别当成错误报红。 */
+.currentUnknown {
   min-width: 0;
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-
-/* 「未设置」是状态而非普通文本：网关在用内置的包。 */
-.summaryValueEmpty {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--warn);
+  color: var(--text-3);
   font-size: 13px;
   font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
-.summaryMeta {
+/* 生效时间靠右：它跟着主值走，但不与主值争夺起点。 */
+.currentTime {
+  margin-left: auto;
   color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 这一行是「来源 + 摘要」并排，**不允许换行**：一换行这张卡就从两行变三行，
+   而它整卡的存在意义就是两行看完。挤不下时由来源让步（见 .metaGroupSource）。 */
+.currentMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* 来源与摘要各成一组，组间距（18px）明显大于组内标签与值的间距（8px），
+   否则四个成对的词连成一串读不出配对关系。 */
+.metaGroup {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 「来源」组吃掉剩余宽度：左对齐，把「摘要」组顶到行尾，两个字段不挤在一起。 */
+.metaGroupSource {
+  flex: 1 1 auto;
+}
+
+/* 「摘要」组不收缩：值本来就是截短的形式，再压只会变成一串省略号。 */
+.metaGroupSha {
+  flex: 0 0 auto;
+}
+
+.metaLabel {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 来源可能是很长的绝对路径或 URL：与摘要并排时按容器宽度截断（省略号）。
+   全文仍挂在 title 上，复制按钮给的也是原文 —— 截断只影响这一眼。 */
+.metaValue {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 摘要是固定长度的短值（前 12 位 + 省略号），给全量值留位、不参与截断。 */
+.metaSha {
+  color: var(--text-2);
   font-family: var(--font-mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -195,20 +194,21 @@
   outline: none;
 }
 
-/* 当前值区里的状态提示（读取中 / 读失败）。 */
-.summaryNotices {
+/* 读不到值时的提示条（读取中 / 读失败）：此时卡内只有它，上下都要留白。 */
+.noticeBlock {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 0 20px 16px;
+  padding: 14px 20px;
 }
 
+/* 添加表单：这一屏里它是**卡内唯一的内容**（只读的当前值与表单已分到两张卡），
+   所以不再用 border-top 分隔 —— 那会和卡头自己的下边框叠成两条线。 */
 .form {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 18px 20px 20px;
-  border-top: 1px solid var(--border);
 }
 
 .field {
@@ -394,6 +394,15 @@
   white-space: nowrap;
 }
 
+/* 超出显示上限时的脚注：列出来的只是最近几条，别让人以为存档就这么多。 */
+.packageMore {
+  padding: 11px 20px 13px;
+  border-top: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 /* 空历史不是错误，也不该是一句干瘪的「暂无数据」：顺带交代怎么让它有内容。 */
 .packageEmpty {
   display: flex;
@@ -421,24 +430,16 @@
 
   .cardHead,
   .form,
-  .summaryNotices {
+  .noticeBlock,
+  .currentBody {
     padding-left: 16px;
     padding-right: 16px;
   }
 
-  .summaryRow,
-  .packageRow {
+  .packageRow,
+  .packageMore {
     padding-left: 16px;
     padding-right: 16px;
-  }
-
-  .summaryRow {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .summaryRow dt {
-    flex-basis: auto;
   }
 
   .formActions {

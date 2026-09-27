@@ -183,6 +183,23 @@ function IconWork() {
   );
 }
 
+/** Agent 机队：三节点网格 —— 注册在册的一批机器（含离线）。 */
+function IconFleet() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <circle cx="4" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="12" cy="4" r="2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="8" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M5.7 5.3 6.9 10.3M10.3 5.3 9.1 10.3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -197,7 +214,11 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
   {
     label: "运维",
-    items: [{ to: "/upgrade", label: "Agent 升级", icon: <IconUpgrade /> }],
+    items: [
+      // 机队 = 注册在册的机器（含离线）。删除离线机器在这里（不可恢复，两次确认）。
+      { to: "/fleet", label: "Agent 机队", icon: <IconFleet /> },
+      { to: "/upgrade", label: "Agent 升级", icon: <IconUpgrade /> },
+    ],
   },
   {
     label: "设置",

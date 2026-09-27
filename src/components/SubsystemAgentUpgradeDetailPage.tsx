@@ -382,7 +382,7 @@ export function SubsystemAgentUpgradeDetailPage() {
 
             {!activeSettled && plan.status === "rolling" ? (
               <p className={styles.gateWarn} role="note">
-                本阶段未全部了结就推进，未了结目标的结果仍会回填到条目，但阶段会被标记为已完成—— 人工闸门的判断权在你。
+                本阶段未全部了结就推进，未了结目标的结果仍会回填到条目，但阶段会被标记为已完成 —— 人工闸门的判断权在你。
               </p>
             ) : null}
 

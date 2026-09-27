@@ -23,7 +23,20 @@ import {
   packageOptionLabel,
 } from "./agentUpgradePackages";
 import { RateLimitNotice } from "./RateLimitNotice";
-import { planStatusLabel, planStatusTone, planTargetCount } from "./rolloutStatus";
+import {
+  PLAN_STATUS_FILTERS,
+  PLAN_TIME_RANGES,
+  filterRolloutPlans,
+  type PlanStatusFilter,
+  type PlanTimeRange,
+} from "./rolloutFilters";
+import {
+  LATEST_PLAN_LIMIT,
+  latestPlans,
+  planStatusLabel,
+  planStatusTone,
+  planTargetCount,
+} from "./rolloutStatus";
 import styles from "./SubsystemAgentUpgradePage.module.css";
 
 /**
@@ -142,6 +155,10 @@ export function SubsystemAgentUpgradePage() {
   const [phaseCount, setPhaseCount] = useState(3);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // 升级计划**列表**的筛选（状态分页 + 时间窗）。只影响上面的列表，不影响下方的创建表单。
+  const [statusFilter, setStatusFilter] = useState<PlanStatusFilter>("all");
+  const [timeRange, setTimeRange] = useState<PlanTimeRange>("all");
+
   const installPackages = packages.data ?? [];
   const selectedPackage = findSelectedPackage(
     installPackages,
@@ -169,6 +186,25 @@ export function SubsystemAgentUpgradePage() {
   const upgradePlans = useMemo(
     () => (plans.data ?? []).filter((plan) => plan.action === UPGRADE_ACTION),
     [plans.data],
+  );
+
+  // 先按「状态 + 时间窗」筛，再取**最近** LATEST_PLAN_LIMIT 条（后端已按 created_at 倒序）。
+  // 总数与「筛出数」都按全量算，免得「共 N 份」被裁成 5 份 —— 展示条数与统计是两件事。
+  const filtering = statusFilter !== "all" || timeRange !== "all";
+  const filteredPlans = useMemo(
+    () =>
+      filterRolloutPlans(
+        upgradePlans,
+        { status: statusFilter, timeRange },
+        new Date(),
+      ),
+    [upgradePlans, statusFilter, timeRange],
+  );
+  // 未筛选时只铺**最近** LATEST_PLAN_LIMIT 条（列表默认视图保持精简）；一旦按状态 / 时间窗
+  // 筛过了，就把命中的全铺出来 —— 筛完还被裁掉几条会让人以为「搜不到」。
+  const visiblePlans = useMemo(
+    () => (filtering ? filteredPlans : latestPlans(filteredPlans)),
+    [filtering, filteredPlans],
   );
 
   /**
@@ -267,10 +303,54 @@ export function SubsystemAgentUpgradePage() {
             升级计划
           </h2>
           <span className={styles.panelHint}>
-            {upgradePlans.length > 0 ? `共 ${upgradePlans.length} 份 · ` : ""}
+            {upgradePlans.length > 0
+              ? filtering
+                ? `共 ${upgradePlans.length} 份 · 筛出 ${filteredPlans.length} 份 · `
+                : `共 ${upgradePlans.length} 份 · `
+              : ""}
+            {!filtering && filteredPlans.length > LATEST_PLAN_LIMIT
+              ? `列表只列最近 ${LATEST_PLAN_LIMIT} 条 · `
+              : ""}
             不自动轮询：只有创建 / 批准 / 推进会改变计划，操作后自动重取
           </span>
         </header>
+
+        {upgradePlans.length > 0 ? (
+          <div className={styles.planFilters}>
+            <div className={styles.countTabs} role="group" aria-label="按状态筛选">
+              {PLAN_STATUS_FILTERS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={
+                    option.value === statusFilter
+                      ? `${styles.countTab} ${styles.countTabActive}`
+                      : styles.countTab
+                  }
+                  aria-pressed={option.value === statusFilter}
+                  onClick={() => setStatusFilter(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <label className={styles.planRangeFilter}>
+              <span>时间</span>
+              <select
+                value={timeRange}
+                onChange={(event) =>
+                  setTimeRange(event.target.value as PlanTimeRange)
+                }
+              >
+                {PLAN_TIME_RANGES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
 
         {plans.isError ? (
           isRateLimitedError(plans.error) ? (
@@ -301,7 +381,20 @@ export function SubsystemAgentUpgradePage() {
           </div>
         ) : null}
 
-        {upgradePlans.length > 0 ? (
+        {!plans.isError &&
+        !plans.isLoading &&
+        upgradePlans.length > 0 &&
+        filteredPlans.length === 0 ? (
+          <div className={styles.empty}>
+            <strong className={styles.emptyTitle}>没有符合条件的计划</strong>
+            <span className={styles.emptyText}>
+              共 {upgradePlans.length} 份，但当前「状态 + 时间」筛不出计划 ——
+              换一个状态或时间范围试试。
+            </span>
+          </div>
+        ) : null}
+
+        {visiblePlans.length > 0 ? (
           <div className={styles.tableWrap}>
             <table className={styles.table}>
               <thead>
@@ -319,7 +412,7 @@ export function SubsystemAgentUpgradePage() {
                 </tr>
               </thead>
               <tbody>
-                {upgradePlans.map((plan) => {
+                {visiblePlans.map((plan) => {
                   const done = plan.phases.filter(
                     (phase) => phase.status === "completed",
                   ).length;
@@ -414,8 +507,7 @@ export function SubsystemAgentUpgradePage() {
             <div className={styles.sectionHead}>
               <h3 className={styles.formSectionTitle}>升级参数</h3>
               <span className={styles.sectionNote}>
-                从网关已录入的安装包里选一个 ——
-                升到哪个版本由包决定，升级器读包内 agentd 自报的版本
+                从网关已录入的安装包里选一个 —— 升到哪个版本由包决定，升级器读包内 agentd 自报的版本
               </span>
             </div>
 
@@ -579,7 +671,7 @@ export function SubsystemAgentUpgradePage() {
                 ? `（机队 ${fleetSize} 台，已排除离线 ${offlineCount} 台）`
                 : null}
               ，最多分
-              {phaseCounts.length > 0 ? phaseCounts[phaseCounts.length - 1] : 0} 批—— 每段至少 1 台，按排序后的 agent_id 依次切片、互不重叠（一个 Agent 只升一次）。推进一律人工确认。
+              {phaseCounts.length > 0 ? phaseCounts[phaseCounts.length - 1] : 0} 批 —— 每段至少 1 台，按排序后的 agent_id 依次切片、互不重叠（一个 Agent 只升一次）。推进一律人工确认。
             </span>
 
             {phasePlan.error ? (

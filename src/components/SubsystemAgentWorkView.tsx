@@ -280,7 +280,7 @@ export function SubsystemAgentWorkView({
         </header>
 
         <p className={styles.gapNotice}>
-          当前 agentd 只执行 <span className={styles.mono}>upgrade</span> 这一种动作（其余动作派下去会停在「已派发」）；升级由分离进程 <span className={styles.mono}>wist-upgrader</span> 执行，进度与终态经 <span className={styles.mono}>work:result</span> 回报 ——回滚在控制面上记为「失败」，说明里写清回到哪一版。
+          当前 agentd 只执行 <span className={styles.mono}>upgrade</span> 这一种动作（其余动作派下去会停在「已派发」）；升级由分离进程 <span className={styles.mono}>wist-upgrader</span> 执行，进度与终态经 <span className={styles.mono}>work:result</span> 回报 —— 回滚在控制面上记为「失败」，说明里写清回到哪一版。
         </p>
 
         {agentWorkView.oneShot.length === 0 ? (
@@ -362,7 +362,7 @@ function LocalReportStrip({ local }: { local: AgentLocalWorkView | null }) {
   if (!local) {
     return (
       <p className={styles.localStripEmpty}>
-        这台 Agent 还没上报本机视图（旧版本 agentd 不上报此字段）——下面每张工作卡的「本机实际」都看不到。
+        这台 Agent 还没上报本机视图（旧版本 agentd 不上报此字段）—— 下面每张工作卡的「本机实际」都看不到。
       </p>
     );
   }
@@ -778,7 +778,7 @@ function StandingWorkCard({
             确认撤回
           </button>
           <span className={styles.muted}>
-            撤回后 Agent 不再收到这份工作；要改这份采什么，就撤回后重新授权—— 同一份工作（id 不变）、版本 +1，并按最新事实重新派生
+            撤回后 Agent 不再收到这份工作；要改这份采什么，就撤回后重新授权 —— 同一份工作（id 不变）、版本 +1，并按最新事实重新派生
           </span>
         </div>
       ) : null}

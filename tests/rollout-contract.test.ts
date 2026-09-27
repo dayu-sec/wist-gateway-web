@@ -12,11 +12,13 @@ import {
   setAdminApiToken,
 } from "../src/api/admin";
 import {
+  LATEST_PLAN_LIMIT,
   advanceRuleLabel,
   countEntries,
   currentPhase,
   entryStatusLabel,
   entryStatusTone,
+  latestPlans,
   phaseIncompleteCount,
   phaseSettled,
   phaseStatusLabel,
@@ -31,6 +33,15 @@ import {
   planPhases,
   selectUpgradeTargets,
 } from "../src/components/agentUpgradePhases";
+import {
+  PLAN_STATUS_FILTERS,
+  PLAN_TIME_RANGES,
+  filterRolloutPlans,
+  matchesPlanStatus,
+  matchesPlanTimeRange,
+  startOfWeek,
+  timeRangeBounds,
+} from "../src/components/rolloutFilters";
 
 // 契约测试：管理面「灰度发布计划」（模型 `Control.Rollout` 的列表/创建/批准/推进/查看）。
 //
@@ -690,6 +701,121 @@ assert(
   "空机队给空目标（不是报错）",
 );
 
+// --- 7d. 计划列表只展示最近 N 条（列表接口已按 created_at 倒序） ---------------
+assert(LATEST_PLAN_LIMIT === 5, "升级计划列表默认只展示最近 5 条");
+const manyPlans = Array.from({ length: 8 }, (_, index) => `plan-${index}`);
+assert(
+  latestPlans(manyPlans).join(",") === "plan-0,plan-1,plan-2,plan-3,plan-4",
+  `取最前面 5 条（调用方已按时间倒序），实际 ${latestPlans(manyPlans).join(",")}`,
+);
+assert(latestPlans(["only"]).length === 1, "不足 5 条就原样返回，不报错也不补空");
+assert(latestPlans([]).length === 0, "空列表给空");
+assert(latestPlans(manyPlans, 0).length === 0, "limit=0 给空（不退回默认值）");
+assert(latestPlans(manyPlans, -3).length === 0, "负 limit 当作 0");
+
+// --- 7e. 列表筛选：状态分页 + 时间窗 ---------------------------------------------
+assert(
+  PLAN_STATUS_FILTERS.map((option) => option.label).join(",") ===
+    "全部,进行中,成功,失败",
+  `状态分页应为 全部→进行中→成功→失败，实际 ${PLAN_STATUS_FILTERS.map((o) => o.label).join(",")}`,
+);
+assert(
+  PLAN_TIME_RANGES.map((option) => option.label).join(",") ===
+    "全部时间,本周,上周,本月",
+  "时间窗选项应为 全部时间/本周/上周/本月",
+);
+
+// 状态口径：成功 = completed，进行中 = rolling，失败 = failed；草稿 / 取消只落在「全部」。
+assert(matchesPlanStatus("completed", "succeeded"), "成功 = completed");
+assert(matchesPlanStatus("rolling", "rolling"), "进行中 = rolling");
+assert(matchesPlanStatus("failed", "failed"), "失败 = failed");
+assert(!matchesPlanStatus("rolling", "succeeded"), "进行中不算成功");
+assert(matchesPlanStatus("draft", "all"), "全部不过滤");
+assert(
+  !matchesPlanStatus("draft", "rolling") &&
+    !matchesPlanStatus("canceled", "failed"),
+  "草稿 / 取消不在进行中 / 失败分页里",
+);
+
+// 时间窗：以本地「2026-09-30（周三）」为基准，按周一起算的本地日历周。
+const baseNow = new Date(2026, 8, 30, 12, 0, 0);
+assert(baseNow.getDay() === 3, "测试基准应是周三");
+const monday = startOfWeek(baseNow);
+assert(
+  monday.getDay() === 1 && monday.getHours() === 0,
+  "一周之始是周一 00:00",
+);
+assert(
+  monday.getTime() === new Date(2026, 8, 28).getTime(),
+  "2026-09-30 所在周的周一是 09-28",
+);
+assert(
+  startOfWeek(new Date(2026, 8, 27)).getTime() ===
+    new Date(2026, 8, 21).getTime(),
+  "周日应退回上一个周一（而不是跳到下一个）",
+);
+assert(
+  startOfWeek(new Date(2026, 8, 1)).getTime() ===
+    new Date(2026, 7, 31).getTime(),
+  "跨月：09-01（周二）所在周的周一是 08-31",
+);
+
+const thisWeek = timeRangeBounds("this_week", baseNow)!;
+assert(thisWeek.start.getTime() === new Date(2026, 8, 28).getTime(), "本周从周一起");
+assert(
+  thisWeek.end.getTime() === new Date(2026, 9, 5).getTime(),
+  "本周到下周一同刻为止（右开）",
+);
+const lastWeek = timeRangeBounds("last_week", baseNow)!;
+assert(lastWeek.end.getTime() === thisWeek.start.getTime(), "上周的止 = 本周的起");
+assert(
+  lastWeek.start.getTime() === new Date(2026, 8, 21).getTime(),
+  "上周从 09-21 周一起",
+);
+const thisMonth = timeRangeBounds("this_month", baseNow)!;
+assert(thisMonth.start.getTime() === new Date(2026, 8, 1).getTime(), "本月从 1 号起");
+assert(
+  thisMonth.end.getTime() === new Date(2026, 9, 1).getTime(),
+  "本月到次月 1 号为止",
+);
+assert(timeRangeBounds("all", baseNow) === null, "全部时间不给窗口");
+
+const inThisWeek = new Date(2026, 8, 29, 10, 0, 0).toISOString();
+const inLastWeek = new Date(2026, 8, 23, 10, 0, 0).toISOString();
+assert(matchesPlanTimeRange(inThisWeek, "this_week", baseNow), "本周内的命中「本周」");
+assert(!matchesPlanTimeRange(inThisWeek, "last_week", baseNow), "本周的不算上周");
+assert(matchesPlanTimeRange(inLastWeek, "last_week", baseNow), "上周内的命中「上周」");
+assert(matchesPlanTimeRange(inThisWeek, "all", baseNow), "全部时间不过滤");
+assert(
+  !matchesPlanTimeRange("not-a-date", "this_week", baseNow),
+  "认不出的时间不进任何窗",
+);
+
+// 组合筛选：两条件同时成立才算。
+const samplePlans = [
+  { status: "completed", createdAt: inThisWeek },
+  { status: "rolling", createdAt: inLastWeek },
+  { status: "failed", createdAt: inThisWeek },
+];
+assert(
+  filterRolloutPlans(samplePlans, { status: "succeeded", timeRange: "all" }, baseNow)
+    .length === 1,
+  "成功 × 全部时间 = 1",
+);
+assert(
+  filterRolloutPlans(samplePlans, { status: "all", timeRange: "this_week" }, baseNow)
+    .length === 2,
+  "全部 × 本周 = 2",
+);
+assert(
+  filterRolloutPlans(
+    samplePlans,
+    { status: "succeeded", timeRange: "last_week" },
+    baseNow,
+  ).length === 0,
+  "成功 × 上周 = 0",
+);
+
 console.log(
-  "rollout plan contract ok: list/detail/create/approve/advance shapes + spec 拼/解(fail loud) + phase 派生 + 升级目标排除离线 + 状态口径",
+  "rollout plan contract ok: list/detail/create/approve/advance shapes + spec 拼/解(fail loud) + phase 派生 + 升级目标排除离线 + 状态口径 + 列表最近 N 条 + 状态/时间窗筛选",
 );

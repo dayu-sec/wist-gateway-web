@@ -7,6 +7,7 @@ import {
   approveRolloutPlan,
   classifyAgentPurpose,
   createRolloutPlan,
+  deleteAgent,
   fetchAgentAdvertiseUrl,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
@@ -125,8 +126,23 @@ export function useRegisteredAgents() {
 }
 
 /**
+ * 删除一台**离线** Agent（不可恢复）。成功后刷新机队列表 —— 删掉的那台要立刻消失。
+ *
+ * 只失效 `registered-agents`（机队页的唯一数据源）；没有其它页缓存这份列表的派生量。
+ */
+export function useDeleteAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => deleteAgent(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["registered-agents"] });
+    },
+  });
+}
+
+/**
  * 网关**已录入**的安装包历史。升级页从这里选包（而不是手输地址 + 摘要）；
- * 包只在「Gateway 初始化」页录入时变化，所以不轮询。
+ * 包只在「安装包」页录入时变化，所以不轮询。
  */
 export function useInstallPackages() {
   const [, setAuthVersion] = useState(0);

@@ -283,7 +283,7 @@ function VerdictBand({
           <div className={styles.verdictEmpty}>
             <strong>尚未人工判定</strong>
             <span>
-              管理面的判定写入端点还没实现，所以现在不可能有判定值 ——旁边的推断只是建议，不代表这台机器已被归类。
+              管理面的判定写入端点还没实现，所以现在不可能有判定值 —— 旁边的推断只是建议，不代表这台机器已被归类。
             </span>
           </div>
         )}

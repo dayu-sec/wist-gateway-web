@@ -109,6 +109,11 @@
   line-height: 1.5;
 }
 
+/* 行内强调：提示本身就是最暗一档 --text-4，加粗必须抬色才读得出（与 SoftwareInventory 同口径）。 */
+.sectionHint strong {
+  color: var(--text-2);
+}
+
 .emptyNotice {
   color: var(--text-3);
   font-size: 12.5px;

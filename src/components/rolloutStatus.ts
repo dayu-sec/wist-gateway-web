@@ -185,3 +185,21 @@ export function currentPhase(plan: RolloutPlanView): RolloutPhaseView | null {
   if (plan.currentPhase < 1 || plan.currentPhase > plan.phases.length) return null;
   return plan.phases[plan.currentPhase - 1] ?? null;
 }
+
+/**
+ * 升级计划列表**默认视图**（未筛选）只展示最近这么多条。
+ *
+ * 列表接口按 `created_at` 倒序返回，所以「最近 N 条」就是前 N 条。计划是编排记录、只增不减，
+ * 页面上铺满历史会把「刚建的那份」淹掉。收敛只作用在**未筛选**的默认视图：一旦按状态 / 时间窗
+ * 筛过，就把命中的全铺出来（筛完还被裁几条会让人以为「搜不到」）。接口本身仍返回全部，
+ * 详情页按 `plan_id` 直达。
+ */
+export const LATEST_PLAN_LIMIT = 5;
+
+/** 取列表最前面的 `limit` 条（调用方保证已按时间倒序）。`limit` 为负按 0 处理。 */
+export function latestPlans<T>(
+  plans: readonly T[],
+  limit: number = LATEST_PLAN_LIMIT,
+): T[] {
+  return plans.slice(0, Math.max(0, limit));
+}

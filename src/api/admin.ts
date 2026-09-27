@@ -857,6 +857,38 @@ export async function fetchRegisteredAgents(
   );
 }
 
+/** 删除一台离线 Agent 的结果（`DELETE /api/v1/admin/agents/{id}`）。 */
+export interface AgentDeletionResult {
+  agentId: string;
+  deletedAt: string;
+}
+
+/**
+ * 删除一台**离线** Agent —— **不可恢复**（连同实例、凭据与所有派生态数据）。
+ *
+ * 后端只允许离线：在线 → 409（判据与列表/运行态同一处）。调用方必须先把「不可恢复」讲清楚，
+ * 并在拿到 409 时把原因如实转达，而不是报一句通用的“删除失败”。
+ */
+export async function deleteAgent(
+  agentId: string,
+): Promise<AgentDeletionResult> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}`,
+    { method: "DELETE" },
+  );
+  const record = requiredRecord(payload, "agentDeletion");
+  return {
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "agentDeletion.agentId",
+    ),
+    deletedAt: requiredString(
+      record.deleted_at ?? record.deletedAt,
+      "agentDeletion.deletedAt",
+    ),
+  };
+}
+
 /** 网关**已录入**的一个安装包（`GET /api/v1/admin/agent/install-packages` 的一项）。 */
 export interface InstallPackageView {
   /** 网关在包目录里分配的 id，`agentPackageUrl` 也由它派生。 */
@@ -911,7 +943,7 @@ function normalizeInstallPackage(
 /**
  * 网关**已录入**的安装包历史（`GET /api/v1/admin/agent/install-packages`）。
  *
- * 升级页从这里选包，而不是让操作者手输地址 + 摘要：来源在「Gateway 初始化」页录入时由网关
+ * 升级页从这里选包，而不是让操作者手输地址 + 摘要：来源在「安装包」页录入时由网关
  * 存进自己的包目录，`agent_package_url` 是网关派生好的下载地址。缺 `packages` 数组或某项缺
  * 必填字段都**显式抛错**，不静默成空列表 —— 那会让页面说“一个包都没录入”，比报错更难查。
  */

@@ -90,7 +90,7 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
             </span>
           ) : null}
           <span className={styles.metaItemMuted}>
-            不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 ——需要重取用右上角「刷新」。
+            不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 —— 需要重取用右上角「刷新」。
           </span>
         </div>
       </header>
