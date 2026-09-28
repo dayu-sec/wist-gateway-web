@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   ADMIN_AUTH_CHANGED_EVENT,
   ApiError,
@@ -14,6 +19,7 @@ import {
   fetchAgentInstallPackage,
   fetchAgentOverview,
   fetchAgentPurpose,
+  fetchAgentRevocations,
   fetchAgentRuntimeStatus,
   fetchAgentSoftwareInventory,
   fetchAgentUplink,
@@ -30,8 +36,10 @@ import {
   grantOneShotWork,
   grantStandingWork,
   initializeGatewayViaUrl,
+  liftAgentRevocation,
   pauseWork,
   resumeWork,
+  revokeAgent,
   revokeWork,
   setAgentAdvertiseUrl,
   setAgentInstallPackage,
@@ -446,6 +454,59 @@ export function useAgentRuntimeStatus(agentId: string) {
       return failureCount < 3;
     },
   });
+}
+
+/** 拒绝名单（吊销状态表，§5.6）：哪些 `agent_id` 被切断。 */
+export function useAgentRevocations() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["agent-revocations"],
+    queryFn: fetchAgentRevocations,
+    enabled,
+  });
+}
+
+/** 把一台 Agent 加入拒绝名单（吊销）。
+ *
+ * 以 `{ agentId, reasonCode }` 为变量（而不是在 hook 上绑定 agentId）：单台面板与
+ * 拒绝名单列表页共用同一个 hook。
+ */
+export function useRevokeAgent() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: { agentId: string; reasonCode: string }) =>
+      revokeAgent(command.agentId, command.reasonCode),
+    onSuccess: (_created, command) => {
+      invalidateRevocationState(queryClient, command.agentId);
+    },
+  });
+}
+
+/** 从拒绝名单移除（解除吊销）。变量是 `agentId`。 */
+export function useLiftAgentRevocation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => liftAgentRevocation(agentId),
+    onSuccess: (_lifted, agentId) => {
+      invalidateRevocationState(queryClient, agentId);
+    },
+  });
+}
+
+/** 吊销状态一变，这三份查询都要重取：名单、该台的运行态（`revoked` 布尔）、机队列表。 */
+function invalidateRevocationState(queryClient: QueryClient, agentId: string) {
+  void queryClient.invalidateQueries({ queryKey: ["agent-revocations"] });
+  void queryClient.invalidateQueries({
+    queryKey: ["agent-runtime-status", agentId],
+  });
+  void queryClient.invalidateQueries({ queryKey: ["registered-agents"] });
 }
 
 /** 采集内容目录（模板 + 各平台各面的就绪度）：派活表单的取值空间来自它。 */

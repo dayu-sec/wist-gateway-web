@@ -21,6 +21,7 @@
     "preview": "vite preview",
     "test:agent-work": "tsx tests/agent-work-contract.test.ts",
     "test:runtime-status": "tsx tests/runtime-status-contract.test.ts",
+    "test:agent-revocation": "tsx tests/agent-revocation-contract.test.ts",
     "test:registered-agents": "tsx tests/registered-agents-contract.test.ts",
     "test:rollout": "tsx tests/rollout-contract.test.ts",
     "test:agent-logs": "tsx tests/agent-logs-contract.test.ts",

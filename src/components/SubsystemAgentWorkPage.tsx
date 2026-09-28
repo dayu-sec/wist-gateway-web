@@ -16,6 +16,7 @@ import {
   type WorkActionCommand,
 } from "./SubsystemAgentWorkView";
 import { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPanel";
+import { SubsystemAgentIdentityPanel } from "./SubsystemAgentIdentityPanel";
 import styles from "./SubsystemAgentWorkPage.module.css";
 
 interface SubsystemAgentWorkPageProps {
@@ -202,6 +203,13 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
           ) : null}
           <SubsystemAgentUplinkStatusPanel
             uplinkState={runtime.data?.uplinkState ?? null}
+            loading={runtime.isLoading}
+            loadError={runtimeLoadError}
+          />
+          <SubsystemAgentIdentityPanel
+            agentId={agentId}
+            certificateStatus={runtime.data?.certificateStatus ?? null}
+            revoked={runtime.data?.revoked ?? false}
             loading={runtime.isLoading}
             loadError={runtimeLoadError}
           />

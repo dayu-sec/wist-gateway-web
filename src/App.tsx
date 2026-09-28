@@ -16,6 +16,7 @@ import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
 import { SubsystemAgentFleetPage } from "./components/SubsystemAgentFleetPage";
+import { SubsystemAgentRevocationPage } from "./components/SubsystemAgentRevocationPage";
 import { SubsystemAgentUpgradeDetailPage } from "./components/SubsystemAgentUpgradeDetailPage";
 import { SubsystemWorkListPage } from "./components/SubsystemWorkListPage";
 
@@ -46,6 +47,7 @@ export function App() {
         <Route path="/work" element={<SubsystemWorkListPage />} />
         <Route path="/upgrade" element={<SubsystemAgentUpgradePage />} />
         <Route path="/fleet" element={<SubsystemAgentFleetPage />} />
+        <Route path="/revocations" element={<SubsystemAgentRevocationPage />} />
         <Route
           path="/upgrade/:planId"
           element={<SubsystemAgentUpgradeDetailPage />}

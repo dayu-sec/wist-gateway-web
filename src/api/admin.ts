@@ -66,6 +66,62 @@ export interface AgentRuntimeStatusView {
   lastSeenAt: string;
   /** agent 实际生效的数据面上送状态；null = 还没上报过（旧版本 agentd 不发）。 */
   uplinkState: AgentUplinkStateView | null;
+  /** agent 上报的客户端证书状态（mTLS）；null = 还没上报过 / 没证书。 */
+  certificateStatus: AgentCertificateStatusView | null;
+  /** 是否在**拒绝名单**内（被吊销）。true 时它的任何凭据路径都会被 401 `certificate_revoked`。 */
+  revoked: boolean;
+}
+
+/**
+ * agent 上报的**客户端证书状态**（`runtime-status` 的 `certificate_status`，§5.5）。
+ *
+ * 为什么只有本机能报：服务端在**握手期**就验完证书，过期证书根本进不来，所以
+ * 「还剩多久 / 是不是该续了」只能由 agent 自己读 `notAfter` 上报。`null` = 还没报过 / 没证书。
+ */
+export interface AgentCertificateStatusView {
+  /** 证书到期时间（RFC3339）。 */
+  notAfter: string;
+  /** 距到期的剩余秒数（agent 本地判定）。 */
+  remainingSeconds: number;
+  /** `valid` | `renew_due`（落在 30 天续期窗内）| `expired`。 */
+  state: string;
+  /** agent 本机**最近一次续签判定**（§5.5）；null = 老版本 agentd 没报过。 */
+  lastRenewal: AgentCredentialRenewalView | null;
+}
+
+/**
+ * agent 本机**最近一次续签判定**（`certificate_status.last_renewal`，§5.5）。
+ *
+ * 与 agentd 本地台账 `identity/renewal.json` 同口径：agentd 原样带上来，网关只存/展示。
+ */
+export interface AgentCredentialRenewalView {
+  /** `not_due` / `renewed` / `failed` / `needs_reinstall` / `revoked`。 */
+  outcome: string;
+  /** 本次判定时刻（RFC3339）。 */
+  checkedAt: string;
+  /** 人读细节（失败原因 / 续到了什么时候…）；无内容时为空串。 */
+  detail: string;
+  /** 续签后证书的到期时刻（RFC3339）；无证书时为空串。 */
+  notAfter: string;
+}
+
+/**
+ * 拒绝名单（吊销状态表，§5.6）里的一条：按 `agent_id` 拒绝，续签、重签都还是同一个 id。
+ *
+ * 对应模型 `Agent.Certificate.AgentCertificateDenylistEntry`（字段与模型一致）。
+ */
+export interface AgentRevocationView {
+  /** 代理主键（`denylist-<agent_id>`）。 */
+  entryId: string;
+  agentId: string;
+  /** 吊销原因（人工填写，可空串）。 */
+  reasonCode: string;
+  /** 谁吊销的（管理面录入，可空串）。 */
+  deniedBy: string;
+  /** 加入名单的时刻（RFC3339）。 */
+  deniedAt: string;
+  /** GC 水位（RFC3339）：条目保留到被吊销证书的自然过期时间为止。 */
+  retainUntil: string;
 }
 
 /**
@@ -635,6 +691,77 @@ function normalizeAgentUplinkState(
   };
 }
 
+function normalizeAgentCredentialRenewal(
+  value: unknown,
+): AgentCredentialRenewalView | null {
+  if (value === null || value === undefined) return null;
+  const record = requiredRecord(value, "agent.certificateStatus.lastRenewal");
+  return {
+    outcome: requiredString(
+      record.outcome,
+      "agent.certificateStatus.lastRenewal.outcome",
+    ),
+    checkedAt: requiredString(
+      record.checked_at ?? record.checkedAt,
+      "agent.certificateStatus.lastRenewal.checkedAt",
+    ),
+    detail: requiredString(
+      record.detail ?? "",
+      "agent.certificateStatus.lastRenewal.detail",
+    ),
+    notAfter: requiredString(
+      record.not_after ?? record.notAfter ?? "",
+      "agent.certificateStatus.lastRenewal.notAfter",
+    ),
+  };
+}
+
+function normalizeAgentCertificateStatus(
+  value: unknown,
+): AgentCertificateStatusView | null {
+  // 缺失或 null 都是「还没上报过 / 没证书」：不当作形状错误。
+  if (value === null || value === undefined) return null;
+  const record = requiredRecord(value, "agent.certificateStatus");
+  return {
+    notAfter: requiredString(
+      record.not_after ?? record.notAfter,
+      "agent.certificateStatus.notAfter",
+    ),
+    remainingSeconds: requiredNumber(
+      record.remaining_seconds ?? record.remainingSeconds,
+      "agent.certificateStatus.remainingSeconds",
+    ),
+    state: requiredString(record.state, "agent.certificateStatus.state"),
+    lastRenewal: normalizeAgentCredentialRenewal(
+      record.last_renewal ?? record.lastRenewal,
+    ),
+  };
+}
+
+function normalizeAgentRevocation(payload: any): AgentRevocationView {
+  const record = requiredRecord(payload, "agentRevocation");
+  return {
+    entryId: requiredString(record.entry_id ?? record.entryId, "revocation.entryId"),
+    agentId: requiredString(record.agent_id ?? record.agentId, "revocation.agentId"),
+    reasonCode: requiredString(
+      record.reason_code ?? record.reasonCode ?? "",
+      "revocation.reasonCode",
+    ),
+    deniedBy: requiredString(
+      record.denied_by ?? record.deniedBy ?? "",
+      "revocation.deniedBy",
+    ),
+    deniedAt: requiredString(
+      record.denied_at ?? record.deniedAt,
+      "revocation.deniedAt",
+    ),
+    retainUntil: requiredString(
+      record.retain_until ?? record.retainUntil,
+      "revocation.retainUntil",
+    ),
+  };
+}
+
 function normalizeRuntimeStatus(payload: any): AgentRuntimeStatusView {
   return {
     agentId: requiredString(
@@ -655,6 +782,11 @@ function normalizeRuntimeStatus(payload: any): AgentRuntimeStatusView {
     uplinkState: normalizeAgentUplinkState(
       payload.uplink_state ?? payload.uplinkState,
     ),
+    certificateStatus: normalizeAgentCertificateStatus(
+      payload.certificate_status ?? payload.certificateStatus,
+    ),
+    // 缺字段（旧网关）按「未吊销」：不把自己不知道的事说成「被吊销」。
+    revoked: requiredBoolean(payload.revoked ?? false, "agent.revoked"),
   };
 }
 
@@ -835,6 +967,43 @@ export async function fetchAgentRuntimeStatus(
     `/api/v1/admin/agents/${encodeURIComponent(agentId)}/runtime-status`,
   );
   return normalizeRuntimeStatus(payload);
+}
+
+/**
+ * 把一个 `agent_id` 加入**拒绝名单**（吊销，§5.6）。
+ *
+ * 与「吊销凭据」不同：那个吊销的是一份凭据（可换凭据 / 证书自续绕开），这个拒的是
+ * **agent_id** 本身 —— 续签、重签同 id 仍被拒，也不管它是否还在续签。
+ * 条目会在被吊销证书自然过期后被 GC（`retainUntil`）。
+ */
+export async function revokeAgent(
+  agentId: string,
+  reasonCode: string,
+): Promise<AgentRevocationView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/revocation`,
+    { method: "POST", body: JSON.stringify({ reason_code: reasonCode }) },
+  );
+  return normalizeAgentRevocation(payload);
+}
+
+/** 从拒绝名单移除（解除吊销）；不在名单里时返回 404。 */
+export async function liftAgentRevocation(agentId: string): Promise<void> {
+  await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/revocation`,
+    { method: "DELETE" },
+  );
+}
+
+/** 列出拒绝名单（管理面）。 */
+export async function fetchAgentRevocations(): Promise<AgentRevocationView[]> {
+  const payload = await requestJson<unknown>("/api/v1/admin/agent-revocations");
+  const record = requiredRecord(payload, "agentRevocations");
+  const items = record.revocations;
+  if (!Array.isArray(items)) {
+    throw new Error("Invalid API response: agentRevocations.revocations");
+  }
+  return items.map((item) => normalizeAgentRevocation(item));
 }
 
 /**

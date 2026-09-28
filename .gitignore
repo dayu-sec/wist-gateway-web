@@ -1,6 +1,7 @@
 node_modules
 dist
 .vite
+.workbuddy
 *.tsbuildinfo
 vite.config.d.ts
 vite.config.js

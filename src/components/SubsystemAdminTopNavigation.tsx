@@ -200,6 +200,22 @@ function IconFleet() {
   );
 }
 
+/** 吹销名单：禁止符号（圆 + 斜杠）—— 被拒绝接入的一批 Agent。 */
+function IconRevocation() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M4.1 4.1 11.9 11.9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -217,6 +233,8 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       // 机队 = 注册在册的机器（含离线）。删除离线机器在这里（不可恢复，两次确认）。
       { to: "/fleet", label: "Agent 机队", icon: <IconFleet /> },
+      // 被按 agent_id 封锁的一批机器（拒绝名单）：机队页看「在册」，这里看「被封」。
+      { to: "/revocations", label: "吹销名单", icon: <IconRevocation /> },
       { to: "/upgrade", label: "Agent 升级", icon: <IconUpgrade /> },
     ],
   },

@@ -1,0 +1,219 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.headline {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.detail {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.muted {
+  color: var(--text-4);
+  font-size: 12.5px;
+}
+
+.error {
+  color: var(--crit);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 2px 0 0;
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.fact dt {
+  color: var(--text-4);
+  font-size: 12px;
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.input {
+  min-height: 32px;
+  min-width: 220px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-3);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.input:focus-visible {
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.dangerButton,
+.primaryButton,
+.ghostButton {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerButton {
+  border: 1px solid var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: var(--crit);
+  color: #ffffff;
+}
+
+.primaryButton {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.ghostButton {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.ghostButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+
+.dangerButton:disabled,
+.primaryButton:disabled,
+.ghostButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+
+.dangerButton:focus-visible,
+.primaryButton:focus-visible,
+.ghostButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 有效。 */
+.ok {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+}
+
+.ok .pill {
+  border-color: var(--ok-border);
+  background: transparent;
+  color: var(--ok);
+}
+
+/* 临近到期：要注意，但还不算故障。 */
+.warn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+}
+
+.warn .pill {
+  border-color: var(--warn-border);
+  background: transparent;
+  color: var(--warn);
+}
+
+.warn .headline {
+  color: var(--warn);
+}
+
+/* 已过期 / 已吊销：真正的故障，报警。 */
+.crit {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+}
+
+.crit .pill {
+  border-color: var(--crit-border);
+  background: transparent;
+  color: var(--crit);
+}
+
+.crit .headline {
+  color: var(--crit);
+}
+
+/* 未上报：说不清，保持中性偏灰。 */
+.unknown .pill {
+  color: var(--text-3);
+}
