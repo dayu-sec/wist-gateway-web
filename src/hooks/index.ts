@@ -470,6 +470,11 @@ export function useAgentRevocations() {
     queryKey: ["agent-revocations"],
     queryFn: fetchAgentRevocations,
     enabled,
+    // 401（token 无效）是确定性的，重试只是白撞同一个错误，直接让页面提示重新填 token。
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 401) return false;
+      return failureCount < 3;
+    },
   });
 }
 
