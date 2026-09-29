@@ -288,8 +288,8 @@ export function SubsystemAgentUpgradePage() {
       <header className={styles.pageHeader}>
         <div className={styles.titleRow}>
           <h1 className={styles.pageTitle}>Agent 升级</h1>
-          <Link className={styles.crossLink} to="/gateway-init">
-            Gateway 初始化 <span aria-hidden="true">→</span>
+          <Link className={styles.crossLink} to="/gateway-info">
+            Gateway 信息 <span aria-hidden="true">→</span>
           </Link>
         </div>
         <p className={styles.pageSummary}>

@@ -237,8 +237,8 @@ export interface AgentInstallCode {
 /**
  * 网关分发的 Agent 安装包地址（管理面设置）。
  *
- * `packageSha256` / `updatedAt` 为 null 表示从未在管理面设置过，
- * 此时生效的是网关内置的默认分发地址（地址仍会返回，便于页面直接展示）。
+ * `packageSha256` / `updatedAt` 为 null 表示从未在管理面添加过。地址仍会返回（网关自己的
+ * 分端点，与当前生效值无关，便于页面直接展示）；但**没有添加过就没有可用包**。
  */
 export interface AgentInstallPackage {
   addressId: string;
@@ -255,17 +255,22 @@ export interface SetAgentInstallPackageCommand {
 }
 
 /**
- * Agent 的数据面上送地址（管理面设置）。
+ * Agent 的数据面上送目标（生效值）。
  *
  * Agent 通过 TCP 把采集到的日志与指标上送到数据面的 `host:port`。
  * 它现在是**运行期**的目标：网关在 `uplink:poll` 上现算上送授权（是否启用 + 目标），
- * 所以改这里对**已在网**的 Agent 下一个 poll（≤30s）就生效，不需要重装。
+ * 所以改一次对**已在网**的 Agent 下一个 poll（≤30s）就生效，不需要重装。
  *
- * 是否启用由控制面派活决定：有生效工作且设了地址 → 启用；否则 Agent 待命
- * （不采集日志、也不向数据面上送）。
+ * 目标有两级来源（见网关的 `effective_agent_uplink`）：
+ * ① 管理面设过 → 用它（用于“数据面不在网关本机”的部署）；
+ * ② 没设过 → 按部署配置派生：与网关对外地址同域 + 数据面端口（一台机器、一个域名）。
+ *   此时 `updatedAt` 为 null —— 页面据此显示「来自部署配置」。
  *
- * `updatedAt` 为 null 表示从未在管理面设置过（此时 `host` 为空串）；
- * `port` 始终有值，未设置时是约定的默认端口。
+ * 是否启用由控制面派活决定：有生效工作且有目标（两种来源都算）→ 启用；否则 Agent 待命
+ * （不采集日志、也不向数据面上送；但事实摘要仍上报，见待命语义）。
+ *
+ * `updatedAt` 为 null = 不是管理面录入的值（`host` 可能是派生值）；
+ * `host` 为空串才是真的没有目标（连派生都派不出）。
  */
 export interface AgentUplink {
   settingId: string;

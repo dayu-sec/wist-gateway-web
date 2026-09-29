@@ -513,7 +513,7 @@
   line-height: 1.55;
 }
 
-/* 还没有录入安装包：这里不能手输，只能去「Gateway 初始化」页录入，所以给一条明确指引。 */
+/* 还没有录入安装包：这里不能手输，只能去「Gateway 信息」页看当前值 / 去「安装包」页录入，所以给一条明确指引。 */
 .packageEmpty {
   display: flex;
   flex-direction: column;

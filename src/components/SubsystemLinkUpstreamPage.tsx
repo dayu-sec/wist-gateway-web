@@ -72,8 +72,8 @@ function ConfigResult({ config }: { config: GatewayInitialConfig }) {
  * 不处理 Agent 安装配置。
  *
  * 页名是「链接上级」而组件名曾是 `SubsystemGatewayInitializePage`（取自旧页名「初始化 Gateway」）；
- * 该名字已让给 `SubsystemGatewayInitializePage`（网关取包来源 / 数据面上送地址那一页），
- * 本页改叫 `SubsystemLinkUpstreamPage`，与「链接上级」对齐。
+ * 那个名字后来给过网关信息页（网关对外地址 / 数据面上送地址，现叫 `SubsystemGatewayInfoPage`），
+ * 本页则改叫 `SubsystemLinkUpstreamPage`，与「链接上级」对齐。
  */
 export function SubsystemLinkUpstreamPage() {
   const [initUrl, setInitUrl] = useState("");

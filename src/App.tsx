@@ -2,10 +2,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import { AppLayout } from "./components/AppLayout";
 import { SubsystemAdminHomePage } from "./components/SubsystemAdminHomePage";
-import { SubsystemAgentControlCenterPage } from "./components/SubsystemAgentControlCenterPage";
 import { SubsystemAgentInstallPage } from "./components/SubsystemAgentInstallPage";
 import { SubsystemLinkUpstreamPage } from "./components/SubsystemLinkUpstreamPage";
-import { SubsystemGatewayInitializePage } from "./components/SubsystemGatewayInitializePage";
+import { SubsystemGatewayInfoPage } from "./components/SubsystemGatewayInfoPage";
 import { SubsystemAgentPackagePage } from "./components/SubsystemAgentPackagePage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentPurposePage } from "./components/SubsystemAgentPurposePage";
@@ -25,20 +24,22 @@ export function App() {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<SubsystemAdminHomePage />} />
-        <Route path="/control" element={<SubsystemAgentControlCenterPage />} />
         <Route path="/install" element={<SubsystemAgentInstallPage />} />
-        <Route path="/gateway-init" element={<SubsystemGatewayInitializePage />} />
+        <Route path="/gateway-info" element={<SubsystemGatewayInfoPage />} />
         <Route path="/install-package" element={<SubsystemAgentPackagePage />} />
         <Route
           path="/link-upstream"
           element={<SubsystemLinkUpstreamPage />}
         />
         {/* 旧入口一律留重定向，外部链接与书签不至于落到 404：
-            「数据面上送地址」已并入「Gateway 初始化 / /gateway-init」；
+            「Gateway 初始化 / /gateway-init」（与已并入它的 /uplink、/agent-init）已改名
+            「Gateway 信息 / /gateway-info」—— 它现在是**只读展示**，不再有录入动作；
             「初始化 Gateway / /init」已改名「链接上级 / /link-upstream」。
-            （安装包已从 Gateway 初始化页拆回独立页 /install-package，见上。） */}
-        <Route path="/uplink" element={<Navigate to="/gateway-init" replace />} />
-        <Route path="/agent-init" element={<Navigate to="/gateway-init" replace />} />
+            （安装包已从该页拆回独立页 /install-package，见上。）
+            （已去掉的 /control 页落到下方的 `*` → 回首页。） */}
+        <Route path="/gateway-init" element={<Navigate to="/gateway-info" replace />} />
+        <Route path="/uplink" element={<Navigate to="/gateway-info" replace />} />
+        <Route path="/agent-init" element={<Navigate to="/gateway-info" replace />} />
         <Route path="/init" element={<Navigate to="/link-upstream" replace />} />
         <Route path="/hosts" element={<SubsystemAgentHostListPage />} />
         <Route path="/software" element={<SubsystemSoftwareInventoryPage />} />

@@ -4,7 +4,7 @@
 [![Release](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/release.yml/badge.svg)](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/tag/dayu-sec/wist-gateway-web?label=version&sort=semver)](https://github.com/dayu-sec/wist-gateway-web/releases)
 
-`wist-gateway` 的 Web 前端。提供 Agent 总览、主机指标、数据采集管线、Agent 安装与升级、Gateway 初始化等管理界面，是 `wist-gateway-stack` 自托管栈的前端组件。
+`wist-gateway` 的 Web 前端。提供 Agent 总览、主机指标、数据采集管线、Agent 安装与升级、Gateway 信息等管理界面，是 `wist-gateway-stack` 自托管栈的前端组件。
 
 前端与后端解耦，通过 `/api` 反向代理访问 `wist-gateway`；可独立构建、独立发布、独立升级。
 
@@ -65,21 +65,24 @@ npm run preview  # 预览构建产物
 
 ```bash
 npm run test:bundle              # 校验 admin token 等敏感信息未泄漏进产物
-npm run test:gateway-initialize  # 校验 Gateway 初始化接口契约
+npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读、旧路名有重定向）
+npm run test:gateway-initialize  # 校验网关初始化材料（initial-config）接口契约
 ```
+
+其余接口契约测试（`install-package` / `uplink` / `advertise-url` / `rollout` / `agent-logs` …）
+见 `package.json` 的 `test:*`；都是离线可跑的 mock fetch 脚本。
 
 ## 页面路由
 
 | 路径 | 说明 |
 |------|------|
 | `/` | Agent 总览 |
-| `/control` | Agent 控制中心（远程运维动作） |
 | `/install` | 安装 Agent |
 | `/link-upstream` | 链接上级（接入上级控制中心） |
-| `/gateway-init` | Gateway 初始化（网关对外地址 / 数据面上送地址） |
+| `/gateway-info` | Gateway 信息（网关对外地址 / 数据面上送地址，只读） |
 | `/install-package` | 安装包（取包来源 / 已录入的安装包） |
 | `/init` | 已改名 `/link-upstream`，保留重定向 |
-| `/uplink`、`/agent-init` | 已并入 `/gateway-init`，保留重定向 |
+| `/gateway-init`、`/uplink`、`/agent-init` | 已改名 `/gateway-info`，保留重定向 |
 | `/hosts` | 主机列表 |
 | `/software` | 资产清单 |
 | `/pipeline` | 数据采集管线 |

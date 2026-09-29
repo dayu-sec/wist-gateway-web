@@ -36,6 +36,9 @@ jobs:
       - name: Test (bundle token leak)
         run: npm run test:bundle
 
+      - name: Test (routes contract)
+        run: npm run test:routes
+
       - name: Test (gateway initialize contract)
         run: npm run test:gateway-initialize
 

@@ -234,8 +234,8 @@ export function useSetAgentInstallPackage() {
 }
 
 /**
- * 当前生效的数据面上送地址。同样不轮询：值只在管理面变更时变化，
- * 保存成功后由 useSetAgentUplink 失效重取。
+ * 当前生效的数据面上送目标（管理面设置值，没设过则是部署配置派生的值）。
+ * 同样不轮询：值只在管理面变更时变化，保存成功后由 useSetAgentUplink 失效重取。
  */
 export function useAgentUplink() {
   const [, setAuthVersion] = useState(0);
@@ -253,7 +253,7 @@ export function useAgentUplink() {
   });
 }
 
-/** 保存数据面上送地址；成功后刷新当前生效值。 */
+/** 保存数据面上送目标（覆盖派生值）；成功后刷新当前生效值。 */
 export function useSetAgentUplink() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -55,19 +55,9 @@ function IconPipeline() {
   );
 }
 
-function IconControl() {
-  return (
-    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-      <path d="M2 4.4h12M2 11.6h12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      <circle cx="6.2" cy="4.4" r="1.9" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.4" />
-      <circle cx="10.4" cy="11.6" r="1.9" fill="var(--sidebar-bg)" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
 /**
  * 链接上级：本机向上接入上级控制中心 —— 上面那圈是**上级侧的插槽**（开口朝下），
- * 下面实心圆点是本网关，中间一截颈把两者接上。
+ * 下面实心圆点是本网关，中间一截须把两者接上。
  *
  * 为什么不用箭头：运维组已有「Agent 升级 ↑」、设置组已有「安装 Agent ↓」，
  * 再加一支向上的箭头，三项在 15px 下会读成同一个东西。所以这里只留「凹槽 + 节点」
@@ -101,8 +91,8 @@ function IconInstall() {
   );
 }
 
-/** Gateway 初始化：齿轮 —— 网关侧两项初始设置的归口（网关对外地址 / 数据面上送目标）。 */
-function IconGatewayInit() {
+/** 网关信息：齿轮 —— 网关侧两项（网关对外地址 / 数据面上送目标）的归口。 */
+function IconGatewayInfo() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
       <circle cx="8" cy="8" r="5.3" fill="none" stroke="currentColor" strokeWidth="1.4" />
@@ -241,13 +231,11 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "设置",
     items: [
-      { to: "/control", label: "控制中心", icon: <IconControl /> },
-      // 「链接上级」= 把本网关接入上级控制中心，与上面那项 Agent 远程运维的
-      //「控制中心」是两回事，所以名字里点明动作与对象。
+      // 「链接上级」= 把本网关接入**上级控制中心**（Center 那一侧）—— 页名点明动作与对象。
       { to: "/link-upstream", label: "链接上级", icon: <IconLinkUpstream /> },
-      // 网关对外地址与上送目标合成一页：两项都是网关侧的设置，只影响之后新签发的 Agent。
-      { to: "/gateway-init", label: "Gateway 初始化", icon: <IconGatewayInit /> },
-      // 取包来源单独一页（从 Gateway 初始化页拆回）：配网关从哪取件 + 看已录入的包历史。
+      // 网关对外地址与上送目标合成一页，两项都由部署配置派生（本页只读展示）。
+      { to: "/gateway-info", label: "Gateway 信息", icon: <IconGatewayInfo /> },
+      // 取包来源单独一页（从该页拆回）：配网关从哪取件 + 看已录入的包历史。
       { to: "/install-package", label: "安装包", icon: <IconPackage /> },
       { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
     ],

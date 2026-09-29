@@ -106,7 +106,7 @@ function PackageHistoryRow({ pkg }: { pkg: InstallPackageView }) {
  * 三张卡按「现在是什么 → 有过什么 → 怎么加」排：
  * ① 当前安装包 —— 只读。新签发的安装命令与 install.sh 用的就是这一份；版本 / 架构只有在包目录里
  *    按**摘要**对齐到记录才报得出来（录入时来源与摘要同一次写进设置与包目录，摘要是唯一的公共键，
- *    见 `findCurrentPackage`）。没添加过时网关分发内置包，这里明说，不编内置包的版本。
+ *    见 `findCurrentPackage`）。没添加过 = **没有可用包**（网关没有内置包这条退路），安装命令会明确报错。
  * ② 安装包历史 —— 网关包目录里添加过的制品，最多列最近 5 条；「Agent 升级」页从这份存档里选包，
  *    那一页不受这一屏的显示上限影响。
  * ③ 添加安装包 —— 填来源地址（本机绝对路径或 https）后保存：网关先拉到本地，成功才落库并成为
@@ -191,9 +191,9 @@ export function SubsystemAgentPackagePage() {
             </div>
           ) : currentIsUnset ? (
             <div className={styles.packageEmpty}>
-              <strong>当前用的是网关内置包</strong>
+              <strong>还没有可用的安装包</strong>
               <span>
-                网关还没添加过安装包，新签发的安装命令与 install.sh 用的是内置的那一份。
+                网关没添加过安装包，新签发的安装命令与 install.sh 这时候会明确报错（不会默默用一个旧包）。在下面填来源添加一份即可。
               </span>
             </div>
           ) : (

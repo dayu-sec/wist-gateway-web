@@ -44,12 +44,10 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "ops", crumbs: ["Agent 升级"] };
     case "/fleet":
       return { section: "ops", crumbs: ["Agent 机队"] };
-    case "/control":
-      return { section: "settings", crumbs: ["控制中心"] };
     case "/install":
       return { section: "settings", crumbs: ["安装 Agent"] };
-    case "/gateway-init":
-      return { section: "settings", crumbs: ["Gateway 初始化"] };
+    case "/gateway-info":
+      return { section: "settings", crumbs: ["Gateway 信息"] };
     case "/install-package":
       return { section: "settings", crumbs: ["安装包"] };
     case "/link-upstream":
