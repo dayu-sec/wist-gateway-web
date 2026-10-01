@@ -19,6 +19,7 @@ export { SubsystemAdminTopNavigation } from "./SubsystemAdminTopNavigation";
 export { SubsystemAgentInstallPage } from "./SubsystemAgentInstallPage";
 export { SubsystemGatewayInfoPage } from "./SubsystemGatewayInfoPage";
 export { SubsystemAgentPackagePage } from "./SubsystemAgentPackagePage";
+export { SubsystemKnowledgePage } from "./SubsystemKnowledgePage";
 export { SubsystemShowAgentRuntimeStatusUsecaseCard } from "./SubsystemShowAgentRuntimeStatusUsecaseCard";
 export { SubsystemAgentRuntimeStatusResult } from "./SubsystemAgentRuntimeStatusResult";
 export { SubsystemRuntimeStatusAgentInput } from "./SubsystemRuntimeStatusAgentInput";

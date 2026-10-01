@@ -8,6 +8,7 @@ import {
 import {
   ADMIN_AUTH_CHANGED_EVENT,
   ApiError,
+  activateKnowledgePackage,
   advanceRolloutPlan,
   approveRolloutPlan,
   classifyAgentPurpose,
@@ -27,6 +28,9 @@ import {
   fetchAllAgentsHostMetrics,
   fetchContentCatalog,
   fetchInstallPackages,
+  fetchKnowledge,
+  fetchKnowledgeLocks,
+  fetchKnowledgePackages,
   fetchPipelineTopology,
   fetchRegisteredAgents,
   fetchRolloutPlan,
@@ -38,6 +42,7 @@ import {
   initializeGatewayViaUrl,
   liftAgentRevocation,
   pauseWork,
+  recordKnowledgePackage,
   resumeWork,
   revokeAgent,
   revokeWork,
@@ -45,10 +50,12 @@ import {
   setAgentInstallPackage,
   setAgentUplink,
   viewAgentLogs,
+  type ActivateKnowledgePackageCommand,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
   type GrantStandingWorkCommand,
+  type RecordKnowledgePackageCommand,
   type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
   type SetAgentUplinkCommand,
@@ -253,14 +260,22 @@ export function useAgentUplink() {
   });
 }
 
-/** 保存数据面上送目标（覆盖派生值）；成功后刷新当前生效值。 */
+/**
+ * 保存数据面上送目标与开关（覆盖派生值）；成功后刷新当前生效值。
+ *
+ * **失败也要刷新**：失败不等于没生效 —— 服务端可能已经写了、只是响应没回来，
+ * 或者响应不合当前契约而解析报错。不刷的话，页面上方那张只读卡会一直显示旧值
+ * （且“已保存”的提示与它并排），人就会以为没改成 —— 而开关是个影响全队的动作，
+ * 它的真实值必须以服务端为准。
+ */
 export function useSetAgentUplink() {
   const queryClient = useQueryClient();
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: ["agent-uplink"] });
   return useMutation({
     mutationFn: (command: SetAgentUplinkCommand) => setAgentUplink(command),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["agent-uplink"] });
-    },
+    onSuccess: refresh,
+    onError: refresh,
   });
 }
 
@@ -724,4 +739,94 @@ export function useRolloutPlanAction() {
       });
     },
   });
+}
+
+/**
+ * 知识库三张查询（生效态 / 录入历史 / 锁旧版）共用的一段准备。
+ *
+ * 三者都是**管理面状态**：只在录入或激活时变化，不轮询；401（token 无效）是确定性错误，
+ * 重试只是白撞同一个错误，直接让页面提示重新填 token。
+ */
+function useKnowledgeQueryEnabled(): boolean {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  return Boolean(getAdminApiToken());
+}
+
+function knowledgeRetry(failureCount: number, error: Error): boolean {
+  if (error instanceof ApiError && error.status === 401) return false;
+  return failureCount < 3;
+}
+
+/**
+ * 当前生效的知识库内容。**空载不是错误**：回 `configured: false` + `hint`，页面据此给「怎么办」。
+ */
+export function useKnowledge() {
+  const enabled = useKnowledgeQueryEnabled();
+  return useQuery({
+    queryKey: ["knowledge"],
+    queryFn: fetchKnowledge,
+    enabled,
+    retry: knowledgeRetry,
+  });
+}
+
+/** 录入过的知识库包（最近优先）。页面从这份存档里激活 / 回滚。 */
+export function useKnowledgePackages() {
+  const enabled = useKnowledgeQueryEnabled();
+  return useQuery({
+    queryKey: ["knowledge-packages"],
+    queryFn: fetchKnowledgePackages,
+    enabled,
+    retry: knowledgeRetry,
+  });
+}
+
+/** **谁还锁在旧版目录**：换版不追改在跑的工作，所以要看得见。 */
+export function useKnowledgeLocks() {
+  const enabled = useKnowledgeQueryEnabled();
+  return useQuery({
+    queryKey: ["knowledge-locks"],
+    queryFn: fetchKnowledgeLocks,
+    enabled,
+    retry: knowledgeRetry,
+  });
+}
+
+/**
+ * 录入一个知识库包（缺省**不激活**）。
+ *
+ * 三个 key 一起失效：录入会落一个新包（历史 +1），`activate: true` 时还会连带切换生效态
+ * 与锁旧版的分组；即使这次没激活，空载提示也不变，多失效一次只是白跑一趟查询。
+ */
+export function useRecordKnowledgePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: RecordKnowledgePackageCommand) =>
+      recordKnowledgePackage(command),
+    onSuccess: () => invalidateKnowledge(queryClient),
+  });
+}
+
+/** 激活 / 回滚到某一版（`reason` 区分，两者同一条接口）。 */
+export function useActivateKnowledgePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (variables: {
+      packageId: string;
+      command?: ActivateKnowledgePackageCommand;
+    }) => activateKnowledgePackage(variables.packageId, variables.command),
+    onSuccess: () => invalidateKnowledge(queryClient),
+  });
+}
+
+function invalidateKnowledge(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ["knowledge"] });
+  void queryClient.invalidateQueries({ queryKey: ["knowledge-packages"] });
+  void queryClient.invalidateQueries({ queryKey: ["knowledge-locks"] });
 }

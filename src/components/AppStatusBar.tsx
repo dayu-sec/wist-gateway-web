@@ -50,6 +50,8 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "settings", crumbs: ["Gateway 信息"] };
     case "/install-package":
       return { section: "settings", crumbs: ["安装包"] };
+    case "/knowledge":
+      return { section: "settings", crumbs: ["知识库"] };
     case "/link-upstream":
       return { section: "settings", crumbs: ["链接上级"] };
     case "/":

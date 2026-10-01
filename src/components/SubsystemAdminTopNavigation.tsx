@@ -206,6 +206,22 @@ function IconRevocation() {
   );
 }
 
+/** 知识库：书本外形 —— 网关装载的策展内容（目录 / 包 / 模板 + 规则 + 策略）。 */
+function IconKnowledge() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M8 3.5C6.6 2.6 4.6 2.5 2.6 3v9.4c2-.5 4-.4 5.4.5 1.4-.9 3.4-1 5.4-.5V3c-2-.5-4-.4-5.4.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path d="M8 3.5v9.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -233,10 +249,12 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       // 「链接上级」= 把本网关接入**上级控制中心**（Center 那一侧）—— 页名点明动作与对象。
       { to: "/link-upstream", label: "链接上级", icon: <IconLinkUpstream /> },
-      // 网关对外地址与上送目标合成一页，两项都由部署配置派生（本页只读展示）。
+      // 网关对外地址（只读，由部署配置派生）与数据面上送目标 + 启用开关（可改）合成一页。
       { to: "/gateway-info", label: "Gateway 信息", icon: <IconGatewayInfo /> },
       // 取包来源单独一页（从该页拆回）：配网关从哪取件 + 看已录入的包历史。
       { to: "/install-package", label: "安装包", icon: <IconPackage /> },
+      // 策展内容（知识库）单独一页：录入包 + 切生效版本 + 看谁还锁在旧版目录。
+      { to: "/knowledge", label: "知识库", icon: <IconKnowledge /> },
       { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
     ],
   },

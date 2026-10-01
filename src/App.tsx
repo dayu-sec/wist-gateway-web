@@ -6,6 +6,7 @@ import { SubsystemAgentInstallPage } from "./components/SubsystemAgentInstallPag
 import { SubsystemLinkUpstreamPage } from "./components/SubsystemLinkUpstreamPage";
 import { SubsystemGatewayInfoPage } from "./components/SubsystemGatewayInfoPage";
 import { SubsystemAgentPackagePage } from "./components/SubsystemAgentPackagePage";
+import { SubsystemKnowledgePage } from "./components/SubsystemKnowledgePage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentPurposePage } from "./components/SubsystemAgentPurposePage";
 import { SubsystemAgentHostListPage } from "./components/SubsystemAgentHostListPage";
@@ -27,15 +28,17 @@ export function App() {
         <Route path="/install" element={<SubsystemAgentInstallPage />} />
         <Route path="/gateway-info" element={<SubsystemGatewayInfoPage />} />
         <Route path="/install-package" element={<SubsystemAgentPackagePage />} />
+        <Route path="/knowledge" element={<SubsystemKnowledgePage />} />
         <Route
           path="/link-upstream"
           element={<SubsystemLinkUpstreamPage />}
         />
         {/* 旧入口一律留重定向，外部链接与书签不至于落到 404：
             「Gateway 初始化 / /gateway-init」（与已并入它的 /uplink、/agent-init）已改名
-            「Gateway 信息 / /gateway-info」—— 它现在是**只读展示**，不再有录入动作；
+            「Gateway 信息 / /gateway-info」—— 网关对外地址**只读展示**，数据面上送地址与启用开关可改；
             「初始化 Gateway / /init」已改名「链接上级 / /link-upstream」。
             （安装包已从该页拆回独立页 /install-package，见上。）
+            （知识库内容是独立页 /knowledge —— 它像安装包一样是「录入 + 切生效」的管理对象。）
             （已去掉的 /control 页落到下方的 `*` → 回首页。） */}
         <Route path="/gateway-init" element={<Navigate to="/gateway-info" replace />} />
         <Route path="/uplink" element={<Navigate to="/gateway-info" replace />} />

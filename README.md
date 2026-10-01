@@ -65,7 +65,7 @@ npm run preview  # 预览构建产物
 
 ```bash
 npm run test:bundle              # 校验 admin token 等敏感信息未泄漏进产物
-npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读、旧路名有重定向）
+npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读那一项 + 可写那一项、旧路名有重定向）
 npm run test:gateway-initialize  # 校验网关初始化材料（initial-config）接口契约
 ```
 
@@ -79,8 +79,9 @@ npm run test:gateway-initialize  # 校验网关初始化材料（initial-config�
 | `/` | Agent 总览 |
 | `/install` | 安装 Agent |
 | `/link-upstream` | 链接上级（接入上级控制中心） |
-| `/gateway-info` | Gateway 信息（网关对外地址 / 数据面上送地址，只读） |
+| `/gateway-info` | Gateway 信息（网关对外地址，只读 / 数据面上送地址与开关，可改） |
 | `/install-package` | 安装包（取包来源 / 已录入的安装包） |
+| `/knowledge` | 知识库（策展内容：录入包 / 切换生效版本 / 锁旧版的工作） |
 | `/init` | 已改名 `/link-upstream`，保留重定向 |
 | `/gateway-init`、`/uplink`、`/agent-init` | 已改名 `/gateway-info`，保留重定向 |
 | `/hosts` | 主机列表 |

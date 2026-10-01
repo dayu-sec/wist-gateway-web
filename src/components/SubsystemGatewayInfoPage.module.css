@@ -30,8 +30,8 @@
   line-height: 1.65;
 }
 
-/* 一张卡 = 一个设置项：卡头（标签/标题/说明）+ 只读的当前值。两项都由部署配置决定，
-   本页没有可写控件，所以卡片到此为止。 */
+/* 一张卡 = 一个设置项：卡头（标签/标题/说明）+ 当前生效值（只读）+ 可写表单。
+   对外地址那一张没有可写控件（由部署配置决定），第二张有。 */
 .card {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -236,6 +236,155 @@
   line-height: 1.55;
 }
 
+/* 可写区：与当前值区隔一条线（上方是「现在是什么」，下方是「要改成什么」）。 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 20px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* 主机与端口同排：它们同属「目标」这一个概念，拆成两行会让端口看起来像另一个设置项。 */
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex: 1 1 200px;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field input {
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.field input:focus {
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.field small,
+.checkRow small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+/* 开关：全队动作，所以给足一行自己的空间，不与目标字段挤在一排。 */
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkRow input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.primaryButton {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primaryButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.primaryButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  cursor: not-allowed;
+}
+
+.actionHint {
+  flex: 1 1 240px;
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.formHint {
+  padding: 9px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.errorBanner {
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.formNotice {
+  padding: 10px 12px;
+  border: 1px solid var(--ok-border);
+  border-radius: var(--radius-sm);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
 @media (max-width: 560px) {
   .main {
     padding: 22px 16px 40px;
@@ -243,6 +392,11 @@
 
   .cardHead,
   .summaryNotices {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .form {
     padding-left: 16px;
     padding-right: 16px;
   }

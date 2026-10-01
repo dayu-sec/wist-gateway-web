@@ -266,7 +266,11 @@ export interface SetAgentInstallPackageCommand {
  * ② 没设过 → 按部署配置派生：与网关对外地址同域 + 数据面端口（一台机器、一个域名）。
  *   此时 `updatedAt` 为 null —— 页面据此显示「来自部署配置」。
  *
- * 是否启用由控制面派活决定：有生效工作且有目标（两种来源都算）→ 启用；否则 Agent 待命
+ * 是否启用由两道**并集**决定（见网关 `build_agent_uplink_grant`）：
+ * ① 该 Agent 有生效工作（派工即启用、撤回即待命）；
+ * ② 部署级 `enabled` 开关打开 —— 它回答「这套网关现在收不收数据面数据」，与「这台干什么活」
+ *    正交。新装的机器没有活，光靠 ① 会永远待命（注册成功却什么也干不了）。
+ * 还有目标（两种来源都算）才能真启用；否则 Agent 待命
  * （不采集日志、也不向数据面上送；但事实摘要仍上报，见待命语义）。
  *
  * `updatedAt` 为 null = 不是管理面录入的值（`host` 可能是派生值）；
@@ -276,6 +280,15 @@ export interface AgentUplink {
   settingId: string;
   host: string;
   port: number;
+  /** 部署级启用开关的生效值（见上面的 ②）。 */
+  enabled: boolean;
+  /**
+   * `enabled` 是不是管理面**录入**的（而不是派生的默认 `false`）。
+   *
+   * 为什么与 `enabled` 分开：页面要能区分「从未录入过」与「录入过一次、开着/关着」。
+   * 与 `updatedAt` 同口径（同一个设置行的更新时刻）。
+   */
+  enabledConfigured: boolean;
   updatedBy: string;
   updatedAt: string | null;
 }
@@ -283,6 +296,13 @@ export interface AgentUplink {
 export interface SetAgentUplinkCommand {
   host: string;
   port: number;
+  /**
+   * 部署级启用开关。**必填**：表单总是显式给出当前值。
+   *
+   * 后端对缺失值是「按 false 处理」（兼容老前端），所以这里不能依赖它 ——
+   * 编辑地址时把开关忘了带上去，会被读成「关掉」而不是「不动」。
+   */
+  enabled: boolean;
   requestedBy?: string;
 }
 
@@ -1140,6 +1160,11 @@ export function normalizeAgentUplink(payload: any): AgentUplink {
     ),
     host: requiredString(setting.host, "agentUplink.host"),
     port: requiredNumber(setting.port, "agentUplink.port"),
+    enabled: requiredBoolean(setting.enabled, "agentUplink.enabled"),
+    enabledConfigured: requiredBoolean(
+      setting.enabled_configured ?? setting.enabledConfigured,
+      "agentUplink.enabledConfigured",
+    ),
     updatedBy: requiredString(
       setting.updated_by ?? setting.updatedBy,
       "agentUplink.updatedBy",
@@ -1218,10 +1243,13 @@ export async function fetchAgentUplink(): Promise<AgentUplink> {
 }
 
 /**
- * 设置 Agent 的数据面上送地址（管理面）。
+ * 设置 Agent 的数据面上送目标与启用开关（管理面）。
  *
  * 主机不能为空，端口必须是 1–65535 的整数；不符合要求时后端返回 400 纯文本。
- * 设置只影响之后新签发的 Agent 初始配置，不影响已分发的 Agent。
+ *
+ * 它是**运行期**值：网关在 `uplink:poll` 上现算上送授权，所以保存后对**已在网**的 Agent
+ * 下一个 poll（≤30s）就生效，不需要重装、也不需要重跑安装脚本。只有网关签发的初始配置
+ * 始终是待命（安装脚本是死数据，开关必须是运行期的）。
  */
 export async function setAgentUplink(
   command: SetAgentUplinkCommand,
@@ -1231,6 +1259,7 @@ export async function setAgentUplink(
     body: JSON.stringify({
       host: command.host,
       port: command.port,
+      enabled: command.enabled,
       requested_by: command.requestedBy,
     }),
   });
@@ -3013,4 +3042,494 @@ export async function advanceRolloutPlan(planId: string): Promise<RolloutPlanVie
     { method: "POST", body: JSON.stringify({ plan_id: planId }) },
   );
   return normalizeRolloutPlan(payload);
+}
+
+// ── 知识库内容（策展数据）的管理与发布 ───────────────────────────────────────
+//
+// 网关的「知识库」= 采集目录 / 采集包 / 采集模板 + 用途规则 + 发现策略这五份策展数据。
+// 它们**不再**从配置文件装载（`[content]` / `[purpose]` / `[discovery]` 的 `*_file` 已退役），
+// 而是像 Agent 安装包一样由管理面录入、激活、回滚，且**不重启热加载**（设计
+// `wist-gateway/docs/design/knowledge-content-management.md` §8.1）。
+//
+// 三件事在这里被钉住：
+//   1. **录入 ≠ 生效**：`POST …/packages` 只落盘登记，`POST …/packages/{id}/activate` 才切指针；
+//   2. **空载不是错误**：`GET …/knowledge` 回 `configured: false` + `hint`，页面据此给「怎么办」；
+//   3. **错误正文是 `{code, message}`**（`knowledge_ops::KnowledgeErrorBody`），页面靠 `code`
+//      分辨「包不对」与「网关换了库」，所以 `parseKnowledgeErrorDetail` 把它解出来。
+
+/** 网关**当前生效**的知识库内容（`GET /api/v1/admin/knowledge`）。 */
+export interface KnowledgeView {
+  /** `none`（空载）| `config-files`（过渡期：仍从配置文件装载）| `package`（管理面登记的包）。 */
+  source: string;
+  /** `false` = 空载。**不是错误**：此时不产「系统类型」与用途建议，发现策略用 agentd 内建默认值。 */
+  configured: boolean;
+  /** 生效包的 id（`kbp-<tarball sha256 前 16>`）；空载 / 过渡态为 `null`。 */
+  packageId: string | null;
+  /** 世代号：每次激活 +1。派生结果「算自哪一版」的表级锚。 */
+  generation: number;
+  /** 五份数据各自声明的版本（取得到就报）。 */
+  catalogVersion: number | null;
+  templateVersion: number | null;
+  policyVersion: number | null;
+  purposeVersion: number | null;
+  /** 生效包的登记信息（谁、什么时候切的）；空载或过渡态为 `null`。 */
+  active: KnowledgeActiveView | null;
+  /** 空载时给运维看的「为什么 + 怎么办」；有配置时为 `null`。 */
+  hint: string | null;
+  /** 最近几次切换（激活 / 回滚），最近优先。 */
+  activations: KnowledgeActivationView[];
+}
+
+/** 生效包的登记信息（`GET …/knowledge` 的 `active`）。 */
+export interface KnowledgeActiveView {
+  packageId: string;
+  activatedBy: string;
+  activatedAt: string;
+}
+
+/** 一次切换（激活 / 回滚）的审计记录。 */
+export interface KnowledgeActivationView {
+  /** 切之前生效的是哪一版；首次激活为 `null` —— 它也就是「回滚到上一版」的目标。 */
+  fromPackage: string | null;
+  toPackage: string;
+  generation: number;
+  /** `activate` | `rollback` | `repair`。 */
+  reason: string;
+  requestedBy: string;
+  createdAt: string;
+}
+
+/** 网关**已录入**的一个知识库包（`packages[]` 的一项 / 录入与激活的响应）。 */
+export interface KnowledgePackageView {
+  /** 内容寻址 id：`kbp-<来源 tarball 的 sha256 前 16>`。 */
+  packageId: string;
+  /** 录入时给的来源（只留痕）。 */
+  source: string;
+  /** 来源 tarball 的 sha256（**不带** `sha256:` 前缀）。 */
+  packageSha256: string;
+  /** 包自报版本（`wist-knowledge` 的 `version.txt`）。 */
+  version: string;
+  catalogVersion: number | null;
+  templateVersion: number | null;
+  policyVersion: number | null;
+  purposeVersion: number | null;
+  /** 验签通过时是公钥指纹；空串 = 网关**没配验签公钥**（只记了摘要，未验签）。 */
+  signedBy: string;
+  /** 网关侧副本目录（容器内路径）。 */
+  cachedPath: string;
+  createdBy: string;
+  createdAt: string;
+  /** 是不是**当前生效**的那一版。 */
+  active: boolean;
+  /** 副本还在不在（被手工删过 / 备份还原不完整时为 `false`）。 */
+  available: boolean;
+  /** 副本里实际有哪些文件（逐条 sha256）；副本不在时为空。 */
+  files: KnowledgeFileView[];
+}
+
+/** 包副本里的一个文件。 */
+export interface KnowledgeFileView {
+  name: string;
+  sha256: string;
+  bytes: number;
+}
+
+/** **谁还锁在旧版目录**（`GET …/knowledge/locks`）。 */
+export interface KnowledgeLocksView {
+  /** 当前生效包声明的目录版本；切新版后，旧版工作仍锁在旧号上。 */
+  activeCatalogVersion: number | null;
+  /** 按 `catalog_version` 分组的**在跑**常驻工作数。 */
+  locks: KnowledgeLockView[];
+}
+
+/** 一组锁在同一个目录版本上的工作数。 */
+export interface KnowledgeLockView {
+  catalogVersion: number;
+  works: number;
+}
+
+/** 录入一个知识库包。`activate` 缺省 `false`（录入 ≠ 生效）。 */
+export interface RecordKnowledgePackageCommand {
+  /** `https://…` 链接，或**容器内**绝对路径（宿主路径容器里看不见）。 */
+  source: string;
+  /** 可选的期望摘要（发布侧 `*.sha256` 里那串），与来源字节核对。 */
+  sha256?: string;
+  /** 录入成功后是否立即激活。缺省 `false`。 */
+  activate?: boolean;
+  requestedBy?: string;
+}
+
+/** 切换生效指针。`reason` 缺省 `activate`；回滚就是「把指针指回上一版」。 */
+export interface ActivateKnowledgePackageCommand {
+  reason?: "activate" | "rollback" | "repair";
+  requestedBy?: string;
+}
+
+function normalizeKnowledgeActivation(
+  payload: unknown,
+  index: number,
+): KnowledgeActivationView {
+  const at = `knowledge.activations[${index}]`;
+  const record = requiredRecord(payload, at);
+  return {
+    fromPackage: nullableStringField(
+      record,
+      ["from_package", "fromPackage"],
+      `${at}.fromPackage`,
+    ),
+    toPackage: requiredString(
+      presentField(record, ["to_package", "toPackage"], `${at}.toPackage`),
+      `${at}.toPackage`,
+    ),
+    generation: requiredNumber(
+      presentField(record, ["generation"], `${at}.generation`),
+      `${at}.generation`,
+    ),
+    reason: requiredString(
+      presentField(record, ["reason"], `${at}.reason`),
+      `${at}.reason`,
+    ),
+    requestedBy: requiredString(
+      presentField(
+        record,
+        ["requested_by", "requestedBy"],
+        `${at}.requestedBy`,
+      ),
+      `${at}.requestedBy`,
+    ),
+    createdAt: requiredString(
+      presentField(record, ["created_at", "createdAt"], `${at}.createdAt`),
+      `${at}.createdAt`,
+    ),
+  };
+}
+
+/** `GET /api/v1/admin/knowledge` 的解析。空载（`configured: false`）是**合法结果**，不是错误。 */
+export function normalizeKnowledge(payload: unknown): KnowledgeView {
+  const record = requiredRecord(payload, "knowledge");
+  const active = nullableRecordField(record, ["active"], "knowledge.active");
+  return {
+    source: requiredString(
+      presentField(record, ["source"], "knowledge.source"),
+      "knowledge.source",
+    ),
+    configured: requiredBoolean(
+      presentField(record, ["configured"], "knowledge.configured"),
+      "knowledge.configured",
+    ),
+    packageId: nullableStringField(
+      record,
+      ["package_id", "packageId"],
+      "knowledge.packageId",
+    ),
+    generation: requiredNumber(
+      presentField(record, ["generation"], "knowledge.generation"),
+      "knowledge.generation",
+    ),
+    catalogVersion: nullableNumberField(
+      record,
+      ["catalog_version", "catalogVersion"],
+      "knowledge.catalogVersion",
+    ),
+    templateVersion: nullableNumberField(
+      record,
+      ["template_version", "templateVersion"],
+      "knowledge.templateVersion",
+    ),
+    policyVersion: nullableNumberField(
+      record,
+      ["policy_version", "policyVersion"],
+      "knowledge.policyVersion",
+    ),
+    purposeVersion: nullableNumberField(
+      record,
+      ["purpose_version", "purposeVersion"],
+      "knowledge.purposeVersion",
+    ),
+    active: active
+      ? {
+          packageId: requiredString(
+            presentField(
+              active,
+              ["package_id", "packageId"],
+              "knowledge.active.packageId",
+            ),
+            "knowledge.active.packageId",
+          ),
+          activatedBy: requiredString(
+            presentField(
+              active,
+              ["activated_by", "activatedBy"],
+              "knowledge.active.activatedBy",
+            ),
+            "knowledge.active.activatedBy",
+          ),
+          activatedAt: requiredString(
+            presentField(
+              active,
+              ["activated_at", "activatedAt"],
+              "knowledge.active.activatedAt",
+            ),
+            "knowledge.active.activatedAt",
+          ),
+        }
+      : null,
+    hint: nullableStringField(record, ["hint"], "knowledge.hint"),
+    activations: requiredArray(
+      presentField(record, ["activations"], "knowledge.activations"),
+      "knowledge.activations",
+    ).map(normalizeKnowledgeActivation),
+  };
+}
+
+function normalizeKnowledgeFile(
+  payload: unknown,
+  index: number,
+): KnowledgeFileView {
+  const at = `knowledgePackage.files[${index}]`;
+  const record = requiredRecord(payload, at);
+  return {
+    name: requiredString(
+      presentField(record, ["name"], `${at}.name`),
+      `${at}.name`,
+    ),
+    sha256: requiredString(
+      presentField(record, ["sha256"], `${at}.sha256`),
+      `${at}.sha256`,
+    ),
+    bytes: requiredNumber(
+      presentField(record, ["bytes"], `${at}.bytes`),
+      `${at}.bytes`,
+    ),
+  };
+}
+
+/** 已录入包一项的解析（列表项、录入响应、激活响应都是这个形状）。 */
+export function normalizeKnowledgePackage(
+  payload: unknown,
+): KnowledgePackageView {
+  const record = requiredRecord(payload, "knowledgePackage");
+  return {
+    packageId: requiredString(
+      presentField(
+        record,
+        ["package_id", "packageId"],
+        "knowledgePackage.packageId",
+      ),
+      "knowledgePackage.packageId",
+    ),
+    source: requiredString(
+      presentField(record, ["source"], "knowledgePackage.source"),
+      "knowledgePackage.source",
+    ),
+    packageSha256: requiredString(
+      presentField(
+        record,
+        ["package_sha256", "packageSha256"],
+        "knowledgePackage.packageSha256",
+      ),
+      "knowledgePackage.packageSha256",
+    ),
+    version: requiredString(
+      presentField(record, ["version"], "knowledgePackage.version"),
+      "knowledgePackage.version",
+    ),
+    catalogVersion: nullableNumberField(
+      record,
+      ["catalog_version", "catalogVersion"],
+      "knowledgePackage.catalogVersion",
+    ),
+    templateVersion: nullableNumberField(
+      record,
+      ["template_version", "templateVersion"],
+      "knowledgePackage.templateVersion",
+    ),
+    policyVersion: nullableNumberField(
+      record,
+      ["policy_version", "policyVersion"],
+      "knowledgePackage.policyVersion",
+    ),
+    purposeVersion: nullableNumberField(
+      record,
+      ["purpose_version", "purposeVersion"],
+      "knowledgePackage.purposeVersion",
+    ),
+    signedBy: requiredString(
+      presentField(
+        record,
+        ["signed_by", "signedBy"],
+        "knowledgePackage.signedBy",
+      ),
+      "knowledgePackage.signedBy",
+    ),
+    cachedPath: requiredString(
+      presentField(
+        record,
+        ["cached_path", "cachedPath"],
+        "knowledgePackage.cachedPath",
+      ),
+      "knowledgePackage.cachedPath",
+    ),
+    createdBy: requiredString(
+      presentField(
+        record,
+        ["created_by", "createdBy"],
+        "knowledgePackage.createdBy",
+      ),
+      "knowledgePackage.createdBy",
+    ),
+    createdAt: requiredString(
+      presentField(
+        record,
+        ["created_at", "createdAt"],
+        "knowledgePackage.createdAt",
+      ),
+      "knowledgePackage.createdAt",
+    ),
+    active: requiredBoolean(
+      presentField(record, ["active"], "knowledgePackage.active"),
+      "knowledgePackage.active",
+    ),
+    available: requiredBoolean(
+      presentField(record, ["available"], "knowledgePackage.available"),
+      "knowledgePackage.available",
+    ),
+    files: requiredArray(
+      presentField(record, ["files"], "knowledgePackage.files"),
+      "knowledgePackage.files",
+    ).map(normalizeKnowledgeFile),
+  };
+}
+
+/** `GET …/knowledge/locks` 的解析。 */
+export function normalizeKnowledgeLocks(payload: unknown): KnowledgeLocksView {
+  const record = requiredRecord(payload, "knowledgeLocks");
+  return {
+    activeCatalogVersion: nullableNumberField(
+      record,
+      ["active_catalog_version", "activeCatalogVersion"],
+      "knowledgeLocks.activeCatalogVersion",
+    ),
+    locks: requiredArray(
+      presentField(record, ["locks"], "knowledgeLocks.locks"),
+      "knowledgeLocks.locks",
+    ).map((entry, index) => {
+      const at = `knowledgeLocks.locks[${index}]`;
+      const lock = requiredRecord(entry, at);
+      return {
+        catalogVersion: requiredNumber(
+          presentField(
+            lock,
+            ["catalog_version", "catalogVersion"],
+            `${at}.catalogVersion`,
+          ),
+          `${at}.catalogVersion`,
+        ),
+        works: requiredNumber(
+          presentField(lock, ["works"], `${at}.works`),
+          `${at}.works`,
+        ),
+      };
+    }),
+  };
+}
+
+/**
+ * 网关知识库接口的错误正文是 `{code, message}`（不是自由文本），把它解出来。
+ *
+ * 为什么要 `code`：`package_not_found`（包没了）与 `unknown_credential` 一类**谁能修**完全不同，
+ * 页面得照着给处置建议。解不出来（网关换了构建、正文被代理截断）就回 `null`，原文照常展示。
+ */
+export function parseKnowledgeErrorDetail(
+  detail: string | undefined,
+): { code: string; message: string } | null {
+  if (!detail) return null;
+  try {
+    const parsed: unknown = JSON.parse(detail);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const body = parsed as Record<string, unknown>;
+    if (typeof body.message !== "string") return null;
+    return {
+      code: typeof body.code === "string" ? body.code : "",
+      message: body.message,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** 当前生效的知识库内容（空载时回 `configured: false`，**不是 503**）。 */
+export async function fetchKnowledge(): Promise<KnowledgeView> {
+  const payload = await requestJson<unknown>("/api/v1/admin/knowledge");
+  return normalizeKnowledge(payload);
+}
+
+/** 录入过的知识库包（最近优先）。接口回的是**裸数组**（与安装包那条 `{packages:[]}` 不同）。 */
+export async function fetchKnowledgePackages(): Promise<
+  KnowledgePackageView[]
+> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/knowledge/packages",
+  );
+  return requiredArray(payload, "knowledgePackages").map(
+    normalizeKnowledgePackage,
+  );
+}
+
+/** 单个包的明细（含副本里实际有哪些文件、是否还在）。 */
+export async function fetchKnowledgePackage(
+  packageId: string,
+): Promise<KnowledgePackageView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/knowledge/packages/${encodeURIComponent(packageId)}`,
+  );
+  return normalizeKnowledgePackage(payload);
+}
+
+/**
+ * 录入一个知识库包。**不激活**，除非 `activate: true`。
+ *
+ * 网关先取包、再跑完整校验链（sha256 → manifest 自洽 → 装载器校验 → 签名），
+ * 任一不过整次录入都不生效 —— 既不落库也不覆盖已有副本。
+ */
+export async function recordKnowledgePackage(
+  command: RecordKnowledgePackageCommand,
+): Promise<KnowledgePackageView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/knowledge/packages",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        source: command.source,
+        sha256: command.sha256,
+        activate: command.activate ?? false,
+        requested_by: command.requestedBy,
+      }),
+    },
+  );
+  return normalizeKnowledgePackage(payload);
+}
+
+/** 切换生效指针（激活 / 回滚）。**先验后切**：装载校验失败就完全不动现状。 */
+export async function activateKnowledgePackage(
+  packageId: string,
+  command: ActivateKnowledgePackageCommand = {},
+): Promise<KnowledgePackageView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/knowledge/packages/${encodeURIComponent(packageId)}/activate`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        reason: command.reason,
+        requested_by: command.requestedBy,
+      }),
+    },
+  );
+  return normalizeKnowledgePackage(payload);
+}
+
+/** **谁还锁在旧版目录**：换版不追改在跑的工作，所以要看得见。 */
+export async function fetchKnowledgeLocks(): Promise<KnowledgeLocksView> {
+  const payload = await requestJson<unknown>("/api/v1/admin/knowledge/locks");
+  return normalizeKnowledgeLocks(payload);
 }

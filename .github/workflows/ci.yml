@@ -38,8 +38,19 @@ jobs:
       - name: Test (routes contract)
         run: npm run test:routes
 
+      # 上送目标 + 启用开关的契约（host/port/enabled 的收发与默认值）。
+      - name: Test (agent uplink contract)
+        run: npm run test:uplink
+
+      # 上送表单的决策（没改动不许存 / 校验文案 / 全队动作警告的时机）。
+      - name: Test (agent uplink form)
+        run: npm run test:uplink-form
+
       - name: Test (gateway initialize contract)
         run: npm run test:gateway-initialize
 
       - name: Test (agent purpose contract)
         run: npm run test:agent-purpose
+
+      - name: Test (knowledge contract)
+        run: npm run test:knowledge
