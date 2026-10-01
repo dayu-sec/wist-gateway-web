@@ -4,6 +4,7 @@ import { SubsystemRecentOnlineRegisteredAgentPanel } from "./SubsystemRecentOnli
 import { SubsystemAbnormalAgentPanel } from "./SubsystemAbnormalAgentPanel";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { isRateLimitedError } from "../api";
+import { adminApiErrorMessage } from "./adminApiError";
 import { useAgentOverview } from "../hooks";
 
 interface SubsystemAdminHomePageProps {
@@ -25,9 +26,8 @@ export function SubsystemAdminHomePage({}: SubsystemAdminHomePageProps) {
         isRateLimitedError(error) ? (
           <RateLimitNotice error={error} />
         ) : (
-          <div className={styles.errorBanner}>
-            无法连接 warp-insight-admin，请确认管理服务已启动。
-          </div>
+          // 不再自己编一句话：服务端正文（若给了）比任何通用提示都准。
+          <div className={styles.errorBanner}>{adminApiErrorMessage(error)}</div>
         )
       ) : null}
       <SubsystemAgentStatusOverviewMetrics

@@ -4,7 +4,8 @@ import { SubsystemBootstrapTokenCard } from "./SubsystemBootstrapTokenCard";
 import { SubsystemX86LinuxInstallCode } from "./SubsystemX86LinuxInstallCode";
 import { SubsystemArmLinuxInstallCode } from "./SubsystemArmLinuxInstallCode";
 import { SubsystemMacOSInstallCode } from "./SubsystemMacOSInstallCode";
-import { ApiError, isRateLimitedError } from "../api";
+import { isRateLimitedError } from "../api";
+import { adminApiErrorMessage } from "./adminApiError";
 import { useAgentInstallCode } from "../hooks";
 import { RateLimitNotice } from "./RateLimitNotice";
 
@@ -20,7 +21,6 @@ export function SubsystemAgentInstallPage() {
   const { data, isLoading, isError, error } = useAgentInstallCode();
   const [activeArch, setActiveArch] = useState<ArchKey>("x86");
 
-  const authError = isError && error instanceof ApiError && error.status === 401;
   const token = data?.bootstrapEnrollmentToken;
 
   return (
@@ -40,16 +40,8 @@ export function SubsystemAgentInstallPage() {
         isRateLimitedError(error) ? (
           <RateLimitNotice error={error} />
         ) : (
-          <div className={styles.errorBanner}>
-            {authError ? (
-              <>
-                Admin Token 缺失或无效，无法获取安装代码。请在上方输入正确的
-                Admin Token 并点击"应用"。
-              </>
-            ) : (
-              <>无法获取安装代码，请确认 warp-insight-admin 已启动。</>
-            )}
-          </div>
+          // 不再自己编一句话：服务端的 500 正文（如“没有可用的 agent 安装包…”）比任何通用提示都准。
+          <div className={styles.errorBanner}>{adminApiErrorMessage(error)}</div>
         )
       ) : null}
       <div className={styles.content}>

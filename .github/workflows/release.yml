@@ -50,6 +50,10 @@ jobs:
       - name: Test (knowledge contract)
         run: npm run test:knowledge
 
+      # 管理接口读取失败的文案（服务端正文必须透出来，通用话只能兜底）。
+      - name: Test (admin api error messages)
+        run: npm run test:admin-api-error
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]

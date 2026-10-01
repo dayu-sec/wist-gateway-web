@@ -15,6 +15,7 @@
     "test:install-package": "tsx tests/install-package-contract.test.ts",
     "test:install-packages": "tsx tests/install-packages-contract.test.ts",
     "test:knowledge": "tsx tests/knowledge-contract.test.ts",
+    "test:admin-api-error": "tsx tests/admin-api-error.test.ts",
     "test:agent-delete": "tsx tests/agent-delete-contract.test.ts",
     "test:agent-purpose": "tsx tests/agent-purpose-contract.test.ts",
     "test:software-inventory": "tsx tests/software-inventory-contract.test.ts",

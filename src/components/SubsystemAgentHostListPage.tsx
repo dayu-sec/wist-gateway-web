@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import styles from "./SubsystemAgentHostListPage.module.css";
 import { useAllAgentsHostMetrics } from "../hooks";
+import { adminApiErrorMessage } from "./adminApiError";
 import {
   formatKiB,
   formatNumber,
@@ -69,7 +70,7 @@ function severityClass(kind: "badge" | "text" | "bar", severity: Severity) {
 }
 
 export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) {
-  const { data, isLoading, isError } = useAllAgentsHostMetrics();
+  const { data, isLoading, isError, error } = useAllAgentsHostMetrics();
   const [query, setQuery] = useState("");
   const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("severity");
@@ -183,9 +184,8 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
       </header>
 
       {isError ? (
-        <div className={styles.errorBanner}>
-          无法连接 warp-insight-admin，请确认管理服务已启动并在左下角设置 Admin Token。
-        </div>
+        // 不再自己编一句话：服务端正文（若给了）比任何通用提示都准。
+        <div className={styles.errorBanner}>{adminApiErrorMessage(error)}</div>
       ) : null}
 
       {isLoading ? (
