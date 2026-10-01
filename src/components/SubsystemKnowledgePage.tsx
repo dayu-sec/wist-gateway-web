@@ -16,6 +16,8 @@ import {
   knowledgePackageVersionSummary,
   knowledgeShaLabel,
   knowledgeSignatureLabel,
+  knowledgeSourceKind,
+  knowledgeSourceText,
   knowledgeVersionLabel,
   knowledgeVersionSummary,
   lockedWorkTotal,
@@ -74,7 +76,10 @@ export function SubsystemKnowledgePage() {
   const activePkg = findActiveKnowledgePackage(history, activePackageId);
   const rollback = current ? rollbackTarget(current, history) : null;
   // 「已录入但没生效」是可以的，所以历史表要能一眼分出「生效」与「只是存着」。
-  const isPackageMode = current?.source === "package";
+  // 来源态：`package` 才走「生效包」那套（有 id、可回滚）；`dir` 是出厂初始包（有内容但不走
+  // 管理面）；两者都不是才算过渡态。以前只认 `package`，于是初始包被说成「从配置文件装载（过渡态）」。
+  const sourceKind = current ? knowledgeSourceKind(current.source) : "none";
+  const isPackageMode = sourceKind === "package";
 
   const canSubmit = source.trim().length > 0 && !record.isPending;
 
@@ -189,8 +194,14 @@ export function SubsystemKnowledgePage() {
                     </span>
                   )
                 ) : (
-                  <span className={styles.currentUnknown}>
-                    从配置文件装载（过渡态）
+                  <span
+                    className={
+                      sourceKind === "initial"
+                        ? styles.currentLabel
+                        : styles.currentUnknown
+                    }
+                  >
+                    {knowledgeSourceText(sourceKind)}
                   </span>
                 )}
                 <span className={styles.currentTime}>

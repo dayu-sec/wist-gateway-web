@@ -3059,7 +3059,10 @@ export async function advanceRolloutPlan(planId: string): Promise<RolloutPlanVie
 
 /** 网关**当前生效**的知识库内容（`GET /api/v1/admin/knowledge`）。 */
 export interface KnowledgeView {
-  /** `none`（空载）| `config-files`（过渡期：仍从配置文件装载）| `package`（管理面登记的包）。 */
+  /**
+   * `none`（空载）| `config-files`（从配置文件装载，过渡态）| `package`（管理面登记的包）
+   * | `dir`（**出厂初始包**：`[knowledge] source_dir`，有内容但不走管理面）。
+   */
   source: string;
   /** `false` = 空载。**不是错误**：此时不产「系统类型」与用途建议，发现策略用 agentd 内建默认值。 */
   configured: boolean;

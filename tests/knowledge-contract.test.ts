@@ -19,6 +19,8 @@ import {
   knowledgePackageVersionSummary,
   knowledgeShaLabel,
   knowledgeSignatureLabel,
+  knowledgeSourceKind,
+  knowledgeSourceText,
   knowledgeVersionLabel,
   knowledgeVersionSummary,
   lockedWorkTotal,
@@ -587,6 +589,49 @@ check(
     "网关没有应答",
   ),
   "动作失败遇上空正文 5xx 也要说「网关没应答」",
+);
+
+// ── ④ 出厂初始包（`[knowledge] source_dir`）：来源是 `dir` ────────────────────
+// 有内容、但不走管理面：既没有 package_id / 回滚，也不是「过渡态」。
+responder = () =>
+  json({
+    source: "dir",
+    configured: true,
+    package_id: null,
+    generation: 0,
+    catalog_version: 12,
+    template_version: 12,
+    policy_version: 5,
+    purpose_version: 3,
+    active: null,
+    hint: null,
+    activations: [],
+  });
+const initial = await fetchKnowledge();
+check(
+  initial.source === "dir" &&
+    initial.configured === true &&
+    initial.packageId === null &&
+    initial.active === null,
+  "出厂初始包（source=dir）的口径不对：有内容、但没有 package_id / active",
+);
+check(
+  knowledgeSourceKind(initial.source) === "initial",
+  "`dir` 必须映射成 initial —— 否则页面把出厂初始包说成「从配置文件装载（过渡态）」",
+);
+check(
+  knowledgeSourceText("initial").includes("初始包"),
+  "initial 那一行要明说这是出厂初始包",
+);
+check(
+  knowledgeSourceKind("package") === "package" &&
+    knowledgeSourceKind("config-files") === "config-files" &&
+    knowledgeSourceKind("none") === "none",
+  "其余来源态不能被我 dir 带歪",
+);
+check(
+  knowledgeSourceKind("something-new") === "config-files",
+  "未知来源当过渡态（内容确实在），别装作没有内容",
 );
 
 console.log("knowledge contract test passed");

@@ -18,6 +18,38 @@ export function knowledgeVersionLabel(pkg: KnowledgePackageView): string {
   return pkg.version ? `v${pkg.version}` : "未知版本";
 }
 
+/**
+ * 来源态：`GET …/knowledge` 的 `source` 只有四种取值，页面据此决定「现在生效的是哪一版」
+ * 那一行怎么说。
+ *
+ * `dir` = **出厂初始包**（网关配置里的 `[knowledge] source_dir`）：有内容，但不走管理面 ——
+ * 所以它既不是 `package`（没有 `package_id`、不能回滚），也不是 `config-files`（那是过渡态）。
+ * 把两者混为一谈会让页面把“已经装着出厂内容”说成“还是过渡态”。
+ */
+export function knowledgeSourceKind(
+  source: string,
+): "package" | "initial" | "config-files" | "none" {
+  if (source === "package") return "package";
+  if (source === "dir") return "initial";
+  if (source === "none") return "none";
+  // 未知取值（网关比前端新）：当过渡态说比装作“没有内容”安全 —— 内容是有的。
+  return "config-files";
+}
+
+/** 非 `package` 来源那一行的人话（`package` 走 [`knowledgeVersionLabel`]）。 */
+export function knowledgeSourceText(
+  kind: "package" | "initial" | "config-files" | "none",
+): string {
+  switch (kind) {
+    case "initial":
+      return "出厂初始包（[knowledge] source_dir）";
+    case "none":
+      return "未配置（空载）";
+    default:
+      return "从配置文件装载（过渡态）";
+  }
+}
+
 /** sha256 截短显示：前 12 位 + 省略号（与安装包页 `.metaSha` 同一口径）。 */
 export function knowledgeShaLabel(sha256: string): string {
   return sha256 ? `${sha256.slice(0, 12)}…` : "—";

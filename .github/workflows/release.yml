@@ -45,6 +45,11 @@ jobs:
       - name: Test (agent purpose contract)
         run: npm run test:agent-purpose
 
+      # 知识库契约（含出厂初始包 source=dir 的来源态映射）：发版门禁不能比 ci.yml 少跑这一条，
+      # 否则“页面把初始包说成过渡态”这类漂移只在发版前发现不了。
+      - name: Test (knowledge contract)
+        run: npm run test:knowledge
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]
