@@ -52,6 +52,10 @@ jobs:
       - name: Test (agent purpose contract)
         run: npm run test:agent-purpose
 
+      # 事实摘要「复制 JSON」粘出去的载荷（字段名/数组形态/空值保留）。
+      - name: Test (agent purpose export)
+        run: npm run test:agent-purpose-export
+
       - name: Test (knowledge contract)
         run: npm run test:knowledge
 

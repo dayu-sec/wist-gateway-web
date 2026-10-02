@@ -10,7 +10,12 @@
  */
 
 /** 机器类别（模型 `Content.MachineClass`，闭合取值）。 */
-export type MachineClass = "MacDaily" | "MacDev" | "LinuxCompute" | "LinuxData";
+export type MachineClass =
+  | "MacDaily"
+  | "MacDev"
+  | "LinuxHost"
+  | "LinuxCompute"
+  | "LinuxData";
 
 /**
  * 事实摘要（模型 `AgentFactSummary`）。

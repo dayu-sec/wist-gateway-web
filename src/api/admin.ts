@@ -1671,6 +1671,7 @@ function requiredMachineClass(value: unknown, fieldName: string): MachineClass {
   if (
     value === "MacDaily" ||
     value === "MacDev" ||
+    value === "LinuxHost" ||
     value === "LinuxCompute" ||
     value === "LinuxData"
   ) {

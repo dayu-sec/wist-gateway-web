@@ -147,6 +147,7 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
             suggestedClass={data.suggestion?.suggestedClass ?? null}
             suggestionId={data.suggestion?.suggestionId ?? null}
             hasFacts={data.factSummary !== null}
+            platform={data.factSummary?.os ?? null}
           />
           <SubsystemAgentPurposeView agentPurposeView={data} />
         </div>
@@ -158,6 +159,7 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
 const MACHINE_CLASS_OPTIONS: MachineClass[] = [
   "MacDaily",
   "MacDev",
+  "LinuxHost",
   "LinuxCompute",
   "LinuxData",
 ];
@@ -168,6 +170,8 @@ interface ClassifyPanelProps {
   suggestedClass: MachineClass | null;
   suggestionId: string | null;
   hasFacts: boolean;
+  /** 已观测到的平台（`factSummary.os`）；`null` = 还没事实（此时表单本来就被挡住）。 */
+  platform: string | null;
 }
 
 /**
@@ -186,13 +190,17 @@ function ClassifyPanel({
   suggestedClass,
   suggestionId,
   hasFacts,
+  platform,
 }: ClassifyPanelProps) {
   const mutation = useClassifyAgentPurpose(agentId);
   const [selected, setSelected] = useState<MachineClass | "">(
     currentClass ?? suggestedClass ?? "",
   );
   const [note, setNote] = useState("");
-  const value = selected || suggestedClass || "MacDaily";
+  // 既无建议也无当前判定时的默认值要**按平台**给：网关只接受与已观测平台一致的类别，
+  // 写死 MacDaily 会让 Linux 机器一点提交就 400（旧行为的坑）。
+  const fallback: MachineClass = platform === "macos" ? "MacDaily" : "LinuxHost";
+  const value = selected || suggestedClass || fallback;
 
   return (
     <section className={styles.classifyPanel} aria-labelledby="agent-purpose-classify">

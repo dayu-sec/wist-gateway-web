@@ -187,6 +187,41 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* 标签与动作同一行：动作靠右，标签靠左（动作只有事实摘要分区有）。 */
+.panelHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.panelAction {
+  flex: 0 0 auto;
+}
+
+/* 与其它分区的 .copyButton 保持同一形状（本仓各 module 各自持一份，未抽成公共样式）。 */
+.copyButton {
+  padding: 3px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.copyButton:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.copyButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
 .panelTag {
   align-self: flex-start;
   padding: 1px 7px;

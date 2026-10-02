@@ -370,6 +370,30 @@ assert(
   "classification must be normalized with its null fields intact",
 );
 
+// `LinuxHost`：无专有面的通用 Linux 服务器（linux-v1 无命中时的基线）。
+// 它必须与其余类别一样按闭合枚举解析，而不是被当成未知值抛错。
+const linuxHost = normalizeAgentPurposeView({
+  agent_id: "agent-004",
+  fact_summary: null,
+  suggestion: {
+    agent_id: "agent-004",
+    suggestion_id: "sug-linux-host",
+    suggested_class: "LinuxHost",
+    confidence: 0,
+    method: "rule",
+    rule_set_id: "linux-v1",
+    signals: [],
+    observed_at: "2026-09-22T00:00:00Z",
+    computed_at: "2026-09-22T00:00:02Z",
+  },
+  classification: null,
+  generated_at: "2026-09-22T00:00:02Z",
+});
+assert(
+  linuxHost.suggestion!.suggestedClass === "LinuxHost",
+  "LinuxHost must normalize like any other closed-set machine class",
+);
+
 // --- 5. 契约漂移必须抛错，不静默成空值 --------------------------------------
 const driftCases: [string, unknown][] = [
   ["missing agent_id", { suggestion: null, generated_at: "t" }],

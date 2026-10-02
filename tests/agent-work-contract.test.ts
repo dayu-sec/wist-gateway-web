@@ -454,6 +454,14 @@ assert(
 );
 assert(platformForMachineClass("MacDev") === "macos", "Mac* 属于 macos");
 assert(platformForMachineClass("LinuxData") === "linux", "Linux* 属于 linux");
+// 类别→平台是**闭合关系**：Mac* → macos，其余 Linux 类别 → linux。`LinuxHost` 是
+// 无专有面的通用服务器（`wist-knowledge/templates.toml` 的 `linux-host`），也不能漏。
+for (const klass of ["MacDaily", "MacDev"] as const) {
+  assert(platformForMachineClass(klass) === "macos", `${klass} 应当属于 macos`);
+}
+for (const klass of ["LinuxHost", "LinuxCompute", "LinuxData"] as const) {
+  assert(platformForMachineClass(klass) === "linux", `${klass} 应当属于 linux`);
+}
 
 const grantable = grantableFamilies(catalog, "MacDev");
 assert(grantable.length === 2, `只有可采的面可派，得到 ${grantable.length}`);

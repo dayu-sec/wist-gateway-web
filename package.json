@@ -18,6 +18,7 @@
     "test:admin-api-error": "tsx tests/admin-api-error.test.ts",
     "test:agent-delete": "tsx tests/agent-delete-contract.test.ts",
     "test:agent-purpose": "tsx tests/agent-purpose-contract.test.ts",
+    "test:agent-purpose-export": "tsx tests/agent-purpose-export.test.ts",
     "test:software-inventory": "tsx tests/software-inventory-contract.test.ts",
     "test:uplink": "tsx tests/uplink-contract.test.ts",
     "test:uplink-form": "tsx tests/uplink-form.test.ts",

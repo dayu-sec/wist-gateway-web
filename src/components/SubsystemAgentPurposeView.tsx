@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type {
   AgentClassification,
   AgentFactSummary,
@@ -13,6 +13,8 @@ import {
   confidenceTone,
   type ConfidenceTone,
 } from "./agentPurposeConfidence";
+import { factSummaryExport } from "./agentPurposeExport";
+import { CopyButton } from "./CopyButton";
 import styles from "./SubsystemAgentPurposeView.module.css";
 
 interface SubsystemAgentPurposeViewProps {
@@ -25,6 +27,7 @@ const EMPTY = "—";
 const MACHINE_CLASS_LABEL: Record<MachineClass, string> = {
   MacDaily: "macOS 日常机",
   MacDev: "macOS 开发机",
+  LinuxHost: "Linux 通用服务器",
   LinuxCompute: "Linux 计算服务器",
   LinuxData: "Linux 数据服务器",
 };
@@ -200,15 +203,21 @@ function PanelHeader({
   title,
   caption,
   titleId,
+  action,
 }: {
   tag: string;
   title: string;
   caption: string;
   titleId: string;
+  /** 可选动作区（目前只有事实摘要的「复制 JSON」）。没有就不渲染，不影响其它分区。 */
+  action?: ReactNode;
 }) {
   return (
     <header className={styles.panelHeader}>
-      <span className={styles.panelTag}>{tag}</span>
+      <div className={styles.panelHeaderTop}>
+        <span className={styles.panelTag}>{tag}</span>
+        {action ? <div className={styles.panelAction}>{action}</div> : null}
+      </div>
       <h2 className={styles.panelTitle} id={titleId}>
         {title}
       </h2>
@@ -423,6 +432,13 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
         title="Agent 事实摘要"
         caption="agentd 上报，覆盖式一台一条"
         titleId={FACT_TITLE_ID}
+        action={
+          <CopyButton
+            className={styles.copyButton}
+            label="复制 JSON"
+            text={factSummaryExport(factSummary)}
+          />
+        }
       />
 
       <dl className={styles.factGrid}>

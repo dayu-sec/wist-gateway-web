@@ -13,7 +13,7 @@
  *     配了 `baseline_class` 就兜底给基线类别，没配就不产出建议。
  *
  * 把两者都写成「无有效依据 / 没有命中任何规则」会与面板下方列出的命中依据
- * 自相矛盾（Linux 规则册根本没有基线类别，那段文案对 Linux 也不成立）。
+ * 自相矛盾（`tie` 那档**是**有依据的，只是没拉开）。所以两档必须各有说辞。
  */
 export type ConfidenceTone = "baseline" | "tie" | "weak" | "fair" | "strong";
 
@@ -45,7 +45,7 @@ export const CONFIDENCE_LABEL: Record<ConfidenceTone, string> = {
 
 export const CONFIDENCE_HINT: Record<ConfidenceTone, string> = {
   baseline:
-    "没有任何有效规则命中，也没有逐条依据：如果该平台规则册配了基线类别，网关会兜底给一个基线类别；没配基线的平台（例如当前的 Linux 规则册）就不会产出建议 —— 所以它既不代表网关认定这台机器属于这一类，也不一定是基线兜底来的。",
+    "没有任何有效规则命中，也没有逐条依据：网关按该平台规则册的基线类别兜底（macos → MacDaily，linux → LinuxHost）。它只说明「没有更具体的特点」，不代表网关认定这台机器就属于这一类。若该平台规则册没配基线，就不会产出建议（页面会另行说明）。",
   tie: "有逐条命中依据，但得分没有拉开差距（最高分与次高分并列，或总分不为正）：无法据此区分类别，需要人工判定。",
   weak: "弱结论：最高分只略微领先次高分，或总分低于规则册的 weak_score 被打过折。",
   fair: "中等把握：最高分对次高分有优势，但仍可能有规则未覆盖的信号。",
