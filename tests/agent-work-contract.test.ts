@@ -580,7 +580,9 @@ assert(isExecutableSource("FileGlob", "/var/log/app.log"), "显式绝对路径�
 assert(!isExecutableSource("FileGlob", "/var/log/app*"), "通配路径不算可采");
 assert(!isExecutableSource("FileGlob", "~/Library/Logs/a.log"), "~ 不展开，不算可采");
 assert(isExecutableSource("MetricInterval", "15s"), "指标周期可采");
-assert(!isExecutableSource("Exporter", "last,lastb"), "导出器还没接");
+assert(isExecutableSource("Exporter", "smartctl"), "已知导出器 ID 可采");
+assert(isExecutableSource("Exporter", "dmesg:panic"), "已知导出器 + arg 可采");
+assert(!isExecutableSource("Exporter", "last,lastb"), "未知导出器 ID 不算可采");
 assert(!isExecutableSource("UnifiedLogPredicate", "syspolicyd"), "统一日志谓词还没接");
 assert(isExplicitPath("/var/log/app.log"), "绝对路径无通配 = 显式路径");
 assert(!isExplicitPath("/var/log/app?.log"), "? 也是通配元字符");
@@ -591,8 +593,12 @@ assert(
   "通配要说清原因",
 );
 assert(
-  (unsupportedSourceReason("Exporter", "last") ?? "").includes("导出器"),
-  "导出器要说清原因",
+  unsupportedSourceReason("Exporter", "smartctl") === null,
+  "已知导出器不该报原因",
+);
+assert(
+  (unsupportedSourceReason("Exporter", "last,lastb") ?? "").includes("导出器"),
+  "未知导出器要说清原因",
 );
 assert(
   unsupportedSourceCount(metricsOnly) === 1,

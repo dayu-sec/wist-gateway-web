@@ -124,6 +124,40 @@ export function isExplicitPath(target: string): boolean {
 }
 
 /**
+ * 定时导出器（`Exporter`）的已知 ID —— 与 `wist-contracts::work::EXPORTER_IDS` **同一份词表**。
+ * 契约里没收录的 ID 一律不可采（旧网关发新 ID，或写错）。加一种就两侧一起改。
+ */
+export const EXPORTER_IDS = [
+  "journalctl-unit",
+  "journalctl-shutdown",
+  "last-reboot",
+  "nft-ruleset",
+  "iptables-save",
+  "smartctl",
+  "dmesg",
+  "auditd-execve",
+] as const;
+
+/**
+ * 把一个 `Exporter` 目标拆成 `(id, arg)`：`dmesg:panic` → `("dmesg", "panic")`。
+ *
+ * 与 `wist_contracts::work::parse_exporter_target` 同一口径：只按**第一个** `:` 拆；
+ * 空 id / 含空白的 id 不是合法 ID。
+ */
+export function parseExporterTarget(target: string): { id: string; arg: string | null } | null {
+  const [head, ...rest] = target.split(":");
+  const id = head.trim();
+  if (id === "" || /\s/.test(id)) return null;
+  return { id, arg: rest.length > 0 ? rest.join(":") : null };
+}
+
+/** 这条 `Exporter` 目标的 ID 是不是**已知且已实现**的导出器。 */
+export function isKnownExporter(target: string): boolean {
+  const parsed = parseExporterTarget(target);
+  return parsed !== null && (EXPORTER_IDS as readonly string[]).includes(parsed.id);
+}
+
+/**
  * 一条来源今天**能不能被采**（与模型 / agentd 的 `is_executable_source` 同一口径）。
  *
  * 这个判据必须与 agentd 完全一致：不一致就会出现「页面说可采、agent 拿到后报 unsupported」
@@ -132,6 +166,7 @@ export function isExplicitPath(target: string): boolean {
 export function isExecutableSource(kind: string, target: string): boolean {
   if (kind === "FileGlob") return isExplicitPath(target);
   if (kind === "MetricInterval") return true;
+  if (kind === "Exporter") return isKnownExporter(target);
   return false;
 }
 
@@ -146,7 +181,7 @@ export function unsupportedSourceReason(
 ): string | null {
   if (isExecutableSource(kind, target)) return null;
   if (kind === "FileGlob") return "通配路径";
-  if (kind === "Exporter") return "导出器";
+  if (kind === "Exporter") return "未知导出器（未实现）";
   if (kind === "UnifiedLogPredicate") return "统一日志谓词";
   return `未知类型 ${kind}`;
 }
@@ -167,7 +202,7 @@ export function unsupportedSourceCount(spec: WorkSpec): number {
  *
  * 这就是 agentd `state/work.json` 里 `standing[].tasks[].path` 的来源：agentd 用**同一份判据**
  * 折算（`is_executable_source`）。只有「可采的 `FileGlob`」会成为采集任务 ——
- * 指标周期不是文件；通配 / `~` / 导出器 / 统一日志谓词今天采不到。
+ * 指标周期与导出器不是文件；通配 / `~` / 统一日志谓词今天采不到。
  *
  * 注意：本机配置里手工加的 `[telemetry.logs] file_inputs`（运维逃生舱）**不**在这里，
  * 也**不在** `work.json` 里 —— 它不来自任何采集面，只网关不知道、agent 自己知道。

@@ -247,7 +247,7 @@ export function SubsystemAgentWorkView({
             {blocked.length > 0 ? (
               <details className={styles.blockedDetails}>
                 <summary className={styles.muted}>
-                  另有 {blocked.length} 个面还不能派（规则未就绪 / 平台不适用）
+                  另有 {blocked.length} 个面还不能派（采集未就绪 / 平台不适用）
                 </summary>
                 <ul className={styles.blockedList}>
                   {blocked.map((entry) => (
