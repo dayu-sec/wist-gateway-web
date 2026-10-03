@@ -120,6 +120,7 @@ export function SubsystemAgentFleetPage() {
                   <tr>
                     <th scope="col">Agent</th>
                     <th scope="col">主机名</th>
+                    <th scope="col">IP</th>
                     <th scope="col">版本</th>
                     <th scope="col">状态</th>
                     <th scope="col" className={styles.thAction}>
@@ -141,6 +142,11 @@ export function SubsystemAgentFleetPage() {
                           </Link>
                         </td>
                         <td className={styles.tdMuted}>{row.hostname || "—"}</td>
+                        <td className={styles.tdMono}>
+                          {row.ipAddresses.length > 0
+                            ? row.ipAddresses.join("，")
+                            : "—"}
+                        </td>
                         <td className={styles.tdMono}>{row.version || "—"}</td>
                         <td>
                           <span

@@ -63,6 +63,10 @@ export interface AgentRuntimeStatusView {
   version: string;
   status: "online" | "offline";
   health: "healthy" | "degraded" | "unhealthy";
+  /** 机器名 / `nodeId` / 网卡地址：注册表里「这是哪台机器」的展示依据。 */
+  nodeId: string;
+  hostname: string;
+  ipAddresses: string[];
   lastSeenAt: string;
   /** agent 实际生效的数据面上送状态；null = 还没上报过（旧版本 agentd 不发）。 */
   uplinkState: AgentUplinkStateView | null;
@@ -134,7 +138,10 @@ export interface AgentRevocationView {
 export interface AgentListEntryView {
   agentId: string;
   instanceId: string;
+  nodeId: string;
   hostname: string;
+  /** 机器级网卡地址（形如 `en0 192.168.1.5/24`）；空数组 = 还没上报过。 */
+  ipAddresses: string[];
   version: string;
   status: string;
   health: string;
@@ -692,6 +699,12 @@ function normalizeAgentListEntry(payload: any, index: number): AgentListEntryVie
       `${at}.instanceId`,
     ),
     hostname: requiredString(payload.hostname ?? "", `${at}.hostname`),
+    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", `${at}.nodeId`),
+    // 旧网关没有这个键 —— 缺省当空数组，不是形状错误（与 hostname 同口径）。
+    ipAddresses: requiredStringArray(
+      payload.ip_addresses ?? payload.ipAddresses ?? [],
+      `${at}.ipAddresses`,
+    ),
     version: requiredString(payload.version ?? "", `${at}.version`),
     status: requiredString(payload.status ?? "", `${at}.status`),
     health: requiredString(payload.health ?? "", `${at}.health`),
@@ -800,6 +813,12 @@ function normalizeRuntimeStatus(payload: any): AgentRuntimeStatusView {
     version: requiredString(payload.version, "agent.version"),
     status: normalizeAgentStatus(payload.status),
     health: normalizeAgentHealth(payload.health),
+    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", "agent.nodeId"),
+    hostname: requiredString(payload.hostname ?? "", "agent.hostname"),
+    ipAddresses: requiredStringArray(
+      payload.ip_addresses ?? payload.ipAddresses ?? [],
+      "agent.ipAddresses",
+    ),
     lastSeenAt: requiredString(
       payload.last_seen_at ?? payload.lastSeenAt,
       "agent.lastSeenAt",

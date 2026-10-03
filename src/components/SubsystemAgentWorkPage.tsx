@@ -136,6 +136,17 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
           </Link>
         </div>
         <div className={styles.metaRow}>
+          {runtime.data ? (
+            <span className={styles.metaItem}>
+              主机 <strong>{runtime.data.hostname || "—"}</strong>
+              {runtime.data.ipAddresses.length > 0 ? (
+                <>
+                  {" · "}
+                  <strong>{runtime.data.ipAddresses.join("，")}</strong>
+                </>
+              ) : null}
+            </span>
+          ) : null}
           {work.data ? (
             <span className={styles.metaItem}>
               视图生成 <strong>{formatTimestamp(work.data.generatedAt)}</strong>
