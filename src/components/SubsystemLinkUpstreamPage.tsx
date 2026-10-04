@@ -20,7 +20,7 @@ function errorMessage(error: unknown): string {
     if (error.status === 429) return "认证失败次数过多，请稍后再试。";
     if (error.status === 409)
       return "该 Gateway 已初始化，不能重复消费初始化材料。";
-    return `控制中心返回 HTTP ${error.status}，请核对初始化 URL、instance_id 和服务状态。`;
+    return `控制中心返回 HTTP ${error.status}，请核对初始化 URL、gateway_id 和服务状态。`;
   }
   if (error instanceof TypeError) {
     return "无法访问控制中心。若 Gateway 页面与 Center 不同源，请检查网络和 CORS 配置。";
@@ -29,7 +29,7 @@ function errorMessage(error: unknown): string {
 }
 
 const STEPS = [
-  "粘贴 Center 交付的初始化 URL（必须带 instance_id）",
+  "粘贴 Center 交付的初始化 URL（必须带 gateway_id）",
   "如 Center 要求鉴权，填入随附的 Bearer 凭证",
   "获取初始配置 JSON，交给 Gateway 落地",
 ];
@@ -129,7 +129,7 @@ export function SubsystemLinkUpstreamPage() {
                 type="url"
                 value={initUrl}
                 onChange={(event) => setInitUrl(event.target.value)}
-                placeholder="https://center.example/api/v1/gateway/initial-config?instance_id=gw-demo"
+                placeholder="https://center.example/api/v1/gateway/link-upstream?gateway_id=gw-demo"
                 autoComplete="url"
                 required
               />

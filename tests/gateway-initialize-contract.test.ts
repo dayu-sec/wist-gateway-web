@@ -42,14 +42,14 @@ if (!config.server_tls_required || config.protocol_version !== "v1") {
 
 // 初始化 URL 契约：只允许 instance_id，状态地址从相同 Center 入口派生。
 const target = parseGatewayInitializationUrl(
-  "https://center.example/api/v1/gateway/initial-config?instance_id=gw-demo",
+  "https://center.example/api/v1/gateway/link-upstream?gateway_id=gw-demo",
 );
-if (target.instanceId !== "gw-demo") {
-  throw new Error("instance_id was not parsed from init URL");
+if (target.gatewayId !== "gw-demo") {
+  throw new Error("gateway_id was not parsed from init URL");
 }
 if (
   target.statusUrl !==
-  "https://center.example/api/v1/gateway/initialization-status?instance_id=gw-demo"
+  "https://center.example/api/v1/gateway/initialization-status?gateway_id=gw-demo"
 ) {
   throw new Error("initialization status URL was not derived from init URL");
 }
@@ -57,7 +57,7 @@ if (
 let rejectedCredentialUrl = false;
 try {
   parseGatewayInitializationUrl(
-    "https://center.example/api/v1/gateway/initial-config?instance_id=gw-demo&token=secret",
+    "https://center.example/api/v1/gateway/link-upstream?gateway_id=gw-demo&token=secret",
   );
 } catch (error) {
   rejectedCredentialUrl = error instanceof GatewayInitializationInputError;

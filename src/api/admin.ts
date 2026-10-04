@@ -351,7 +351,7 @@ export interface ControlCenterTrustBundle {
   expires_at: string | null;
 }
 
-/** GET /api/v1/gateway/initial-config 的 config 载荷。 */
+/** GET /api/v1/gateway/link-upstream 的 config 载荷。 */
 export interface GatewayInitialConfig {
   gateway_id: string;
   control_center_endpoint: string;
@@ -1343,13 +1343,13 @@ export async function fetchGatewayInitialConfig(
 /** 初始化 URL 校验后得到的请求目标，供页面 Service 串联状态查询与配置请求。 */
 export interface GatewayInitializationTarget {
   initUrl: string;
-  instanceId: string;
+  gatewayId: string;
   statusUrl: string;
 }
 
 /**
  * 校验 Center 交付的初始化 URL，并派生同一 Center 上的初始化状态查询地址。
- * URL 只允许 instance_id 查询参数；Bearer 凭证必须由调用方另行放入 Header。
+ * URL 只允许 gateway_id 查询参数；Bearer 凭证必须由调用方另行放入 Header。
  */
 export function parseGatewayInitializationUrl(
   input: string,
@@ -1372,32 +1372,32 @@ export function parseGatewayInitializationUrl(
       "初始化 URL 不能携带用户信息、凭证或 fragment。",
     );
   }
-  if (!url.pathname.endsWith("/api/v1/gateway/initial-config")) {
+  if (!url.pathname.endsWith("/api/v1/gateway/link-upstream")) {
     throw new GatewayInitializationInputError(
-      "初始化 URL 必须指向 /api/v1/gateway/initial-config。",
+      "初始化 URL 必须指向 /api/v1/gateway/link-upstream。",
     );
   }
   const queryNames = [...url.searchParams.keys()];
-  if (queryNames.length !== 1 || queryNames[0] !== "instance_id") {
+  if (queryNames.length !== 1 || queryNames[0] !== "gateway_id") {
     throw new GatewayInitializationInputError(
-      "初始化 URL 只能包含 instance_id；Bearer 凭证请填写到独立凭证输入框。",
+      "初始化 URL 只能包含 gateway_id；Bearer 凭证请填写到独立凭证输入框。",
     );
   }
-  const instanceId = url.searchParams.get("instance_id")?.trim();
-  if (!instanceId) {
-    throw new GatewayInitializationInputError("初始化 URL 缺少 instance_id。");
+  const gatewayId = url.searchParams.get("gateway_id")?.trim();
+  if (!gatewayId) {
+    throw new GatewayInitializationInputError("初始化 URL 缺少 gateway_id。");
   }
 
   const statusUrl = new URL(url);
   statusUrl.pathname = statusUrl.pathname.replace(
-    /\/initial-config$/,
+    /\/link-upstream$/,
     "/initialization-status",
   );
   statusUrl.search = "";
-  statusUrl.searchParams.set("instance_id", instanceId);
+  statusUrl.searchParams.set("gateway_id", gatewayId);
   return {
     initUrl: url.toString(),
-    instanceId,
+    gatewayId,
     statusUrl: statusUrl.toString(),
   };
 }
