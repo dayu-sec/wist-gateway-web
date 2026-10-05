@@ -23,7 +23,8 @@ export function base64UrlDecode(value: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-/** 解析接入链接；缺项/非法即回 `error`（供页面内联提示）。 */
+/** 解析接入链接；缺项/非法即回 `error`（供页面内联提示）。
+ * CA 信任锚仅对 **https** 中心必需（要校服务器证书）；http 明文无 TLS 可校，可省。 */
 export function parseLinkUrl(input: string): {
   parsed?: ParsedLink;
   error?: string;
@@ -35,14 +36,18 @@ export function parseLinkUrl(input: string): {
     return { error: "不是合法的 URL。" };
   }
   const linkToken = url.searchParams.get("link_token") ?? "";
-  const ca = url.searchParams.get("ca") ?? "";
   if (!linkToken) return { error: "链接里缺少 link_token（接入券）。" };
-  if (!ca) return { error: "链接里缺少 ca（CA 信任锚）。" };
-  let trustBundlePem: string;
-  try {
-    trustBundlePem = base64UrlDecode(ca);
-  } catch {
-    return { error: "ca 不是合法的 base64url。" };
+  const ca = url.searchParams.get("ca") ?? "";
+  if (url.protocol === "https:" && !ca) {
+    return { error: "https 中心的链接必须带 ca（CA 信任锚）。" };
+  }
+  let trustBundlePem = "";
+  if (ca) {
+    try {
+      trustBundlePem = base64UrlDecode(ca);
+    } catch {
+      return { error: "ca 不是合法的 base64url。" };
+    }
   }
   return {
     parsed: {

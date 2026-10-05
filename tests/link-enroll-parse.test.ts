@@ -22,16 +22,24 @@ if (base64UrlDecode(ca) !== pem) throw new Error("decode round-trip failed");
 // 缺项/非法一律报错（页面据此禁用提交并内联提示）。
 if (!parseLinkUrl("not a url").error) throw new Error("bad url must error");
 if (
-  !parseLinkUrl(
-    "https://c.example/api/v1/gateway/link-upstream?ca=AAAA",
-  ).error
+  !parseLinkUrl("https://c.example/api/v1/gateway/link-upstream?ca=AAAA").error
 )
   throw new Error("missing link_token must error");
-if (
-  !parseLinkUrl(
-    "https://c.example/api/v1/gateway/link-upstream?link_token=t",
-  ).error
-)
-  throw new Error("missing ca must error");
+
+// CA 按 scheme 条件必需：https 无 ca → 报错；http 明文无 ca → 通过（pem 为空）。
+const httpsNoCa = parseLinkUrl(
+  "https://c.example/api/v1/gateway/link-upstream?link_token=t",
+);
+if (!httpsNoCa.error) throw new Error("https without ca must error");
+const httpNoCa = parseLinkUrl(
+  "http://c.local:3100/api/v1/gateway/link-upstream?link_token=t",
+);
+if (httpNoCa.error)
+  throw new Error(`http without ca should parse: ${httpNoCa.error}`);
+if (!httpNoCa.parsed) throw new Error("http without ca: no parsed");
+if (httpNoCa.parsed.centerEndpoint !== "http://c.local:3100")
+  throw new Error("http center endpoint wrong");
+if (httpNoCa.parsed.trustBundlePem !== "")
+  throw new Error("http without ca should yield empty pem");
 
 console.log("link-enroll parse contract test passed");
