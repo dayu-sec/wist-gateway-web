@@ -1,13 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { ApiError } from "../api";
 import { useGatewayLinkRequest, useSetGatewayLinkRequest } from "../hooks";
+import { parseLinkUrl, type ParsedLink } from "../linkEnroll";
 import styles from "./SubsystemLinkUpstreamPage.module.css";
 
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) return "管理凭证缺失或无效。";
-    if (error.status === 400)
-      return "中心地址 / 接入券 / CA 信任锚都不能为空。";
+    if (error.status === 400) return "接入物不完整（中心地址 / 接入券 / CA 缺项）。";
     return `本机网关返回 HTTP ${error.status}。${error.detail ?? ""}`;
   }
   if (error instanceof TypeError) {
@@ -17,8 +17,8 @@ function errorMessage(error: unknown): string {
 }
 
 const STEPS = [
-  "在 Center「连接 Gateway」页生成/轮换接入券，拿到 中心地址 + 接入券 + CA 信任锚",
-  "把这三样填到本页提交（只落本机网关，**不直连 Center**）",
+  "在 Center「连接 Gateway」页生成/轮换接入券，复制那一条**接入链接**（含中心地址 + 接入券 + CA）",
+  "把接入链接粘到本页提交（只落本机网关，**不直连 Center**）",
   "宿主侧 wist-gwlinkd 自动拉取并完成接入（link-upstream → register），本页显示结果",
 ];
 
@@ -33,34 +33,25 @@ const STATUS_LABEL: Record<string, string> = {
  * 「链接上级」页（路由 `/link-upstream`）：把本网关接入上级控制中心。
  *
  * 新流程（`wist-design/doc/design/edge/gateway-onboard-request.md`）：本页**不再直连 Center**，
- * 只把 Center 页给的接入物（中心地址 + 一次性接入券 + CA-S）提交给**本机网关**；宿主侧常驻
- * `wist-gwlinkd` 通过环回接口拉取并完成 link-upstream / register（私钥在本机生成）。
+ * 只把 Center 页给的**一条接入链接**（含中心地址 + 一次性接入券 + CA-S）粘贴后提交给**本机网关**；
+ * 宿主侧常驻 `wist-gwlinkd` 通过环回接口拉取并完成 link-upstream / register（私钥在本机生成）。
  */
 export function SubsystemLinkUpstreamPage() {
-  const [centerEndpoint, setCenterEndpoint] = useState("");
-  const [linkToken, setLinkToken] = useState("");
-  const [trustBundle, setTrustBundle] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const setRequest = useSetGatewayLinkRequest();
   const view = useGatewayLinkRequest();
-  const canSubmit =
-    centerEndpoint.trim().length > 0 &&
-    linkToken.trim().length > 0 &&
-    trustBundle.trim().length > 0;
+  const parseResult: { parsed?: ParsedLink; error?: string } = linkUrl.trim()
+    ? parseLinkUrl(linkUrl)
+    : {};
+  const canSubmit = Boolean(parseResult.parsed);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit) return;
-    setRequest.mutate(
-      {
-        centerEndpoint: centerEndpoint.trim(),
-        linkToken: linkToken.trim(),
-        trustBundlePem: trustBundle,
-      },
-      {
-        // 提交后清掉明文券输入框（本机已落库，页面不保留）。
-        onSuccess: () => setLinkToken(""),
-      },
-    );
+    if (!parseResult.parsed) return;
+    setRequest.mutate(parseResult.parsed, {
+      // 提交后清掉接入链接输入框（含券，本机已落库，页面不保留）。
+      onSuccess: () => setLinkUrl(""),
+    });
   }
 
   const status = view.data?.hasRequest ? view.data.status : undefined;
@@ -72,7 +63,7 @@ export function SubsystemLinkUpstreamPage() {
           <h1 className={styles.pageTitle}>链接上级</h1>
           {/* 中文长句整句写一行：JSX 里行间换行会折叠成一个可见空格。 */}
           <p className={styles.pageSummary}>
-            把本机网关接入上级（即控制中心）。本页只把接入物交给本机网关，真正的接入由宿主侧 wist-gwlinkd 完成。
+            把本机网关接入上级（即控制中心）。本页只把接入链接交给本机网关，真正的接入由宿主侧 wist-gwlinkd 完成。
           </p>
           <ol className={styles.steps}>
             {STEPS.map((step, index) => (
@@ -93,50 +84,29 @@ export function SubsystemLinkUpstreamPage() {
           <header className={styles.usecaseMeta}>
             <div className={styles.usecaseMetaCopy}>
               <span className={styles.usecaseTag}>一次性操作</span>
-              <h2 id="gateway-link-usecase">填入接入材料</h2>
+              <h2 id="gateway-link-usecase">粘贴接入链接</h2>
               <p>
-                接入券一次性、短命；提交后由宿主侧 wist-gwlinkd 拉取并消费，本页不回显券。
+                接入链接一次性、短命；提交后由宿主侧 wist-gwlinkd 拉取并消费，本页不回显。
               </p>
             </div>
           </header>
 
           <form className={styles.form} onSubmit={handleSubmit}>
-            <label className={`${styles.field} ${styles.urlField}`}>
-              <span>中心接入地址</span>
-              <input
-                type="url"
-                value={centerEndpoint}
-                onChange={(event) => setCenterEndpoint(event.target.value)}
-                placeholder="https://center.example"
-                autoComplete="url"
+            <label className={styles.field}>
+              <span>接入链接</span>
+              <textarea
+                value={linkUrl}
+                onChange={(event) => setLinkUrl(event.target.value)}
+                placeholder="https://center.example/api/v1/gateway/link-upstream?gateway_id=…&link_token=…&ca=…"
+                rows={4}
                 required
               />
               <small>
-                Center「连接 Gateway」给出的中心基地址（不含路径）。
+                Center「连接 Gateway」页生成的一整条接入链接（含中心地址、接入券、CA 信任锚）—— 直接粘贴即可。
+                {linkUrl.trim() && parseResult.error ? (
+                  <em className={styles.fieldError}> {parseResult.error}</em>
+                ) : null}
               </small>
-            </label>
-            <label className={styles.field}>
-              <span>接入券</span>
-              <input
-                type="password"
-                value={linkToken}
-                onChange={(event) => setLinkToken(event.target.value)}
-                placeholder="link_..."
-                autoComplete="off"
-                required
-              />
-              <small>Center 页一次性展示的接入券（仅本机使用）。</small>
-            </label>
-            <label className={styles.field}>
-              <span>CA 信任锚（control-center.pem）</span>
-              <textarea
-                value={trustBundle}
-                onChange={(event) => setTrustBundle(event.target.value)}
-                placeholder="-----BEGIN CERTIFICATE-----"
-                rows={6}
-                required
-              />
-              <small>Center 页给出的 CA-S 信任锚 PEM；wist-gwlinkd 会落盘后用作信任根。</small>
             </label>
             {setRequest.isError ? (
               <div className={styles.errorBanner} role="alert">
@@ -152,7 +122,7 @@ export function SubsystemLinkUpstreamPage() {
                 {setRequest.isPending ? "提交中…" : "提交接入请求"}
               </button>
               <span className={styles.actionHint}>
-                接入券只能消费一次，请确认地址与实例一致后再提交。
+                接入券只能消费一次，请确认实例一致后再提交。
               </span>
             </div>
           </form>
