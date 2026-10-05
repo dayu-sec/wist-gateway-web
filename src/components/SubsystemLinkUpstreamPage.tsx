@@ -122,6 +122,19 @@ export function SubsystemLinkUpstreamPage() {
             <div className={styles.statusEyebrow}>接入状态</div>
             <h2 className={styles.statusValue}>{meta.label}</h2>
             <p className={styles.statusHint}>{meta.hint}</p>
+            {view.data?.centerEndpoint ? (
+              <div className={styles.statusCenter}>
+                <span className={styles.statusCenterLabel}>中心</span>
+                <code className={styles.statusCenterValue}>
+                  {view.data.centerEndpoint}
+                </code>
+                {view.data.gatewayId ? (
+                  <span className={styles.statusCenterId}>
+                    · {view.data.gatewayId}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             {view.data?.hasRequest && view.data.resultDetail ? (
               <p className={styles.statusDetail}>{view.data.resultDetail}</p>
             ) : null}
@@ -156,6 +169,15 @@ export function SubsystemLinkUpstreamPage() {
                 Center「连接 Gateway」页生成的一整条接入链接（含中心地址、接入券、CA 信任锚）—— 直接粘贴即可。
                 {linkUrl.trim() && parseResult.error ? (
                   <em className={styles.fieldError}> {parseResult.error}</em>
+                ) : null}
+                {parseResult.parsed ? (
+                  <em className={styles.fieldOk}>
+                    {" "}
+                    将接入中心：{parseResult.parsed.centerEndpoint}
+                    {parseResult.parsed.gatewayId
+                      ? ` · ${parseResult.parsed.gatewayId}`
+                      : ""}
+                  </em>
                 ) : null}
               </small>
             </label>

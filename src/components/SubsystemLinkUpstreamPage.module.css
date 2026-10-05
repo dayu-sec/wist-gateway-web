@@ -171,6 +171,12 @@
   font-weight: 700;
 }
 
+.fieldOk {
+  color: var(--ok);
+  font-style: normal;
+  font-weight: 700;
+}
+
 .field small {
   min-height: 18px;
   color: var(--text-3);
@@ -311,6 +317,38 @@
   color: var(--text-3);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.statusCenter {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.statusCenterLabel {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.statusCenterValue {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.statusCenterId {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .statusDetail {
