@@ -265,6 +265,116 @@
   padding: 24px 28px;
 }
 
+/* ── 顶部醒目状态卡片（页面最上方，颜色随状态） ── */
+.statusCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-left-width: 5px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.statusDot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--unknown);
+}
+
+.statusBody {
+  min-width: 0;
+}
+
+.statusEyebrow {
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.statusValue {
+  margin-top: 4px;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.statusHint {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.statusDetail {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.status_idle {
+  border-left-color: var(--unknown);
+}
+.status_idle .statusDot {
+  background: var(--unknown);
+}
+
+.status_warn {
+  border-left-color: var(--warn);
+  background: var(--warn-soft);
+}
+.status_warn .statusDot {
+  background: var(--warn);
+}
+.status_warn .statusValue {
+  color: var(--warn);
+}
+
+.status_info {
+  border-left-color: var(--info);
+  background: var(--info-soft);
+}
+.status_info .statusDot {
+  background: var(--info);
+}
+.status_info .statusValue {
+  color: var(--info);
+}
+
+.status_ok {
+  border-left-color: var(--ok);
+  background: var(--ok-soft);
+}
+.status_ok .statusDot {
+  background: var(--ok);
+}
+.status_ok .statusValue {
+  color: var(--ok);
+}
+
+.status_crit {
+  border-left-color: var(--crit);
+  background: var(--crit-soft);
+}
+.status_crit .statusDot {
+  background: var(--crit);
+}
+.status_crit .statusValue {
+  color: var(--crit);
+}
+
 .resultHeader,
 .trustBundleHeader {
   display: flex;
@@ -420,6 +530,14 @@
   .result {
     padding-left: 18px;
     padding-right: 18px;
+  }
+
+  .statusCard {
+    padding: 16px 18px;
+  }
+
+  .statusValue {
+    font-size: 19px;
   }
 
   .resultGrid {

@@ -22,12 +22,47 @@ const STEPS = [
   "宿主侧 wist-gwlinkd 自动拉取并完成接入（link-upstream → register），本页显示结果",
 ];
 
-const STATUS_LABEL: Record<string, string> = {
-  Pending: "待 wist-gwlinkd 拉取",
-  Connecting: "接入中",
-  Connected: "已接入",
-  Failed: "接入失败",
-};
+type StatusTone = "idle" | "warn" | "info" | "ok" | "crit";
+
+/** 接入状态 → 顶部醒目卡片的色调 + 文案。 */
+function statusMeta(status: string | undefined): {
+  tone: StatusTone;
+  label: string;
+  hint: string;
+} {
+  switch (status) {
+    case "Pending":
+      return {
+        tone: "warn",
+        label: "待 wist-gwlinkd 拉取",
+        hint: "接入物已交给本机网关；等宿主侧 gwlinkd 拉取后自动接入。",
+      };
+    case "Connecting":
+      return {
+        tone: "info",
+        label: "接入中",
+        hint: "gwlinkd 正在 link-upstream / register…",
+      };
+    case "Connected":
+      return {
+        tone: "ok",
+        label: "已接入",
+        hint: "已换回客户端证书，此后与中心走 mTLS。",
+      };
+    case "Failed":
+      return {
+        tone: "crit",
+        label: "接入失败",
+        hint: "见下方原因；修正后重新提交接入物。",
+      };
+    default:
+      return {
+        tone: "idle",
+        label: "尚未接入",
+        hint: "把 Center「连接 Gateway」页生成的接入链接粘到下方提交。",
+      };
+  }
+}
 
 /**
  * 「链接上级」页（路由 `/link-upstream`）：把本网关接入上级控制中心。
@@ -55,6 +90,7 @@ export function SubsystemLinkUpstreamPage() {
   }
 
   const status = view.data?.hasRequest ? view.data.status : undefined;
+  const meta = statusMeta(status);
 
   return (
     <div className={styles.container}>
@@ -76,6 +112,21 @@ export function SubsystemLinkUpstreamPage() {
             ))}
           </ol>
         </header>
+
+        <section
+          className={`${styles.statusCard} ${styles[`status_${meta.tone}`]}`}
+          aria-live="polite"
+        >
+          <span className={styles.statusDot} aria-hidden="true" />
+          <div className={styles.statusBody}>
+            <div className={styles.statusEyebrow}>接入状态</div>
+            <h2 className={styles.statusValue}>{meta.label}</h2>
+            <p className={styles.statusHint}>{meta.hint}</p>
+            {view.data?.hasRequest && view.data.resultDetail ? (
+              <p className={styles.statusDetail}>{view.data.resultDetail}</p>
+            ) : null}
+          </div>
+        </section>
 
         <section
           className={styles.usecaseCard}
@@ -128,21 +179,6 @@ export function SubsystemLinkUpstreamPage() {
           </form>
         </section>
 
-        {status ? (
-          <section className={styles.result} aria-live="polite">
-            <header className={styles.resultHeader}>
-              <div>
-                <div className={styles.resultEyebrow}>接入状态</div>
-                <h2 className={styles.sectionTitle}>
-                  {STATUS_LABEL[status] ?? status}
-                </h2>
-              </div>
-            </header>
-            {view.data?.resultDetail ? (
-              <p className={styles.statusBanner}>{view.data.resultDetail}</p>
-            ) : null}
-          </section>
-        ) : null}
       </main>
     </div>
   );

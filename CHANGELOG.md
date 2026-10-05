@@ -9,6 +9,8 @@
 
 ### 变更
 
+- **「链接上级」接入状态置顶且醒目**：状态从页脚挑到页首，做成随状态变色的大卡片
+  （未接入 / 待 wist-gwlinkd 拉取 / 接入中 / 已接入 / 接入失败），无请求时也常驻显示。
 - **dev 代理自动带 admin token**：开发态 vite 代理从网关 home 的 `wist-gateway.toml`（`WIST_GATEWAY_CONFIG` 可覆盖）
   读 `admin_api_token`，在请求**未带** `Authorization` 时补上。修前：浏览器没手填 token（sessionStorage 一关标签就清）→
   「链接上级」状态查询 `enabled=false`、**状态区整块不渲染**（看着像“接入了却不显示结果”，其实是从没查）。
