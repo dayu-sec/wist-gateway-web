@@ -54,4 +54,28 @@ if (!polled.stale || polled.lastError !== "中心不可达") {
   throw new Error("view response was not normalized");
 }
 
+// 3) 空态（从未上报）：has_status=false，字段全为空串 —— 前端必须能原样收敛，不得抛错，
+//    否则页面在「gwlinkd 从未跑过」时反而显示报错而不是「未检测到」。
+const empty = normalizeGatewayLinkdStatusView({
+  has_status: false,
+  gateway_id: "",
+  instance_id: "",
+  version: "",
+  center_endpoint: "",
+  state: "",
+  credential_expires_at: "",
+  last_center_report_at: "",
+  last_error: "",
+  reported_at: "",
+  received_at: "",
+  age_seconds: 0,
+  stale: false,
+});
+if (empty.hasStatus || empty.ageSeconds !== 0 || empty.stale) {
+  throw new Error("empty linkd status view was not normalized");
+}
+if (empty.centerEndpoint !== "" || empty.lastError !== "") {
+  throw new Error("empty linkd status fields should stay empty strings");
+}
+
 console.log("gateway linkd-status contract test passed");

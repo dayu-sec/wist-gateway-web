@@ -52,6 +52,7 @@ import {
   viewAgentLogs,
   viewGatewayLinkRequest,
   viewGatewayLinkdStatus,
+  viewGatewaySelfState,
   type ActivateKnowledgePackageCommand,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
@@ -399,6 +400,24 @@ export function useGatewayLinkdStatus() {
   return useQuery({
     queryKey: ["gateway-linkd-status"],
     queryFn: viewGatewayLinkdStatus,
+    enabled,
+    refetchInterval: enabled ? 5000 : false,
+  });
+}
+
+/** 轮询网关**自身**状态（自述面；**持续观测**）—— 与 gwlinkd 状态并列展示「网关（容器）」。 */
+export function useGatewaySelfState() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-self-state"],
+    queryFn: viewGatewaySelfState,
     enabled,
     refetchInterval: enabled ? 5000 : false,
   });

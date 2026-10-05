@@ -5,6 +5,7 @@ import { SubsystemAdminHomePage } from "./components/SubsystemAdminHomePage";
 import { SubsystemAgentInstallPage } from "./components/SubsystemAgentInstallPage";
 import { SubsystemLinkUpstreamPage } from "./components/SubsystemLinkUpstreamPage";
 import { SubsystemGatewayInfoPage } from "./components/SubsystemGatewayInfoPage";
+import { SubsystemGatewayStatusPage } from "./components/SubsystemGatewayStatusPage";
 import { SubsystemAgentPackagePage } from "./components/SubsystemAgentPackagePage";
 import { SubsystemKnowledgePage } from "./components/SubsystemKnowledgePage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
@@ -27,6 +28,7 @@ export function App() {
         <Route path="/" element={<SubsystemAdminHomePage />} />
         <Route path="/install" element={<SubsystemAgentInstallPage />} />
         <Route path="/gateway-info" element={<SubsystemGatewayInfoPage />} />
+        <Route path="/gwlinkd" element={<SubsystemGatewayStatusPage />} />
         <Route path="/install-package" element={<SubsystemAgentPackagePage />} />
         <Route path="/knowledge" element={<SubsystemKnowledgePage />} />
         <Route

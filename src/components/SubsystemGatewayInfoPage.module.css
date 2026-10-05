@@ -72,6 +72,17 @@
   line-height: 1.6;
 }
 
+/* 卡内指向其它页的链接（如 gwlinkd → 「接入代理」页）。 */
+.inlineCardLink {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inlineCardLink:hover {
+  text-decoration: underline;
+}
+
 /* 只读的当前值：卡片内通栏的行（不套第二层边框盒，避免「表里套表」）。
    主值行给足字号并允许折行 —— 长 URL 要能一眼看全，不截断。 */
 .summaryList {
@@ -169,6 +180,27 @@
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* gwlinkd 状态标签：随状态着色（与「链接上级」页同一套 `linkd_*` 色调键）。 */
+.linkdValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.linkd_idle {
+  color: var(--unknown);
+}
+
+.linkd_ok {
+  color: var(--ok);
+}
+
+.linkd_crit {
+  color: var(--crit);
 }
 
 .inlineCopyButton {

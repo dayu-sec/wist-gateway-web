@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { ApiError, type GatewayLinkdStatusView } from "../api";
+import { Link } from "react-router-dom";
+import { ApiError } from "../api";
 import {
   useGatewayLinkRequest,
   useGatewayLinkdStatus,
   useSetGatewayLinkRequest,
 } from "../hooks";
 import { parseLinkUrl, type ParsedLink } from "../linkEnroll";
+import { linkdSummary } from "./linkdStatus";
 import styles from "./SubsystemLinkUpstreamPage.module.css";
 
 function errorMessage(error: unknown): string {
@@ -27,40 +29,6 @@ const STEPS = [
 ];
 
 type StatusTone = "idle" | "warn" | "info" | "ok" | "crit";
-
-/** gwlinkd（宿主侧常驻）状态 → 一行摘要：未检测到 / 失联 / 运行中 / 降级。 */
-function linkdSummary(view?: GatewayLinkdStatusView): {
-  tone: "idle" | "ok" | "crit";
-  label: string;
-  detail: string;
-} {
-  if (!view || !view.hasStatus) {
-    return {
-      tone: "idle",
-      label: "未检测到 gwlinkd",
-      detail: "宿主侧常驻未上报心跳（未安装 / 未启动？）",
-    };
-  }
-  const age = `${view.ageSeconds} 秒前`;
-  if (view.stale) {
-    return { tone: "crit", label: "gwlinkd 失联", detail: `最后心跳 ${age}` };
-  }
-  const stateLabel =
-    view.state === "WaitingLinkRequest"
-      ? "等待接入"
-      : view.state === "Degraded"
-        ? "降级"
-        : "运行中";
-  const parts: string[] = [];
-  if (view.version) parts.push(`v${view.version}`);
-  if (view.centerEndpoint) parts.push(view.centerEndpoint);
-  parts.push(`最近心跳 ${age}`);
-  return {
-    tone: view.state === "Degraded" ? "crit" : "ok",
-    label: `gwlinkd ${stateLabel}`,
-    detail: parts.join(" · "),
-  };
-}
 
 /** 接入状态 → 顶部醒目卡片的色调 + 文案。 */
 function statusMeta(status: string | undefined): {
@@ -183,6 +151,9 @@ export function SubsystemLinkUpstreamPage() {
                 {linkd.label}
               </span>
               <span className={styles.statusCenterId}>{linkd.detail}</span>
+              <Link className={styles.linkdMore} to="/gwlinkd">
+                详情 →
+              </Link>
             </div>
             {view.data?.hasRequest && view.data.resultDetail ? (
               <p className={styles.statusDetail}>{view.data.resultDetail}</p>

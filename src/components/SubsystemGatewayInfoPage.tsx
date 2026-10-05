@@ -1,14 +1,17 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, isRateLimitedError } from "../api";
 import type { AgentUplink } from "../api";
 import {
   useAgentAdvertiseUrl,
   useAgentUplink,
+  useGatewayLinkdStatus,
   useRegisteredAgents,
   useSetAgentUplink,
 } from "../hooks";
 import { CopyButton } from "./CopyButton";
 import { RateLimitNotice } from "./RateLimitNotice";
+import { linkdSummary } from "./linkdStatus";
 import {
   shouldWarnAboutTurningOnUplink,
   uplinkDraftHost,
@@ -86,9 +89,9 @@ function LoadNotice({
 }
 
 /**
- * 「Gateway 信息」页（路由 `/gateway-info`）：网关侧的两项。
+ * 「Gateway 信息」页（路由 `/gateway-info`）：网关侧的两项设置 + 宿主侧接入代理状态。
  *
- * 主体是**网关**，所以名字用 Gateway —— 两项都是网关侧的（Agent 连到哪、数据往哪送），
+ * 主体是**网关**，所以名字用 Gateway —— 前两项都是网关侧的（Agent 连到哪、数据往哪送），
  * 不是 Agent 端的配置；叫「Agent 信息」会被读成「对 Agent 做的什么」，故不取。
  * 安装包来源已拆回独立页「安装包 / `/install-package`」，不在本页。
  *
@@ -101,15 +104,26 @@ function LoadNotice({
  *    「开始干活」的明确动作（`docs/design/agent-uplink-enablement.md` §4.1）。
  *    两者都是**运行期**生效：保存后已入网的 Agent 下一个 poll（≤30s）就换目标/换开关，
  *    不需要重装。**记录 ≠ 启用**：网关签发的初始配置永远是待命。
+ * ③ 宿主侧接入代理 gwlinkd —— **只读状态**：接入上级由宿主侧常驻 wist-gwlinkd 完成，
+ *    它纯出站、页面拉不到它，只能靠它把心跳环回推给网关。与 ①② 不同，这项**不是设置**，
+ *    是观测（见设计 `edge/gateway-linkd-status.md` §7）：给证书到期 / 最近上报中心时刻，
+ *    失联时予提示。
  *
- * 一张卡 = 一个设置项：卡头讲该项由什么决定，卡内先给当前生效值（只读），再给可写的表单。
+ * 前两张卡 = 一个设置项（卡头讲该项由什么决定，卡内先给当前生效值（只读），再给可写的表单）；
+ * 第三张卡是 gwlinkd 的只读状态，没有可写区。
  *
- * 文本分工（改这一页时别再往回加）：页头只交代这一页管什么（一项只读、一项可改），
+ * 文本分工（改这一页时别再往回加）：页头只交代这一页管什么（两项设置 + 一项状态），
  * 卡头一行说明讲该项的来路与语义，细节归值旁的 meta 或提示条 —— 同一机制在一屏里最多出现两次。
  */
 export function SubsystemGatewayInfoPage() {
   const advertise = useAgentAdvertiseUrl();
   const uplink = useAgentUplink();
+  // 宿主侧常驻 gwlinkd 的心跳（由它环回推来）—— 只读观测，与「链接上级」页同一口径。
+  const linkdQuery = useGatewayLinkdStatus();
+  const linkdView = linkdQuery.data;
+  const linkd = linkdSummary(linkdView);
+  // 与 ①② 同纪律：**没取到就不下结论**（不能先闪一句「未检测到 gwlinkd」）。
+  const linkdReady = Boolean(linkdView);
 
   // 「未设置」（updated_at 为 null）= 这一项由部署配置决定，不是管理面录入过的值。
   const advertiseFromDeployConfig = advertise.data
@@ -139,7 +153,7 @@ export function SubsystemGatewayInfoPage() {
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>Gateway 信息</h1>
           <p className={styles.pageSummary}>
-            网关侧的两项：Agent 连到哪（只读，由部署配置决定），以及数据往哪送、收不收（可改，运行期生效）。
+            网关侧的两项设置：Agent 连到哪（只读，由部署配置决定），以及数据往哪送、收不收（可改，运行期生效）。下方另附宿主侧接入代理 gwlinkd 的运行状态。
           </p>
         </header>
 
@@ -293,6 +307,47 @@ export function SubsystemGatewayInfoPage() {
               key={`${uplink.data.updatedAt ?? "derived"}:${uplink.data.host}:${uplink.data.port}:${uplink.data.enabled}`}
               setting={uplink.data}
             />
+          ) : null}
+        </section>
+
+        <section className={styles.card} aria-labelledby="gateway-info-linkd">
+          <header className={styles.cardHead}>
+            <span className={styles.cardTag}>宿主侧接入代理</span>
+            <h2 id="gateway-info-linkd">gwlinkd</h2>
+            <p>
+              把本网关接入上级控制中心的是宿主侧常驻进程 wist-gwlinkd；它纯出站、页面拉不到它，状态由它周期心跳环回推来。完整状态、证书到期与排障见
+              <Link className={styles.inlineCardLink} to="/gwlinkd">
+                「网关状态」页
+              </Link>
+              。
+            </p>
+          </header>
+
+          <dl className={styles.summaryList}>
+            <div className={`${styles.summaryRow} ${styles.summaryRowPrimary}`}>
+              <dt>状态</dt>
+              <dd>
+                {linkdReady ? (
+                  <span
+                    className={`${styles.linkdValue} ${styles[`linkd_${linkd.tone}`]}`}
+                    aria-live="polite"
+                  >
+                    {linkd.label}
+                  </span>
+                ) : (
+                  <span className={styles.summaryValueMono}>—</span>
+                )}
+              </dd>
+            </div>
+          </dl>
+
+          {linkdQuery.isLoading || linkdQuery.isError ? (
+            <div className={styles.summaryNotices}>
+              <LoadNotice
+                loading={linkdQuery.isLoading}
+                error={linkdQuery.isError ? linkdQuery.error : null}
+              />
+            </div>
           ) : null}
         </section>
       </main>

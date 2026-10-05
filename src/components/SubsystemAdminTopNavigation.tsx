@@ -222,6 +222,34 @@ function IconKnowledge() {
   );
 }
 
+function IconGwlinkd() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M6.6 9.4 9.4 6.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6 10.5 4.9 11.6a2.2 2.2 0 0 1-3.1-3.1L3 7.3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 5.5 11.1 4.4a2.2 2.2 0 0 1 3.1 3.1L13 8.7"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "监控",
@@ -249,6 +277,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       // 「链接上级」= 把本网关接入**上级控制中心**（Center 那一侧）—— 页名点明动作与对象。
       { to: "/link-upstream", label: "链接上级", icon: <IconLinkUpstream /> },
+      // gwlinkd（宿主侧常驻）专用观测页：一页看清网关两层 —— 「网关容器」与「接入代理 gwlinkd」
+      // 的运行状态。「接入成没成」在链接上级页，「谁活着」归这里。
+      { to: "/gwlinkd", label: "网关状态", icon: <IconGwlinkd /> },
       // 网关对外地址（只读，由部署配置派生）与数据面上送目标 + 启用开关（可改）合成一页。
       { to: "/gateway-info", label: "Gateway 信息", icon: <IconGatewayInfo /> },
       // 取包来源单独一页（从该页拆回）：配网关从哪取件 + 看已录入的包历史。

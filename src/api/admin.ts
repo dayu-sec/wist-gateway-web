@@ -464,6 +464,21 @@ export function clearAdminApiToken(): void {
   setAdminApiToken("");
 }
 
+/**
+ * 仅 dev：把 vite 注入的开发态 admin token 种进当前会话，让管理查询**开箱即用**（免手填）。
+ *
+ * 背景：所有管理查询以 `getAdminApiToken()` 作为 `enabled`；浏览器没手填 token（sessionStorage
+ * 关标签即清）时查询**压根不发** —— 页面看着「什么也没有」，而 dev 代理虽会自动补
+ * `Authorization`，请求不发也白搭。所以在启动时把 token 种上。**已手填的优先**。
+ *
+ * 参数显式传入（而非直接读 `import.meta.env` / `__DEV_ADMIN_TOKEN__`）是为了可以单测；
+ * 生产构建里 `devToken` 为空串、`isDev` 为 false，本函数是 no-op，token 不进前端包。
+ */
+export function seedDevAdminToken(devToken: string, isDev: boolean): void {
+  if (!isDev || !devToken || getAdminApiToken()) return;
+  setAdminApiToken(devToken);
+}
+
 function requiredString(value: unknown, fieldName: string): string {
   if (typeof value === "string") return value;
   throw new Error(`Invalid API response: missing ${fieldName}`);
@@ -1292,6 +1307,116 @@ export function normalizeGatewayLinkdStatusView(
     receivedAt: requiredString(view.received_at, "received_at"),
     ageSeconds: requiredNumber(view.age_seconds, "age_seconds"),
     stale: requiredBoolean(view.stale, "stale"),
+  };
+}
+
+/**
+ * 网关**自身**状态（自述面）在管理面的读投影。
+ *
+ * 与 gwlinkd 状态不同：这里描述的是**网关容器自己**（版本 / 存储健康 / 已登记 Agent 数 /
+ * 数据面上送开关 / 最近错误），也正是 gwlinkd 上报中心的那份值 —— 页面上的 gwlinkd `version`
+ * 是 gwlinkd 自己的，别混。
+ */
+export interface GatewaySelfStateView {
+  gatewayId: string;
+  version: string;
+  collectedAt: string;
+  storeHealthy: boolean;
+  agentCount: number;
+  uplinkEnabled: boolean;
+  lastError: string | null;
+  /** 网关**进程**已运行秒数。 */
+  uptimeSeconds: number;
+  /** 网关**进程** CPU 占比（单核口径）；量不出时为 null。 */
+  cpuPercent: number | null;
+  /** 网关**进程**常驻内存（字节）；量不出时为 null。 */
+  memoryBytes: number | null;
+  /** 在线 / 离线 Agent 台数；`lastSeenLagSeconds` = 机队里最久没上报的滞后秒数。 */
+  onlineAgents: number;
+  offlineAgents: number;
+  lastSeenLagSeconds: number;
+  /** 存储大小（字节；SQLite 文件大小）。 */
+  storeBytes: number;
+  /** 累计接收 / 拒收的数据面事实条数（自进程启动）。 */
+  ingestAcceptedTotal: number;
+  ingestRejectedTotal: number;
+  /** 最近一次接收事实的时刻；未接收过为 null。 */
+  lastIngestAt: string | null;
+  /** 主机（网关所在机器）内存总量（字节）。 */
+  memoryTotalBytes: number | null;
+  /** 主机 1 / 5 / 15 分钟负载。 */
+  load1m: number | null;
+  load5m: number | null;
+  load15m: number | null;
+  /** 主盘使用率（0..100）与总量 / 可用（字节）。 */
+  diskUsagePercent: number | null;
+  diskTotalBytes: number | null;
+  diskAvailableBytes: number | null;
+}
+
+/** 读取网关自身状态（admin 面；页面轮询展示「网关（容器）」）。 */
+export async function viewGatewaySelfState(): Promise<GatewaySelfStateView> {
+  const path = "/api/v1/admin/gateway/self-state";
+  const payload = await requestJson(path);
+  return normalizeGatewaySelfStateView(payload);
+}
+
+/** 按网关 admin 面契约收敛网关自身状态视图。 */
+export function normalizeGatewaySelfStateView(
+  payload: unknown,
+): GatewaySelfStateView {
+  const view = requiredRecord(payload, "response");
+  return {
+    gatewayId: requiredString(view.gateway_id, "gateway_id"),
+    version: requiredString(view.version, "version"),
+    collectedAt: requiredString(view.collected_at, "collected_at"),
+    storeHealthy: requiredBoolean(view.store_healthy, "store_healthy"),
+    agentCount: requiredNumber(view.agent_count, "agent_count"),
+    uplinkEnabled: requiredBoolean(view.uplink_enabled, "uplink_enabled"),
+    lastError: nullableString(view.last_error, "last_error"),
+    uptimeSeconds: requiredNumber(view.uptime_seconds, "uptime_seconds"),
+    // 进程资源：契约里总是**在场**，量不出时是 `null`（非缺失）—— 用 `nullableNumberField`。
+    cpuPercent: nullableNumberField(view, ["cpu_percent"], "cpu_percent"),
+    memoryBytes: nullableNumberField(view, ["memory_bytes"], "memory_bytes"),
+    onlineAgents: requiredNumber(view.online_agents, "online_agents"),
+    offlineAgents: requiredNumber(view.offline_agents, "offline_agents"),
+    lastSeenLagSeconds: requiredNumber(
+      view.last_seen_lag_seconds,
+      "last_seen_lag_seconds",
+    ),
+    storeBytes: requiredNumber(view.store_bytes, "store_bytes"),
+    ingestAcceptedTotal: requiredNumber(
+      view.ingest_accepted_total,
+      "ingest_accepted_total",
+    ),
+    ingestRejectedTotal: requiredNumber(
+      view.ingest_rejected_total,
+      "ingest_rejected_total",
+    ),
+    lastIngestAt: nullableString(view.last_ingest_at, "last_ingest_at"),
+    memoryTotalBytes: nullableNumberField(
+      view,
+      ["memory_total_bytes"],
+      "memory_total_bytes",
+    ),
+    load1m: nullableNumberField(view, ["load_1m"], "load_1m"),
+    load5m: nullableNumberField(view, ["load_5m"], "load_5m"),
+    load15m: nullableNumberField(view, ["load_15m"], "load_15m"),
+    diskUsagePercent: nullableNumberField(
+      view,
+      ["disk_usage_percent"],
+      "disk_usage_percent",
+    ),
+    diskTotalBytes: nullableNumberField(
+      view,
+      ["disk_total_bytes"],
+      "disk_total_bytes",
+    ),
+    diskAvailableBytes: nullableNumberField(
+      view,
+      ["disk_available_bytes"],
+      "disk_available_bytes",
+    ),
   };
 }
 
