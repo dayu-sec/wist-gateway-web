@@ -351,6 +351,23 @@
   font-weight: 600;
 }
 
+.linkdValue {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.linkd_idle {
+  color: var(--unknown);
+}
+
+.linkd_ok {
+  color: var(--ok);
+}
+
+.linkd_crit {
+  color: var(--crit);
+}
+
 .statusDetail {
   margin-top: 10px;
   padding: 9px 11px;

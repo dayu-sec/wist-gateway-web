@@ -51,6 +51,7 @@ import {
   setGatewayLinkRequest,
   viewAgentLogs,
   viewGatewayLinkRequest,
+  viewGatewayLinkdStatus,
   type ActivateKnowledgePackageCommand,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
@@ -382,6 +383,24 @@ export function useGatewayLinkRequest() {
       if (status === "Connected" || status === "Failed") return false;
       return enabled ? 5000 : false;
     },
+  });
+}
+
+/** 轮询 gwlinkd 状态（宿主侧常驻是否在跑；**持续观测**，永远轮询）。 */
+export function useGatewayLinkdStatus() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-linkd-status"],
+    queryFn: viewGatewayLinkdStatus,
+    enabled,
+    refetchInterval: enabled ? 5000 : false,
   });
 }
 

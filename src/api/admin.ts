@@ -1239,6 +1239,62 @@ export function normalizeGatewayLinkRequestView(
   };
 }
 
+/**
+ * gwlinkd 状态（心跳）。宿主侧常驻 gwlinkd 纯出站、页面拉不到它 —— 它每拍把自身状态环回推到网关，
+ * 网关存单行；本视图即网关侧读回（含服务端算的 `ageSeconds` / `stale`）。
+ */
+export interface GatewayLinkdStatusView {
+  hasStatus: boolean;
+  gatewayId: string;
+  instanceId: string;
+  version: string;
+  centerEndpoint: string;
+  state: string;
+  credentialExpiresAt: string;
+  lastCenterReportAt: string;
+  lastError: string;
+  reportedAt: string;
+  receivedAt: string;
+  /** 距最近一次心跳的秒数（服务端按网关时钟算）。 */
+  ageSeconds: number;
+  stale: boolean;
+}
+
+/** 读取 gwlinkd 状态（admin 面；页面轮询显示宿主侧常驻是否在跑）。 */
+export async function viewGatewayLinkdStatus(): Promise<GatewayLinkdStatusView> {
+  const path = "/api/v1/admin/gateway/linkd-status";
+  const payload = await requestJson(path);
+  return normalizeGatewayLinkdStatusView(payload);
+}
+
+/** 按网关 admin 面契约收敛 gwlinkd 状态视图。 */
+export function normalizeGatewayLinkdStatusView(
+  payload: unknown,
+): GatewayLinkdStatusView {
+  const view = requiredRecord(payload, "response");
+  return {
+    hasStatus: requiredBoolean(view.has_status, "has_status"),
+    gatewayId: requiredString(view.gateway_id, "gateway_id"),
+    instanceId: requiredString(view.instance_id, "instance_id"),
+    version: requiredString(view.version, "version"),
+    centerEndpoint: requiredString(view.center_endpoint, "center_endpoint"),
+    state: requiredString(view.state, "state"),
+    credentialExpiresAt: requiredString(
+      view.credential_expires_at,
+      "credential_expires_at",
+    ),
+    lastCenterReportAt: requiredString(
+      view.last_center_report_at,
+      "last_center_report_at",
+    ),
+    lastError: requiredString(view.last_error, "last_error"),
+    reportedAt: requiredString(view.reported_at, "reported_at"),
+    receivedAt: requiredString(view.received_at, "received_at"),
+    ageSeconds: requiredNumber(view.age_seconds, "age_seconds"),
+    stale: requiredBoolean(view.stale, "stale"),
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * 数据采集吞吐视图（/api/v1/admin/pipeline/topology）
  *

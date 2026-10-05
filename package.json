@@ -12,6 +12,7 @@
     "test:bundle": "node tests/admin-token-bundle.test.mjs",
     "test:routes": "node tests/routes-contract.test.mjs",
     "test:gateway-link-request": "tsx tests/gateway-link-request-contract.test.ts",
+    "test:linkd-status": "tsx tests/linkd-status-contract.test.ts",
     "test:link-enroll": "tsx tests/link-enroll-parse.test.ts",
     "test:install-package": "tsx tests/install-package-contract.test.ts",
     "test:install-packages": "tsx tests/install-packages-contract.test.ts",
