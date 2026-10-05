@@ -9,6 +9,10 @@
 
 ### 变更
 
+- **dev 代理自动带 admin token**：开发态 vite 代理从网关 home 的 `wist-gateway.toml`（`WIST_GATEWAY_CONFIG` 可覆盖）
+  读 `admin_api_token`，在请求**未带** `Authorization` 时补上。修前：浏览器没手填 token（sessionStorage 一关标签就清）→
+  「链接上级」状态查询 `enabled=false`、**状态区整块不渲染**（看着像“接入了却不显示结果”，其实是从没查）。
+  token 不进前端包；已手填的优先。
 - **接入链接的 CA 按 scheme 条件必需**：「链接上级」页解析接入链接时，只有 `https://` 中心才要求 `ca`；
   `http://` 明文中心允许无 `ca`（无 TLS 可校）。
 
