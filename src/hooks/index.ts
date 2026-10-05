@@ -376,7 +376,12 @@ export function useGatewayLinkRequest() {
     queryKey: ["gateway-link-request"],
     queryFn: viewGatewayLinkRequest,
     enabled,
-    refetchInterval: enabled ? 5000 : false,
+    // 非终态才轮询；Connected / Failed 后停（避免白跑）。
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status === "Connected" || status === "Failed") return false;
+      return enabled ? 5000 : false;
+    },
   });
 }
 
