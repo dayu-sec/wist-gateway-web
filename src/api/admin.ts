@@ -340,42 +340,27 @@ export interface SetAgentAdvertiseUrlCommand {
   requestedBy?: string;
 }
 
-/** 控制中心返回给 Gateway 的初始连接材料，字段与 Gateway 面接口契约一致。 */
-export interface ControlCenterTrustBundle {
-  trust_bundle_id: string;
-  control_endpoint: string;
-  ca_bundle: string;
-  server_name: string;
-  expected_san: string;
-  issued_at: string | null;
-  expires_at: string | null;
-}
-
-/** GET /api/v1/gateway/link-upstream 的 config 载荷。 */
-export interface GatewayInitialConfig {
-  gateway_id: string;
-  control_center_endpoint: string;
-  trust_bundle: ControlCenterTrustBundle | null;
-  server_tls_required: boolean;
-  protocol_version: string;
-  enrollment_token_id: string;
-}
-
 export type GatewayInstanceLifecycleState =
   "Provisioned" | "Initializing" | "Running" | "Failed";
 
-/** Center 侧实例初始化状态；initialized 是 lifecycle_state 的服务端派生值。 */
-export interface GatewayInitializationStatus {
-  gateway_id: string;
-  instance_id: string | null;
-  lifecycle_state: GatewayInstanceLifecycleState;
-  initialized: boolean;
+/** 网关「接入请求」视图（admin 面，**不含**接入券明文与 CA）。 */
+export interface GatewayLinkRequestView {
+  hasRequest: boolean;
+  gatewayId: string;
+  centerEndpoint: string;
+  status: string;
+  resultDetail: string;
+  requestedBy: string;
+  requestedAt: string;
 }
 
-/** 页面完成状态守卫并取得 JSON 初始配置后的结果。 */
-export interface GatewayInitializationResult {
-  config: GatewayInitialConfig;
-  status: GatewayInitializationStatus;
+/** 提交接入请求的命令（把 Center 页给的接入物落到本机网关）。 */
+export interface SetGatewayLinkRequestCommand {
+  centerEndpoint: string;
+  linkToken: string;
+  trustBundlePem: string;
+  gatewayId?: string;
+  requestedBy?: string;
 }
 
 export const ADMIN_AUTH_CHANGED_EVENT = "warpInsightAdminAuthChanged";
@@ -411,25 +396,6 @@ export class ApiError extends Error {
     this.status = status;
     this.retryAfterSeconds = retryAfterSeconds;
     this.detail = detail;
-  }
-}
-
-/** 初始化 URL 不满足 Center 当前入口契约时抛出，错误由页面作为表单反馈展示。 */
-export class GatewayInitializationInputError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "GatewayInitializationInputError";
-  }
-}
-
-/** Center 已记录实例进入初始化态或运行态时抛出，阻止页面再次消费置备凭证。 */
-export class GatewayAlreadyInitializedError extends Error {
-  readonly status: GatewayInitializationStatus;
-
-  constructor(status: GatewayInitializationStatus) {
-    super("gateway is already initialized");
-    this.name = "GatewayAlreadyInitializedError";
-    this.status = status;
   }
 }
 
@@ -526,96 +492,6 @@ function requiredRecord(
 function nullableString(value: unknown, fieldName: string): string | null {
   if (value === null) return null;
   return requiredString(value, fieldName);
-}
-
-function normalizeTrustBundle(value: unknown): ControlCenterTrustBundle | null {
-  if (value === null) return null;
-  const bundle = requiredRecord(value, "config.trust_bundle");
-  return {
-    trust_bundle_id: requiredString(
-      bundle.trust_bundle_id,
-      "config.trust_bundle.trust_bundle_id",
-    ),
-    control_endpoint: requiredString(
-      bundle.control_endpoint,
-      "config.trust_bundle.control_endpoint",
-    ),
-    ca_bundle: requiredString(
-      bundle.ca_bundle,
-      "config.trust_bundle.ca_bundle",
-    ),
-    server_name: requiredString(
-      bundle.server_name,
-      "config.trust_bundle.server_name",
-    ),
-    expected_san: requiredString(
-      bundle.expected_san,
-      "config.trust_bundle.expected_san",
-    ),
-    issued_at: nullableString(
-      bundle.issued_at,
-      "config.trust_bundle.issued_at",
-    ),
-    expires_at: nullableString(
-      bundle.expires_at,
-      "config.trust_bundle.expires_at",
-    ),
-  };
-}
-
-/** 按当前 JSON 契约收敛初始配置，避免把服务端错误静默成空字段。 */
-export function normalizeGatewayInitialConfig(
-  payload: unknown,
-): GatewayInitialConfig {
-  const root = requiredRecord(payload, "response");
-  const config = requiredRecord(root.config, "config");
-  return {
-    gateway_id: requiredString(config.gateway_id, "config.gateway_id"),
-    control_center_endpoint: requiredString(
-      config.control_center_endpoint,
-      "config.control_center_endpoint",
-    ),
-    trust_bundle: normalizeTrustBundle(config.trust_bundle),
-    server_tls_required: requiredBoolean(
-      config.server_tls_required,
-      "config.server_tls_required",
-    ),
-    protocol_version: requiredString(
-      config.protocol_version,
-      "config.protocol_version",
-    ),
-    enrollment_token_id: requiredString(
-      config.enrollment_token_id,
-      "config.enrollment_token_id",
-    ),
-  };
-}
-
-function normalizeGatewayLifecycleState(
-  value: unknown,
-): GatewayInstanceLifecycleState {
-  if (
-    value === "Provisioned" ||
-    value === "Initializing" ||
-    value === "Running" ||
-    value === "Failed"
-  ) {
-    return value;
-  }
-  throw new Error("Invalid API response: invalid lifecycle_state");
-}
-
-/** 按 QueryGatewayInitializationStatus 响应契约校验 Center 返回值。 */
-export function normalizeGatewayInitializationStatus(
-  payload: unknown,
-): GatewayInitializationStatus {
-  const status = requiredRecord(payload, "response");
-  return {
-    gateway_id: requiredString(status.gateway_id, "gateway_id"),
-    instance_id: nullableString(status.instance_id, "instance_id"),
-    lifecycle_state: normalizeGatewayLifecycleState(status.lifecycle_state),
-    initialized: requiredBoolean(status.initialized, "initialized"),
-  };
 }
 
 function requiredArray(value: unknown, fieldName: string): any[] {
@@ -1317,126 +1193,50 @@ export async function setAgentAdvertiseUrl(
 }
 
 /**
- * 从 Gateway 页面调用控制中心的网关面初始化接口。
- * initUrl 由 Center 创建实例时下发，**不携带凭证**（token 不进 URL）；
- * 网关凭证由操作者单独输入，只放入 Authorization Header。
- * 返回 Center 当前实现的 `application/json` 响应中的 `config` 对象。
+ * 提交「接入请求」到本机网关（admin 面）。
+ *
+ * 页面**不再直连 Center**：把 Center「连接 Gateway」页给的接入物（中心地址 + 一次性接入券 + CA-S）
+ * 落到本机网关；宿主侧 `wist-gwlinkd` 环回拉取并完成 link-upstream / register。
+ * 见设计 `wist-design/doc/design/edge/gateway-onboard-request.md`。
  */
-export async function fetchGatewayInitialConfig(
-  initUrl: string,
-  token?: string,
-): Promise<GatewayInitialConfig> {
-  // 去掉可能残留的 fragment（如手工复制带 # 的链接）。
-  const path = initUrl.split("#", 1)[0];
-  const response = await fetch(path, {
-    headers: {
-      accept: "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
+export async function setGatewayLinkRequest(
+  command: SetGatewayLinkRequestCommand,
+): Promise<GatewayLinkRequestView> {
+  const path = "/api/v1/admin/gateway/link-request";
+  const payload = await requestJson(path, {
+    method: "POST",
+    body: JSON.stringify({
+      gateway_id: command.gatewayId ?? "",
+      center_endpoint: command.centerEndpoint,
+      link_token: command.linkToken,
+      trust_bundle_pem: command.trustBundlePem,
+      requested_by: command.requestedBy ?? "operator",
+    }),
   });
-  if (!response.ok) {
-    throw new ApiError(response.status, path);
-  }
-  return normalizeGatewayInitialConfig(await response.json());
+  return normalizeGatewayLinkRequestView(payload);
 }
 
-/** 初始化 URL 校验后得到的请求目标，供页面 Service 串联状态查询与配置请求。 */
-export interface GatewayInitializationTarget {
-  initUrl: string;
-  gatewayId: string;
-  statusUrl: string;
+/** 读取接入请求状态（admin 面；页面轮询显示进度）。 */
+export async function viewGatewayLinkRequest(): Promise<GatewayLinkRequestView> {
+  const path = "/api/v1/admin/gateway/link-request";
+  const payload = await requestJson(path);
+  return normalizeGatewayLinkRequestView(payload);
 }
 
-/**
- * 校验 Center 交付的初始化 URL，并派生同一 Center 上的初始化状态查询地址。
- * URL 只允许 gateway_id 查询参数；Bearer 凭证必须由调用方另行放入 Header。
- */
-export function parseGatewayInitializationUrl(
-  input: string,
-): GatewayInitializationTarget {
-  let url: URL;
-  try {
-    url = new URL(input.trim());
-  } catch {
-    throw new GatewayInitializationInputError(
-      "请输入完整、有效的控制中心初始化 URL。",
-    );
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new GatewayInitializationInputError(
-      "初始化 URL 只支持 HTTP 或 HTTPS 协议。",
-    );
-  }
-  if (url.username || url.password || url.hash) {
-    throw new GatewayInitializationInputError(
-      "初始化 URL 不能携带用户信息、凭证或 fragment。",
-    );
-  }
-  if (!url.pathname.endsWith("/api/v1/gateway/link-upstream")) {
-    throw new GatewayInitializationInputError(
-      "初始化 URL 必须指向 /api/v1/gateway/link-upstream。",
-    );
-  }
-  const queryNames = [...url.searchParams.keys()];
-  if (queryNames.length !== 1 || queryNames[0] !== "gateway_id") {
-    throw new GatewayInitializationInputError(
-      "初始化 URL 只能包含 gateway_id；Bearer 凭证请填写到独立凭证输入框。",
-    );
-  }
-  const gatewayId = url.searchParams.get("gateway_id")?.trim();
-  if (!gatewayId) {
-    throw new GatewayInitializationInputError("初始化 URL 缺少 gateway_id。");
-  }
-
-  const statusUrl = new URL(url);
-  statusUrl.pathname = statusUrl.pathname.replace(
-    /\/link-upstream$/,
-    "/initialization-status",
-  );
-  statusUrl.search = "";
-  statusUrl.searchParams.set("gateway_id", gatewayId);
+/** 按网关 admin 面契约收敛接入请求视图。 */
+export function normalizeGatewayLinkRequestView(
+  payload: unknown,
+): GatewayLinkRequestView {
+  const view = requiredRecord(payload, "response");
   return {
-    initUrl: url.toString(),
-    gatewayId,
-    statusUrl: statusUrl.toString(),
+    hasRequest: requiredBoolean(view.has_request, "has_request"),
+    gatewayId: requiredString(view.gateway_id, "gateway_id"),
+    centerEndpoint: requiredString(view.center_endpoint, "center_endpoint"),
+    status: requiredString(view.status, "status"),
+    resultDetail: requiredString(view.result_detail, "result_detail"),
+    requestedBy: requiredString(view.requested_by, "requested_by"),
+    requestedAt: requiredString(view.requested_at, "requested_at"),
   };
-}
-
-/** 查询 Center 侧实例状态；可选 Bearer 仍只通过 Authorization Header 发送。 */
-export async function fetchGatewayInitializationStatus(
-  statusUrl: string,
-  token?: string,
-): Promise<GatewayInitializationStatus> {
-  const response = await fetch(statusUrl, {
-    headers: {
-      accept: "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-  });
-  if (!response.ok) {
-    throw new ApiError(response.status, statusUrl);
-  }
-  return normalizeGatewayInitializationStatus(await response.json());
-}
-
-/**
- * 页面初始化业务 Service：解析 URL → 查询状态 → 拦截重复初始化 → 获取 JSON 配置。
- * 状态检查不替代 Center 的服务端守卫，只用于在消费一次性凭证前提供明确反馈。
- */
-export async function initializeGatewayViaUrl(
-  initUrl: string,
-  token?: string,
-): Promise<GatewayInitializationResult> {
-  const target = parseGatewayInitializationUrl(initUrl);
-  const status = await fetchGatewayInitializationStatus(
-    target.statusUrl,
-    token,
-  );
-  if (status.initialized) {
-    throw new GatewayAlreadyInitializedError(status);
-  }
-  const config = await fetchGatewayInitialConfig(target.initUrl, token);
-  return { config, status };
 }
 
 /* ------------------------------------------------------------------ *

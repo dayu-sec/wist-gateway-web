@@ -39,7 +39,6 @@ import {
   getAdminApiToken,
   grantOneShotWork,
   grantStandingWork,
-  initializeGatewayViaUrl,
   liftAgentRevocation,
   pauseWork,
   recordKnowledgePackage,
@@ -49,7 +48,9 @@ import {
   setAgentAdvertiseUrl,
   setAgentInstallPackage,
   setAgentUplink,
+  setGatewayLinkRequest,
   viewAgentLogs,
+  viewGatewayLinkRequest,
   type ActivateKnowledgePackageCommand,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
@@ -59,6 +60,7 @@ import {
   type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
   type SetAgentUplinkCommand,
+  type SetGatewayLinkRequestCommand,
 } from "../api";
 
 export function useAgentOverview() {
@@ -347,11 +349,34 @@ export function useAgentPurpose(agentId: string) {
   });
 }
 
-/** Gateway 初始化页面的显式提交动作；先检查状态，不自动轮询或重复消费一次性凭证。 */
-export function useGatewayInitialConfig() {
+/** 提交「接入请求」到本机网关（页面发起接入）。 */
+export function useSetGatewayLinkRequest() {
+  const queryClient = useQueryClient();
+  const refresh = () =>
+    void queryClient.invalidateQueries({ queryKey: ["gateway-link-request"] });
   return useMutation({
-    mutationFn: ({ initUrl, token }: { initUrl: string; token?: string }) =>
-      initializeGatewayViaUrl(initUrl, token),
+    mutationFn: (command: SetGatewayLinkRequestCommand) =>
+      setGatewayLinkRequest(command),
+    onSuccess: refresh,
+    onError: refresh,
+  });
+}
+
+/** 轮询接入请求状态（页面显示进度；仅在有管理凭证时）。 */
+export function useGatewayLinkRequest() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-link-request"],
+    queryFn: viewGatewayLinkRequest,
+    enabled,
+    refetchInterval: enabled ? 5000 : false,
   });
 }
 
