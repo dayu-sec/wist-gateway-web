@@ -1311,6 +1311,124 @@ export function normalizeGatewayLinkdStatusView(
 }
 
 /**
+ * gwlinkd **心跳轨迹**（最近窗口的环形记录）：页面据此看「最近一小时稳不稳」（掉没掉线、心跳断没断）。
+ *
+ * `samples` 按时刻升序；相邻两点间隔远大于心跳周期（≈30s）= 那段 gwlinkd 没在跑。
+ */
+export interface GatewayLinkdHistory {
+  /** 本次返回覆盖的窗口（秒）。 */
+  windowSeconds: number;
+  samples: GatewayLinkdHeartbeat[];
+}
+
+export interface GatewayLinkdHeartbeat {
+  /** 网关收到心跳的时刻（unix 秒）。 */
+  at: number;
+  /** 那一刻 gwlinkd 自报的状态。 */
+  state: string;
+}
+
+/** 读取 gwlinkd 心跳轨迹（admin 面；缺省 1 小时窗口）。 */
+export async function viewGatewayLinkdHistory(
+  windowSeconds = 3600,
+): Promise<GatewayLinkdHistory> {
+  const path = `/api/v1/admin/gateway/linkd-status/history?window_seconds=${encodeURIComponent(
+    String(windowSeconds),
+  )}`;
+  const payload = await requestJson(path);
+  return normalizeGatewayLinkdHistory(payload);
+}
+
+/** 按网关 admin 面契约收敛心跳轨迹。 */
+export function normalizeGatewayLinkdHistory(
+  payload: unknown,
+): GatewayLinkdHistory {
+  const view = requiredRecord(payload, "response");
+  const raw = requiredArray(view.samples, "samples");
+  return {
+    windowSeconds: requiredNumber(view.window_seconds, "window_seconds"),
+    samples: raw.map((sample, index) => {
+      const at = `samples[${index}]`;
+      const record = requiredRecord(sample, at);
+      return {
+        at: requiredNumber(record.at, `${at}.at`),
+        state: requiredString(record.state, `${at}.state`),
+      };
+    }),
+  };
+}
+
+/**
+ * 网关（容器）**自述状态轨迹**（网关周期自采；页面「网关（容器）」tab 画趋势）。
+ *
+ * 与 gwlinkd 心跳轨迹同一形态：`samples` 按时刻升序；量不出的列是 `null`（趋势里显断线）。
+ */
+export interface GatewaySelfStateHistory {
+  /** 本次返回覆盖的窗口（秒）。 */
+  windowSeconds: number;
+  samples: GatewaySelfStateSample[];
+}
+
+export interface GatewaySelfStateSample {
+  /** 采样时刻（unix 秒）。 */
+  at: number;
+  cpuPercent: number | null;
+  memoryBytes: number | null;
+  load1m: number | null;
+  onlineAgents: number;
+  diskUsagePercent: number | null;
+}
+
+/** 读取网关自述状态轨迹（admin 面；缺省 1 小时窗口）。 */
+export async function viewGatewaySelfStateHistory(
+  windowSeconds = 3600,
+): Promise<GatewaySelfStateHistory> {
+  const path = `/api/v1/admin/gateway/self-state/history?window_seconds=${encodeURIComponent(
+    String(windowSeconds),
+  )}`;
+  const payload = await requestJson(path);
+  return normalizeGatewaySelfStateHistory(payload);
+}
+
+/** 按网关 admin 面契约收敛自述状态轨迹。 */
+export function normalizeGatewaySelfStateHistory(
+  payload: unknown,
+): GatewaySelfStateHistory {
+  const view = requiredRecord(payload, "response");
+  const raw = requiredArray(view.samples, "samples");
+  return {
+    windowSeconds: requiredNumber(view.window_seconds, "window_seconds"),
+    samples: raw.map((sample, index) => {
+      const at = `samples[${index}]`;
+      const record = requiredRecord(sample, at);
+      return {
+        at: requiredNumber(record.at, `${at}.at`),
+        cpuPercent: nullableNumberField(
+          record,
+          ["cpu_percent", "cpuPercent"],
+          `${at}.cpu_percent`,
+        ),
+        memoryBytes: nullableNumberField(
+          record,
+          ["memory_bytes", "memoryBytes"],
+          `${at}.memory_bytes`,
+        ),
+        load1m: nullableNumberField(record, ["load_1m", "load1m"], `${at}.load_1m`),
+        onlineAgents: requiredNumber(
+          record.online_agents ?? record.onlineAgents,
+          `${at}.online_agents`,
+        ),
+        diskUsagePercent: nullableNumberField(
+          record,
+          ["disk_usage_percent", "diskUsagePercent"],
+          `${at}.disk_usage_percent`,
+        ),
+      };
+    }),
+  };
+}
+
+/**
  * 网关**自身**状态（自述面）在管理面的读投影。
  *
  * 与 gwlinkd 状态不同：这里描述的是**网关容器自己**（版本 / 存储健康 / 已登记 Agent 数 /

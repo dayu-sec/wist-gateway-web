@@ -1,0 +1,40 @@
+/* 网关（容器）自身趋势卡：一两张 TrendChart 竖排。 */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.card {
+  padding: 14px 16px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cardTitle {
+  margin-bottom: 6px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.empty strong {
+  color: var(--text-2);
+  font-size: 12.5px;
+}

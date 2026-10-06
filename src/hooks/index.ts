@@ -51,8 +51,10 @@ import {
   setGatewayLinkRequest,
   viewAgentLogs,
   viewGatewayLinkRequest,
+  viewGatewayLinkdHistory,
   viewGatewayLinkdStatus,
   viewGatewaySelfState,
+  viewGatewaySelfStateHistory,
   type ActivateKnowledgePackageCommand,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
@@ -402,6 +404,51 @@ export function useGatewayLinkdStatus() {
     queryFn: viewGatewayLinkdStatus,
     enabled,
     refetchInterval: enabled ? 5000 : false,
+  });
+}
+
+/**
+ * 轮询 gwlinkd **心跳轨迹**（最近 1 小时）。
+ *
+ * 变化很慢（30s 一拍、窗口 1h），不必跟状态卡同频：`1 分钟一取`就够，
+ * 免得一小时里反复拉一份几乎不动的数组。
+ */
+export function useGatewayLinkdHistory(windowSeconds = 3600) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-linkd-history", windowSeconds],
+    queryFn: () => viewGatewayLinkdHistory(windowSeconds),
+    enabled,
+    refetchInterval: enabled ? 60_000 : false,
+  });
+}
+
+/**
+ * 轮询网关（容器）**自述状态轨迹**（最近 1 小时；网关自己周期自采）。
+ *
+ * 与 gwlinkd 轨迹同频取数（1 分钟一取）：采样本身30s 一拍，再密也只会读到同一批点。
+ */
+export function useGatewaySelfStateHistory(windowSeconds = 3600) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["gateway-self-state-history", windowSeconds],
+    queryFn: () => viewGatewaySelfStateHistory(windowSeconds),
+    enabled,
+    refetchInterval: enabled ? 60_000 : false,
   });
 }
 

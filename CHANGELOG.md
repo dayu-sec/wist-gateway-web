@@ -5,6 +5,18 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.1.16-alpha] - 2026-10-06
+
+### 变更
+
+- **网关状态页改 tab**：gwlinkd / 网关（容器）两栏改为 **tab**（两面板常驻挂载，切 tab 只切显隐，
+  不重挂、不丢轮询），每个 tab 内统一「状态卡 → 趋势 → 明细」。
+- **gwlinkd tab 加短期趋势**：新增 `LinkdHeartbeatTrend`（状态条 + 心跳间隔 sparkline），数据来自
+  网关 `GET /api/v1/admin/gateway/linkd-status/history`（缺省看最近 1h）。
+- **网关（容器）tab 加短期趋势**：新增 `GatewayMetricTrends`（资源占用 CPU/磁盘、内存 RSS、Agent 在线），
+  数据来自网关 `GET /api/v1/admin/gateway/self-state/history`。
+- 新增契约测试 `tests/{linkd-history,self-state-history}-contract.test.ts`，并在 `package.json` 加对应脚本。
+
 ## [0.1.15-alpha] - 2026-10-05
 
 ### 变更
