@@ -280,7 +280,7 @@ check(rejectedMissingFiles, "包缺 `files` 数组必须显式失败");
 // ── ④ 录入：`activate` 缺省 false，字段是 snake_case ─────────────────────────
 responder = () => json({ ...PKG, active: false });
 recorded = [];
-const recordedPkg = await recordKnowledgePackage({ source: "file.tar.gz" });
+const recordedPkg = await recordKnowledgePackage({ source: "file.tar.gz", sha256: SHA });
 const recordCall = recorded[0];
 check(
   recordCall.url === "/api/v1/admin/knowledge/packages" &&
@@ -290,10 +290,10 @@ check(
 const recordBody = JSON.parse(recordCall.body) as Record<string, unknown>;
 check(
   recordBody.source === "file.tar.gz" &&
+    recordBody.sha256 === SHA &&
     recordBody.activate === false &&
-    !("sha256" in recordBody) &&
     !("requested_by" in recordBody),
-  `录入请求体口径不对（activate 缺省必须显式 false，可选键不得出现）：${recordCall.body}`,
+  `录入请求体口径不对（activate 缺省必须显式 false，摘要必填，requested_by 可选不得出现）：${recordCall.body}`,
 );
 check(recordedPkg.active === false, "录入响应必须原样带回 active=false");
 check(

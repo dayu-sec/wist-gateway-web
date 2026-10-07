@@ -1,7 +1,7 @@
 {
   "name": "wist-gateway-web",
   "private": true,
-  "version": "0.1.16",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -21,6 +21,7 @@
     "test:link-enroll": "tsx tests/link-enroll-parse.test.ts",
     "test:install-package": "tsx tests/install-package-contract.test.ts",
     "test:install-packages": "tsx tests/install-packages-contract.test.ts",
+    "test:sha256": "tsx tests/sha256.test.ts",
     "test:knowledge": "tsx tests/knowledge-contract.test.ts",
     "test:admin-api-error": "tsx tests/admin-api-error.test.ts",
     "test:agent-delete": "tsx tests/agent-delete-contract.test.ts",
@@ -35,25 +36,28 @@
     "test:runtime-status": "tsx tests/runtime-status-contract.test.ts",
     "test:agent-revocation": "tsx tests/agent-revocation-contract.test.ts",
     "test:registered-agents": "tsx tests/registered-agents-contract.test.ts",
+    "test:host-metrics": "tsx tests/host-metrics-contract.test.ts",
+    "test:address-summary": "tsx tests/address-summary.test.ts",
     "test:rollout": "tsx tests/rollout-contract.test.ts",
     "test:agent-logs": "tsx tests/agent-logs-contract.test.ts",
     "test:live": "tsx tests/live-gateway-check.ts"
   },
   "dependencies": {
+    "@dayu-sec/wist-web-core": "github:dayu-sec/wist-web-core#v0.1.0",
+    "@tanstack/react-query": "^5.51.0",
+    "change-case": "^5.4.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.26.0",
-    "@tanstack/react-query": "^5.51.0",
-    "change-case": "^5.4.4",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "vite": "^5.4.0",
     "@vitejs/plugin-react": "^4.3.0",
     "prettier": "^3.3.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
   }
 }

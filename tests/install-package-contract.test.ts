@@ -144,14 +144,20 @@ if (saved.packageUrl !== "https://mirror.example.com/wist/agentd-v2.tar.gz" || s
   throw new Error("install-package set must return the stored setting");
 }
 
-// --- 可选字段省略时不发送空键（后端按 Option 反序列化） ---------------------
+// --- `package_sha256` 必填、永远带上；`requested_by` 仍可选，省略时不发空键 ---------
 recorded = [];
-await setAgentInstallPackage({ packageUrl: "https://mirror.example.com/wist/agentd.tar.gz" });
-const optionalBody = JSON.parse(recorded[0].body) as Record<string, unknown>;
-if ("package_sha256" in optionalBody || "requested_by" in optionalBody) {
-  throw new Error("omitted optional fields must not be sent as empty keys");
+await setAgentInstallPackage({
+  packageUrl: "https://mirror.example.com/wist/agentd.tar.gz",
+  packageSha256: "sha256:64hex",
+});
+const requiredBody = JSON.parse(recorded[0].body) as Record<string, unknown>;
+if (requiredBody.package_sha256 !== "sha256:64hex") {
+  throw new Error("package_sha256 is required and must always be present in the set body");
 }
-if (optionalBody.package_url !== "https://mirror.example.com/wist/agentd.tar.gz") {
+if ("requested_by" in requiredBody) {
+  throw new Error("omitted requested_by must not be sent as an empty key");
+}
+if (requiredBody.package_url !== "https://mirror.example.com/wist/agentd.tar.gz") {
   throw new Error("package_url must always be present in the set body");
 }
 

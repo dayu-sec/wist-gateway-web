@@ -510,8 +510,8 @@ export interface AgentLogsView {
  * 结果经 `ReportWorkResult` 回填到逐目标条目 —— 计划本身不重复存工作内容，
  * `spec` 只在计划这一行，条目只记 `work_id` 与结果。
  *
- * 与中心侧「升级网关」的 `UpgradePlan` 不同：那是具体动作的专用建模，
- * 这里是通用的「分阶段灰度发布」结构，`upgrade` 只是它的第一个 action。
+ * 与中心侧「升级网关」用的是**同一套** `Control.Rollout`：那边 target = gateway_id，
+ * 这边 target = agent_id（网关铺自己的机队）。`upgrade` 只是它的第一个 action。
  */
 
 /** 计划里的一个阶段：一段目标范围 + 推进到下一阶段的闸门。 */

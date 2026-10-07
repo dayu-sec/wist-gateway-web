@@ -9,7 +9,9 @@ import {
   formatPercent,
   severityForLoad,
   severityForUsage,
+  summarizeAddresses,
   SEVERITY_LABEL,
+  type AddressSummary,
   type Severity,
 } from "../lib/format";
 
@@ -21,6 +23,10 @@ type SortKey = "severity" | "agentId" | "cpu" | "memory" | "disk";
 
 interface HostRow {
   agentId: string;
+  nodeId: string;
+  hostname: string;
+  ipAddresses: string[];
+  addresses: AddressSummary;
   loadAverage1m?: number;
   memoryTotalKb?: number;
   memoryAvailableKb?: number;
@@ -86,6 +92,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
           : undefined;
       return {
         ...host,
+        addresses: summarizeAddresses(host.ipAddresses),
         memoryUsagePercent,
         memoryUsedKb:
           host.memoryTotalKb !== undefined &&
@@ -118,7 +125,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
       if (severityFilter !== "all" && row.severity !== severityFilter) {
         return false;
       }
-      if (keyword && !row.agentId.toLowerCase().includes(keyword)) return false;
+      if (keyword) {
+        const haystack = [row.agentId, row.hostname, row.nodeId, ...row.ipAddresses]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(keyword)) return false;
+      }
       return true;
     });
 
@@ -140,7 +152,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
           case "disk":
             return row.diskUsagePercent ?? -1;
           default:
-            return row.agentId;
+            return row.hostname || row.agentId;
         }
       };
 
@@ -225,10 +237,10 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
               <input
                 type="search"
                 className={styles.searchInput}
-                placeholder="搜索主机 ID"
+                placeholder="搜索主机名 / ID / IP"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                aria-label="搜索主机 ID"
+                aria-label="搜索主机名、Agent ID 或 IP"
               />
             </div>
 
@@ -327,12 +339,28 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                 {visible.map((row) => (
                   <tr key={row.agentId}>
                     <td className={styles.tdHost}>
-                      <Link
-                        className={styles.hostLink}
-                        to={`/agents/${encodeURIComponent(row.agentId)}/metrics`}
-                      >
-                        {row.agentId}
-                      </Link>
+                      <div className={styles.hostCell}>
+                        <Link
+                          className={styles.hostLink}
+                          to={`/agents/${encodeURIComponent(row.agentId)}/metrics`}
+                        >
+                          {row.hostname || row.agentId}
+                        </Link>
+                        {row.hostname ? (
+                          <span className={styles.hostSub}>{row.agentId}</span>
+                        ) : null}
+                        {row.addresses.primary ? (
+                          <span
+                            className={styles.hostSub}
+                            title={row.addresses.full}
+                          >
+                            {row.addresses.primary}
+                            {row.addresses.others > 0
+                              ? ` +${row.addresses.others}`
+                              : ""}
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td>
                       <span

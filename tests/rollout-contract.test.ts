@@ -13,35 +13,31 @@ import {
 } from "../src/api/admin";
 import {
   LATEST_PLAN_LIMIT,
+  PHASE_COUNTS,
+  PLAN_STATUS_FILTERS,
+  PLAN_TIME_RANGES,
   advanceRuleLabel,
+  availablePhaseCounts,
   countEntries,
   currentPhase,
   entryStatusLabel,
   entryStatusTone,
+  filterRolloutPlans,
   latestPlans,
+  matchesPlanStatus,
+  matchesPlanTimeRange,
   phaseIncompleteCount,
+  phaseScaleLabel,
   phaseSettled,
   phaseStatusLabel,
+  planPhases,
   planStatusLabel,
   planStatusTone,
   planTargetCount,
-} from "../src/components/rolloutStatus";
-import {
-  PHASE_COUNTS,
-  availablePhaseCounts,
-  phaseScaleLabel,
-  planPhases,
-  selectUpgradeTargets,
-} from "../src/components/agentUpgradePhases";
-import {
-  PLAN_STATUS_FILTERS,
-  PLAN_TIME_RANGES,
-  filterRolloutPlans,
-  matchesPlanStatus,
-  matchesPlanTimeRange,
   startOfWeek,
   timeRangeBounds,
-} from "../src/components/rolloutFilters";
+} from "@dayu-sec/wist-web-core/release";
+import { selectUpgradeTargets } from "../src/components/agentUpgradeTargets";
 
 // 契约测试：管理面「灰度发布计划」（模型 `Control.Rollout` 的列表/创建/批准/推进/查看）。
 //
@@ -225,10 +221,8 @@ const created = await createRolloutPlan({
     packageUrl: "/srv/wist/wist-agentd-0.1.4.tar.gz",
     packageSha256: `sha256:${"a".repeat(64)}`,
   }),
-  phases: [
-    { targetIds: ["agent-canary"], advanceRule: "manual" },
-    { targetIds: ["agent-b", "agent-c"], advanceRule: "success_rate:80" },
-  ],
+  targetIds: ["agent-canary", "agent-b", "agent-c"],
+  phaseCount: 2,
   deadlineAt: "2026-10-01T00:00:00Z",
   timeoutSeconds: 600,
   batchSize: 1,
@@ -243,11 +237,15 @@ assert(createBody.action === "upgrade", "create must carry the action");
 assert(createBody.deadline_at === "2026-10-01T00:00:00Z", "create must carry deadline_at");
 assert(createBody.timeout_seconds === 600, "create must carry timeout_seconds");
 assert(createBody.batch_size === 1, "create must carry batch_size");
-assert(Array.isArray(createBody.phases) && createBody.phases.length === 2, "create must carry phases");
 assert(
-  createBody.phases[1].target_ids[1] === "agent-c" &&
-    createBody.phases[1].advance_rule === "success_rate:80",
-  "phases must use the snake_case field names the gateway expects",
+  Array.isArray(createBody.target_ids) &&
+    createBody.target_ids.join(",") === "agent-canary,agent-b,agent-c",
+  "create must carry target_ids（阶段由服务端切）",
+);
+assert(createBody.phase_count === 2, "create must carry phase_count");
+assert(
+  createBody.phases === undefined,
+  "客户端不再自己切阶段，body 里不该有 phases",
 );
 assert(created.status === "draft", "create returns a draft plan");
 
@@ -642,7 +640,7 @@ assert(five.phases[4].isFinal, "末批应收尾全量");
 const assigned = five.phases.flatMap((phase) => phase.targetIds);
 assert(assigned.length === fleet.length, "每个 Agent 恰好出现一次");
 assert(new Set(assigned).size === fleet.length, "分配不得重叠");
-assert(phaseScaleLabel(five.phases[0]) === "1 台（金丝雀）", "金丝雀规模文字");
+assert(phaseScaleLabel(five.phases[0]) === "1 个（金丝雀）", "金丝雀规模文字");
 assert(phaseScaleLabel(five.phases[4]) === "覆盖 ~100%", "收尾批规模文字");
 
 for (const count of PHASE_COUNTS) {

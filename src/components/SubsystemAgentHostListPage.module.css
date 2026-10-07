@@ -295,6 +295,19 @@
   max-width: 260px;
 }
 
+.hostCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hostSub {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
 .hostLink {
   color: var(--text);
   font-family: var(--font-mono);

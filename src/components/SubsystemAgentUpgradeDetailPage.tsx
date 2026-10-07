@@ -17,7 +17,7 @@ import {
   planStatusTone,
   planTargetCount,
   type RolloutTone,
-} from "./rolloutStatus";
+} from "@dayu-sec/wist-web-core/release";
 import styles from "./SubsystemAgentUpgradeDetailPage.module.css";
 
 /** 区分 404 的两种含义（与其余管理面页面同一口径）。 */

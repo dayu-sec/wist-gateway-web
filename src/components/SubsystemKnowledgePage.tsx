@@ -9,6 +9,7 @@ import {
 } from "../hooks";
 import { CopyButton } from "./CopyButton";
 import { RateLimitNotice } from "./RateLimitNotice";
+import { sha256Error } from "../sha256";
 import {
   findActiveKnowledgePackage,
   knowledgeActionErrorMessage,
@@ -67,6 +68,7 @@ export function SubsystemKnowledgePage() {
 
   const [source, setSource] = useState("");
   const [sha256, setSha256] = useState("");
+  const [shaFormError, setShaFormError] = useState<string | null>(null);
   const [activateNow, setActivateNow] = useState(false);
   const [pending, setPending] = useState<PendingAction | null>(null);
 
@@ -86,10 +88,18 @@ export function SubsystemKnowledgePage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit) return;
+    const digest = sha256.trim();
+    // 摘要是**必填**：提交前先拦一道，省一次注定 400 的往返，并当场说清哪里不对。
+    const error = sha256Error(digest);
+    if (error) {
+      setShaFormError(error);
+      return;
+    }
+    setShaFormError(null);
     record.mutate(
       {
         source: source.trim(),
-        sha256: sha256.trim() || undefined,
+        sha256: digest,
         activate: activateNow,
       },
       {
@@ -98,6 +108,7 @@ export function SubsystemKnowledgePage() {
           // 摘要框本来就只描述**这一次**的期望值，留着必被拿去校验下一份内容而误报。
           setSource("");
           setSha256("");
+          setShaFormError(null);
           setActivateNow(false);
         },
       },
@@ -517,18 +528,23 @@ export function SubsystemKnowledgePage() {
               </small>
             </label>
             <label className={styles.field}>
-              <span>期望摘要 sha256（可选）</span>
+              <span>期望摘要 sha256（必填）</span>
               <input
                 type="text"
                 value={sha256}
-                onChange={(event) => setSha256(event.target.value)}
+                onChange={(event) => {
+                  setSha256(event.target.value);
+                  if (shaFormError) setShaFormError(null);
+                }}
                 placeholder="64 位十六进制，可带 sha256: 前缀"
                 autoComplete="off"
                 spellCheck={false}
+                required
+                aria-invalid={shaFormError ? true : undefined}
               />
               <small>
-                填发布侧 *.sha256 里那串（算的是来源 tarball
-                的字节）；留空则按实际内容计算并落库。
+                必填：填发布侧 *.sha256 里那串（算的是来源 tarball
+                的字节）；网关先校验，不符即拒绝。
               </small>
             </label>
             <label className={styles.checkboxField}>
@@ -545,6 +561,11 @@ export function SubsystemKnowledgePage() {
               </span>
             </label>
 
+            {shaFormError ? (
+              <div className={styles.errorBanner} role="alert">
+                {shaFormError}
+              </div>
+            ) : null}
             {record.isError ? (
               <div className={styles.errorBanner} role="alert">
                 {knowledgeActionErrorMessage(record.error, "录入")}

@@ -205,6 +205,10 @@ export interface AgentOverview {
 
 export interface AgentHostMetrics {
   agentId: string;
+  /** 机器身份（来自注册表 join，数据面 VM 无这些标签）；缺画像时为空串 / 空数组。 */
+  nodeId: string;
+  hostname: string;
+  ipAddresses: string[];
   loadAverage1m?: number;
   loadAverage5m?: number;
   loadAverage15m?: number;
@@ -228,6 +232,10 @@ export interface AgentHostMetricsHistory {
 
 export interface AgentHostMetricsSummary {
   agentId: string;
+  /** 机器身份，口径与 AgentHostMetrics 一致：注册表 join 而来，缺画像时为空。 */
+  nodeId: string;
+  hostname: string;
+  ipAddresses: string[];
   loadAverage1m?: number;
   memoryTotalKb?: number;
   memoryAvailableKb?: number;
@@ -257,7 +265,12 @@ export interface AgentInstallPackage {
 
 export interface SetAgentInstallPackageCommand {
   packageUrl: string;
-  packageSha256?: string;
+  /**
+   * 期望摘要（sha256，可带 `sha256:` 前缀）：网关拿块字节核对，不符即拒。
+   *
+   * **必填**：包的 sha256 是内容身份，缺了就没有可校验的事实来源（页面也按必填拦）。
+   */
+  packageSha256: string;
   requestedBy?: string;
 }
 
@@ -810,6 +823,13 @@ export function normalizeOverview(payload: any): AgentOverview {
 function normalizeHostMetrics(payload: any): AgentHostMetrics {
   return {
     agentId: requiredString(payload.agent_id ?? payload.agentId, "host.agentId"),
+    // 旧网关没有这些键 —— 缺省当空串 / 空数组，不是形状错误（与 hostname 同口径）。
+    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", "host.nodeId"),
+    hostname: requiredString(payload.hostname ?? "", "host.hostname"),
+    ipAddresses: requiredStringArray(
+      payload.ip_addresses ?? payload.ipAddresses ?? [],
+      "host.ipAddresses",
+    ),
     loadAverage1m: payload.load_average_1m ?? payload.loadAverage1m,
     loadAverage5m: payload.load_average_5m ?? payload.loadAverage5m,
     loadAverage15m: payload.load_average_15m ?? payload.loadAverage15m,
@@ -859,6 +879,12 @@ function normalizeHostMetricsSummaries(payload: any): AgentHostMetricsSummary[] 
 function normalizeHostMetricsSummary(payload: any): AgentHostMetricsSummary {
   return {
     agentId: requiredString(payload.agent_id ?? payload.agentId, "host.agentId"),
+    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", "host.nodeId"),
+    hostname: requiredString(payload.hostname ?? "", "host.hostname"),
+    ipAddresses: requiredStringArray(
+      payload.ip_addresses ?? payload.ipAddresses ?? [],
+      "host.ipAddresses",
+    ),
     loadAverage1m: payload.load_average_1m ?? payload.loadAverage1m,
     memoryTotalKb: payload.memory_total_kb ?? payload.memoryTotalKb,
     memoryAvailableKb: payload.memory_available_kb ?? payload.memoryAvailableKb,
@@ -1127,7 +1153,7 @@ export async function fetchAgentInstallPackage(): Promise<AgentInstallPackage> {
  * 设置网关分发的 Agent 安装包地址（管理面）。
  *
  * 地址必须是 https:// 链接或主机上的绝对路径（网关拒绝明文 http），
- * 摘要为可选，填写时必须是 64 位十六进制（可带 `sha256:` 前缀）。
+ * 摘要**必填**，必须是 64 位十六进制（可带 `sha256:` 前缀）—— 网关拿块字节核对，不符即拒。
  * 设置只影响之后新签发的安装代码与 install.sh，不影响已分发的安装命令。
  */
 export async function setAgentInstallPackage(
@@ -1139,7 +1165,7 @@ export async function setAgentInstallPackage(
       method: "POST",
       body: JSON.stringify({
         package_url: command.packageUrl,
-        package_sha256: command.packageSha256,
+        package_sha256: command.packageSha256.trim(),
         requested_by: command.requestedBy,
       }),
     },
@@ -2905,21 +2931,21 @@ export async function viewAgentLogs(
 // 只在计划这一行，逐目标条目只记 work_id 与结果（由 agentd 上报回填，网关折算成条目状态）。
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 新建计划里的一个阶段（模型 `RolloutPhase`）。 */
-export interface CreateRolloutPhaseCommand {
-  /** 本阶段的目标范围（agent_id）。 */
-  targetIds: string[];
-  /** manual | all_succeeded | success_rate:<NN>。 */
-  advanceRule: string;
-}
-
-/** 新建一份灰度发布计划（模型 `AdminCreateRolloutPlan`）。 */
+/**
+ * 新建一份灰度发布计划（模型 `AdminCreateRolloutPlan`）。
+ *
+ * **阶段不由客户端切**：只给目标与阶段数，阶段切分与闸门策略由**服务端**按阶梯决定
+ * （与中心同一套口径，见 `wist-release::rollout`）。前端的阶梯只用来**预览**。
+ */
 export interface CreateRolloutPlanCommand {
   /** 动作面：今天只有 `upgrade`。 */
   action: string;
   /** 动作参数（JSON 字符串）；`upgrade` 用 `jsonUpgradeSpec` 从结构化字段拼。 */
   spec: string;
-  phases: CreateRolloutPhaseCommand[];
+  /** 计划要铺到的目标（agent_id）。 */
+  targetIds: string[];
+  /** 灰度阶段数（1 个金丝雀 → 10% → 30% → 70% → 全量）。 */
+  phaseCount: number;
   /** RFC3339 绝对截止。 */
   deadlineAt: string;
   /** 执行预算（秒），必须为正。 */
@@ -3133,10 +3159,8 @@ export async function createRolloutPlan(
     body: JSON.stringify({
       action: command.action,
       spec: command.spec,
-      phases: command.phases.map((phase) => ({
-        target_ids: phase.targetIds,
-        advance_rule: phase.advanceRule,
-      })),
+      target_ids: command.targetIds,
+      phase_count: command.phaseCount,
       deadline_at: command.deadlineAt,
       timeout_seconds: command.timeoutSeconds,
       batch_size: command.batchSize,
@@ -3274,8 +3298,8 @@ export interface KnowledgeLockView {
 export interface RecordKnowledgePackageCommand {
   /** `https://…` 链接，或**容器内**绝对路径（宿主路径容器里看不见）。 */
   source: string;
-  /** 可选的期望摘要（发布侧 `*.sha256` 里那串），与来源字节核对。 */
-  sha256?: string;
+  /** 期望摘要（发布侧 `*.sha256` 里那串），与来源字节核对。**必填**。 */
+  sha256: string;
   /** 录入成功后是否立即激活。缺省 `false`。 */
   activate?: boolean;
   requestedBy?: string;
@@ -3613,6 +3637,8 @@ export async function fetchKnowledgePackage(
  *
  * 网关先取包、再跑完整校验链（sha256 → manifest 自洽 → 装载器校验 → 签名），
  * 任一不过整次录入都不生效 —— 既不落库也不覆盖已有副本。
+ *
+ * `sha256` **必填**（发布侧 `*.sha256` 里那串）：它是内容身份，缺了就没有可校验的事实来源。
  */
 export async function recordKnowledgePackage(
   command: RecordKnowledgePackageCommand,
@@ -3623,7 +3649,7 @@ export async function recordKnowledgePackage(
       method: "POST",
       body: JSON.stringify({
         source: command.source,
-        sha256: command.sha256,
+        sha256: command.sha256.trim(),
         activate: command.activate ?? false,
         requested_by: command.requestedBy,
       }),

@@ -8,7 +8,7 @@ import {
   formatNumber,
   formatPercent,
   formatUptime,
-
+  summarizeAddresses,
   severityForLoad,
   severityForUsage,
   SEVERITY_LABEL,
@@ -76,6 +76,8 @@ export function SubsystemAgentHostMetricsPage(
   const memorySeverity = severityForUsage(memoryUsagePercent);
   const loadSeverity = severityForLoad(currentLoad);
   const span = describeSpan(data?.history?.loadAverage1m);
+  // 多网卡主机一次能报十几条 IP（链路本地 + 虚拟网卡），这里只挑主地址，全量进 tooltip。
+  const addresses = summarizeAddresses(data?.ipAddresses ?? []);
 
   return (
     <div className={styles.container}>
@@ -84,7 +86,9 @@ export function SubsystemAgentHostMetricsPage(
           <span aria-hidden="true">←</span> 返回机队视图
         </Link>
         <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>{agentId || "未指定主机"}</h1>
+          <h1 className={styles.pageTitle}>
+            {data?.hostname || agentId || "未指定主机"}
+          </h1>
           <span className={styles.liveBadge}>
             <span className={styles.liveDot} aria-hidden="true" />
             5 秒自动刷新
@@ -97,6 +101,21 @@ export function SubsystemAgentHostMetricsPage(
           </Link>
         </div>
         <div className={styles.metaRow}>
+          <span className={styles.metaItem}>
+            主机 <strong>{data?.hostname || "—"}</strong>
+          </span>
+          <span className={styles.metaItem}>
+            IP{" "}
+            <strong title={addresses.full || undefined}>
+              {addresses.primary ?? "—"}
+              {addresses.others > 0 ? ` 等 ${addresses.others + 1} 个` : ""}
+            </strong>
+          </span>
+          {data?.nodeId ? (
+            <span className={styles.metaItem}>
+              节点 <strong>{data.nodeId}</strong>
+            </span>
+          ) : null}
           {agent ? (
             <>
               <span className={styles.metaItem}>

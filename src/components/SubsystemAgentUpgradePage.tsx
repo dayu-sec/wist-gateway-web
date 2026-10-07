@@ -9,11 +9,20 @@ import {
   useRolloutPlans,
 } from "../hooks";
 import {
+  LATEST_PLAN_LIMIT,
+  PLAN_STATUS_FILTERS,
+  PLAN_TIME_RANGES,
   availablePhaseCounts,
+  filterRolloutPlans,
+  latestPlans,
   phaseScaleLabel,
   planPhases,
-  selectUpgradeTargets,
-} from "./agentUpgradePhases";
+  planStatusLabel,
+  planStatusTone,
+  planTargetCount,
+  type PlanStatusFilter,
+  type PlanTimeRange,
+} from "@dayu-sec/wist-web-core/release";
 import {
   canSubmitUpgrade,
   findSelectedPackage,
@@ -22,21 +31,8 @@ import {
   packageCellLabel,
   packageOptionLabel,
 } from "./agentUpgradePackages";
+import { selectUpgradeTargets } from "./agentUpgradeTargets";
 import { RateLimitNotice } from "./RateLimitNotice";
-import {
-  PLAN_STATUS_FILTERS,
-  PLAN_TIME_RANGES,
-  filterRolloutPlans,
-  type PlanStatusFilter,
-  type PlanTimeRange,
-} from "./rolloutFilters";
-import {
-  LATEST_PLAN_LIMIT,
-  latestPlans,
-  planStatusLabel,
-  planStatusTone,
-  planTargetCount,
-} from "./rolloutStatus";
 import styles from "./SubsystemAgentUpgradePage.module.css";
 
 /**
@@ -213,7 +209,8 @@ export function SubsystemAgentUpgradePage() {
    */
   function buildCommand(): {
     spec: string;
-    phases: { targetIds: string[]; advanceRule: string }[];
+    targetIds: string[];
+    phaseCount: number;
     deadlineAt: string;
     timeout: number;
     batch: number;
@@ -250,11 +247,9 @@ export function SubsystemAgentUpgradePage() {
         packageSha256: selectedPackage.packageSha256,
         allowDowngrade,
       }),
-      // 推进一律人工确认（自动推进两种规则网关侧尚未实现）。
-      phases: phasePlan.phases.map((phase) => ({
-        targetIds: phase.targetIds,
-        advanceRule: "manual",
-      })),
+      // 阶段交给服务端切（只给目标 + 段数）；上面的 `phasePlan` 只用于预览。
+      targetIds: agentIds,
+      phaseCount: effectivePhaseCount,
       deadlineAt: at.toISOString(),
       timeout,
       batch,
@@ -269,7 +264,8 @@ export function SubsystemAgentUpgradePage() {
       {
         action: UPGRADE_ACTION,
         spec: built.spec,
-        phases: built.phases,
+        targetIds: built.targetIds,
+        phaseCount: built.phaseCount,
         deadlineAt: built.deadlineAt,
         timeoutSeconds: built.timeout,
         batchSize: built.batch,

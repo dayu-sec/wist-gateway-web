@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import type { AgentListEntryView } from "../api/admin";
 import { useDeleteAgent, useRegisteredAgents } from "../hooks";
+import { summarizeAddresses } from "../lib/format";
 import styles from "./SubsystemAgentFleetPage.module.css";
 
 /** 读取机队列表失败时的提示。 */
@@ -131,6 +132,7 @@ export function SubsystemAgentFleetPage() {
                 <tbody>
                   {rows.map((row) => {
                     const online = row.status === "online";
+                    const address = summarizeAddresses(row.ipAddresses);
                     return (
                       <tr key={row.agentId}>
                         <td className={styles.tdAgent}>
@@ -142,9 +144,11 @@ export function SubsystemAgentFleetPage() {
                           </Link>
                         </td>
                         <td className={styles.tdMuted}>{row.hostname || "—"}</td>
-                        <td className={styles.tdMono}>
-                          {row.ipAddresses.length > 0
-                            ? row.ipAddresses.join("，")
+                        <td className={styles.tdMono} title={address.full || undefined}>
+                          {address.primary
+                            ? address.others > 0
+                              ? `${address.primary} +${address.others}`
+                              : address.primary
                             : "—"}
                         </td>
                         <td className={styles.tdMono}>{row.version || "—"}</td>

@@ -17,6 +17,7 @@ import {
 } from "./SubsystemAgentWorkView";
 import { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPanel";
 import { SubsystemAgentIdentityPanel } from "./SubsystemAgentIdentityPanel";
+import { summarizeAddresses } from "../lib/format";
 import styles from "./SubsystemAgentWorkPage.module.css";
 
 interface SubsystemAgentWorkPageProps {
@@ -112,6 +113,8 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
     oneShot: grantOneShot.data,
     action: workAction.data,
   });
+  // 多网卡主机一次能报十几条 IP，运行态这里也只挑主地址，全量进 tooltip。
+  const runtimeAddress = summarizeAddresses(runtime.data?.ipAddresses ?? []);
 
   return (
     <div className={styles.container}>
@@ -139,10 +142,15 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
           {runtime.data ? (
             <span className={styles.metaItem}>
               主机 <strong>{runtime.data.hostname || "—"}</strong>
-              {runtime.data.ipAddresses.length > 0 ? (
+              {runtimeAddress.primary ? (
                 <>
                   {" · "}
-                  <strong>{runtime.data.ipAddresses.join("，")}</strong>
+                  <strong title={runtimeAddress.full || undefined}>
+                    {runtimeAddress.primary}
+                    {runtimeAddress.others > 0
+                      ? ` +${runtimeAddress.others}`
+                      : ""}
+                  </strong>
                 </>
               ) : null}
             </span>

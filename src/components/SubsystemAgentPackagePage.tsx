@@ -9,6 +9,7 @@ import {
 } from "../hooks";
 import { CopyButton } from "./CopyButton";
 import { RateLimitNotice } from "./RateLimitNotice";
+import { sha256Error } from "../sha256";
 import {
   PACKAGE_HISTORY_DISPLAY_LIMIT,
   findCurrentPackage,
@@ -126,6 +127,7 @@ export function SubsystemAgentPackagePage() {
   // 预填当前来源会让「添加」读起来像「把当前这份再存一次」；留上一次的输入则会让它看起来像个现值。
   // 摘要框本来就只描述**这一次**的期望值，留着旧值下次必被拿去校验新内容而误报。
   const [packageSha256, setPackageSha256] = useState("");
+  const [packageShaError, setPackageShaError] = useState<string | null>(null);
 
   const setting = installPackage.data ?? null;
   const currentSha256 = setting?.packageSha256 ?? null;
@@ -143,16 +145,25 @@ export function SubsystemAgentPackagePage() {
   function handlePackageSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmitPackage) return;
+    const digest = packageSha256.trim();
+    // 摘要是**必填**：提交前先拦一道，省一次注定 400 的往返，并当场说清哪里不对。
+    const error = sha256Error(digest);
+    if (error) {
+      setPackageShaError(error);
+      return;
+    }
+    setPackageShaError(null);
     setInstallPackage.mutate(
       {
         packageUrl: packageUrl.trim(),
-        packageSha256: packageSha256.trim() || undefined,
+        packageSha256: digest,
       },
       {
         onSuccess: () => {
           // 这一次的输入已经用掉了：清空两个框，让「添加」复位于一个空表单。
           setPackageUrl("");
           setPackageSha256("");
+          setPackageShaError(null);
           // 添加会把制品录进包目录 → 历史列表与「当前安装包」都要跟着刷新。
           // （当前值那条查询由 useSetAgentInstallPackage 自己失效，这里只管包目录。）
           void queryClient.invalidateQueries({
@@ -322,19 +333,29 @@ export function SubsystemAgentPackagePage() {
               </small>
             </label>
             <label className={styles.field}>
-              <span>期望摘要 sha256（可选）</span>
+              <span>期望摘要 sha256（必填）</span>
               <input
                 type="text"
                 value={packageSha256}
-                onChange={(event) => setPackageSha256(event.target.value)}
+                onChange={(event) => {
+                  setPackageSha256(event.target.value);
+                  if (packageShaError) setPackageShaError(null);
+                }}
                 placeholder="64 位十六进制，可带 sha256: 前缀"
                 autoComplete="off"
                 spellCheck={false}
+                required
+                aria-invalid={packageShaError ? true : undefined}
               />
               <small>
-                留空即按实际内容计算并落库；填写则先校验，不符即拒绝。
+                必填：填发布侧 *.sha256 里那串（算的是来源 tarball 字节）；网关先校验，不符即拒绝。
               </small>
             </label>
+            {packageShaError ? (
+              <div className={styles.errorBanner} role="alert">
+                {packageShaError}
+              </div>
+            ) : null}
             {setInstallPackage.isError ? (
               <div className={styles.errorBanner} role="alert">
                 {packageAddErrorMessage(setInstallPackage.error)}
