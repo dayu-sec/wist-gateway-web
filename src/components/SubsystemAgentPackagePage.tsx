@@ -12,13 +12,30 @@ import { RateLimitNotice } from "./RateLimitNotice";
 import { sha256Error } from "../sha256";
 import {
   PACKAGE_HISTORY_DISPLAY_LIMIT,
-  findCurrentPackage,
   isEmptyPackageHistory,
   packageLabel,
   packageShaLabel,
   recentPackages,
 } from "./agentUpgradePackages";
 import styles from "./SubsystemAgentPackagePage.module.css";
+
+/**
+ * agentd 的三个发布平台（target-triple）：网关按平台分别托管安装包。
+ * `id` 与后端包内目录名解析出的 target-triple 一致。
+ */
+const PLATFORM_SLOTS = [
+  { id: "x86_64-unknown-linux-musl", label: "Linux · x86_64 · musl" },
+  { id: "aarch64-unknown-linux-musl", label: "Linux · ARM64 · musl" },
+  { id: "aarch64-apple-darwin", label: "macOS · ARM" },
+] as const;
+
+const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
+  PLATFORM_SLOTS.map((slot) => [slot.id, slot.label]),
+);
+
+function platformLabel(platform: string): string {
+  return PLATFORM_LABELS[platform] ?? platform;
+}
 
 /** 读取当前设置失败时的提示。 */
 function loadErrorMessage(error: unknown): string {
@@ -104,14 +121,12 @@ function PackageHistoryRow({ pkg }: { pkg: InstallPackageView }) {
 /**
  * 「安装包」页（路由 `/install-package`）：网关分发给 Agent 的安装包。
  *
+ * **按平台**管理（agentd 是平台专用制品）：macOS-ARM + Linux x86_64/ARM64 各一份。
  * 三张卡按「现在是什么 → 有过什么 → 怎么加」排：
- * ① 当前安装包 —— 只读。新签发的安装命令与 install.sh 用的就是这一份；版本 / 架构只有在包目录里
- *    按**摘要**对齐到记录才报得出来（录入时来源与摘要同一次写进设置与包目录，摘要是唯一的公共键，
- *    见 `findCurrentPackage`）。没添加过 = **没有可用包**（网关没有内置包这条退路），安装命令会明确报错。
- * ② 安装包历史 —— 网关包目录里添加过的制品，最多列最近 5 条；「Agent 升级」页从这份存档里选包，
- *    那一页不受这一屏的显示上限影响。
- * ③ 添加安装包 —— 填来源地址（本机绝对路径或 https）后保存：网关先拉到本地，成功才落库并成为
- *    当前分发包；拉不到或摘要不符整次添加都不生效，既不落库也不覆盖已有缓存。
+ * ① 当前安装包 —— 只读，逐平台列出当前生效的那一份（没添加过的平台即缺件，对应平台的新装会明确报错）。
+ * ② 安装包历史 —— 网关包目录里添加过的制品，最多列最近 5 条；「Agent 升级」页从这份存档里选包。
+ * ③ 添加安装包 —— 每个平台填来源地址（本机绝对路径或 https）后**一次提交三平台**：任一拉不到
+ *    或摘要不符，整次添加都不生效（既不落库也不覆盖已有缓存）。
  *
  * 文案分工：页头只交代这一页管什么，卡头一行说明讲该卡的状态语义，影响面归按钮旁的 hint，
  * 细节归字段自己的小字 —— 同一机制在一屏里最多出现两次。
@@ -122,48 +137,64 @@ export function SubsystemAgentPackagePage() {
   const packages = useInstallPackages();
   const queryClient = useQueryClient();
 
-  const [packageUrl, setPackageUrl] = useState("");
-  // 两个框都不预填、成功后也都清空：这张卡的语义是**添加一个新包**，框里应该只有「这次要录入什么」。
-  // 预填当前来源会让「添加」读起来像「把当前这份再存一次」；留上一次的输入则会让它看起来像个现值。
-  // 摘要框本来就只描述**这一次**的期望值，留着旧值下次必被拿去校验新内容而误报。
-  const [packageSha256, setPackageSha256] = useState("");
-  const [packageShaError, setPackageShaError] = useState<string | null>(null);
+  const blankRows = () =>
+    PLATFORM_SLOTS.map((slot) => ({ platform: slot.id, url: "", sha256: "" }));
+  const [rows, setRows] = useState(blankRows);
+  // 两个框都不预填、成功后也都清空：这张卡的语义是**添加一个新包**。
+  const [rowErrors, setRowErrors] = useState<(string | null)[]>(() =>
+    PLATFORM_SLOTS.map(() => null),
+  );
 
   const setting = installPackage.data ?? null;
-  const currentSha256 = setting?.packageSha256 ?? null;
-  // 后端用 `updatedAt === null` 报「从未添加过」（此时 url 为空串、摘要为 null），
-  // 与「设置了一个空值」区分开。
-  const currentIsUnset = setting !== null && setting.updatedAt === null;
+  const current = setting?.packages ?? [];
+  // 后端用「packages 为空」报「从未添加过」。
+  const currentIsUnset = setting !== null && current.length === 0;
   const history = packages.data ?? [];
-  // 当前生效的那一份在包目录里的记录：只有它能补出版本 / 架构。
-  const currentPackage = findCurrentPackage(history, currentSha256);
   const recentHistory = recentPackages(history, PACKAGE_HISTORY_DISPLAY_LIMIT);
 
-  const canSubmitPackage =
-    packageUrl.trim().length > 0 && !setInstallPackage.isPending;
+  const canSubmitPackage = !setInstallPackage.isPending;
+
+  function updateRow(
+    index: number,
+    patch: Partial<{ url: string; sha256: string }>,
+  ) {
+    setRows((current) =>
+      current.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  }
+
+  function setRowError(index: number, message: string | null) {
+    setRowErrors((current) =>
+      current.map((value, i) => (i === index ? message : value)),
+    );
+  }
 
   function handlePackageSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmitPackage) return;
-    const digest = packageSha256.trim();
-    // 摘要是**必填**：提交前先拦一道，省一次注定 400 的往返，并当场说清哪里不对。
-    const error = sha256Error(digest);
-    if (error) {
-      setPackageShaError(error);
+    // 三平台都必填且摘要格式正确，否则当场拦下（省一次注定 400 的往返）。
+    const nextErrors = rows.map((row) => {
+      if (!row.url.trim()) return "请填写该平台的来源地址。";
+      return sha256Error(row.sha256.trim());
+    });
+    if (nextErrors.some((message) => message)) {
+      setRowErrors(nextErrors);
       return;
     }
-    setPackageShaError(null);
+    setRowErrors(PLATFORM_SLOTS.map(() => null));
     setInstallPackage.mutate(
       {
-        packageUrl: packageUrl.trim(),
-        packageSha256: digest,
+        artifacts: rows.map((row) => ({
+          platform: row.platform,
+          packageUrl: row.url.trim(),
+          packageSha256: row.sha256.trim(),
+        })),
       },
       {
         onSuccess: () => {
-          // 这一次的输入已经用掉了：清空两个框，让「添加」复位于一个空表单。
-          setPackageUrl("");
-          setPackageSha256("");
-          setPackageShaError(null);
+          // 这一次的输入已经用掉了：清空表单，让「添加」复位于一个空表单。
+          setRows(blankRows());
+          setRowErrors(PLATFORM_SLOTS.map(() => null));
           // 添加会把制品录进包目录 → 历史列表与「当前安装包」都要跟着刷新。
           // （当前值那条查询由 useSetAgentInstallPackage 自己失效，这里只管包目录。）
           void queryClient.invalidateQueries({
@@ -180,7 +211,8 @@ export function SubsystemAgentPackagePage() {
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>安装包</h1>
           <p className={styles.pageSummary}>
-            网关分发给 Agent 的安装包：当前生效的一份，与包目录里的存档。
+            网关分发给 Agent 的安装包，按平台各托管一份（macOS-ARM + Linux
+            x86_64/ARM64）。
           </p>
         </header>
 
@@ -190,7 +222,7 @@ export function SubsystemAgentPackagePage() {
         >
           <header className={styles.cardHead}>
             <h2 id="install-package-current">当前安装包</h2>
-            <p>新签发的安装命令与 install.sh 用的就是这一份。</p>
+            <p>新签发的安装命令与 install.sh 按目标平台取对应这一份。</p>
           </header>
 
           {installPackage.isLoading || installPackage.isError ? (
@@ -204,62 +236,44 @@ export function SubsystemAgentPackagePage() {
             <div className={styles.packageEmpty}>
               <strong>还没有可用的安装包</strong>
               <span>
-                网关没添加过安装包，新签发的安装命令与 install.sh 这时候会明确报错（不会默默用一个旧包）。在下面填来源添加一份即可。
+                网关没添加过安装包，新签发的安装命令与 install.sh
+                这时候会明确报错（不会默默用一个旧包）。在下面按平台添加即可。
               </span>
             </div>
           ) : (
-            /* 两行：上行「是哪一份」（版本 · 架构 + 生效时间），下行「从哪来」（来源 + 摘要）。
-               四行 dt/dd 会把一张纯只读的卡铺得比下面的录入表单还高，而它要回答的只有这两问。 */
-            <div className={styles.currentBody}>
-              <div className={styles.currentLine}>
-                {currentPackage ? (
-                  <span className={styles.currentLabel}>
-                    {packageLabel(currentPackage)}
-                  </span>
-                ) : (
-                  <span className={styles.currentUnknown}>
-                    未识别（包目录里没有对应记录）
-                  </span>
-                )}
-                <span className={styles.currentTime}>
-                  {timestampText(setting?.updatedAt ?? null)}
-                  {setting?.updatedBy ? ` · ${setting.updatedBy}` : ""}
-                </span>
-              </div>
-              <div className={styles.currentMeta}>
-                {/* 来源与摘要各成一组：两组之间的间距要明显大于组内标签与值的间距，
-                    否则四个成对的词会连成一串读不出配对关系。来源可长可短，由它让位。 */}
-                <span className={`${styles.metaGroup} ${styles.metaGroupSource}`}>
-                  <span className={styles.metaLabel}>来源</span>
-                  <span
-                    className={styles.metaValue}
-                    title={setting?.packageUrl ?? ""}
-                  >
-                    {setting?.packageUrl || "—"}
-                  </span>
-                  {setting?.packageUrl ? (
-                    <CopyButton
-                      text={setting.packageUrl}
-                      label="复制"
-                      className={styles.inlineCopyButton}
-                    />
-                  ) : null}
-                </span>
-                <span className={`${styles.metaGroup} ${styles.metaGroupSha}`}>
-                  <span className={styles.metaLabel}>摘要</span>
-                  <span className={styles.metaSha} title={currentSha256 ?? ""}>
-                    {packageShaLabel(currentSha256)}
-                  </span>
-                  {currentSha256 ? (
-                    <CopyButton
-                      text={currentSha256}
-                      label="复制"
-                      className={styles.inlineCopyButton}
-                    />
-                  ) : null}
-                </span>
-              </div>
-            </div>
+            <ul className={styles.packageList}>
+              {current.map((entry) => (
+                <li key={entry.platform} className={styles.packageRow}>
+                  <div className={styles.packageRowTop}>
+                    <span className={styles.packageLabel}>
+                      {platformLabel(entry.platform)}
+                    </span>
+                    <span className={styles.packageTime}>
+                      {timestampText(entry.updatedAt)}
+                      {entry.updatedBy ? ` · ${entry.updatedBy}` : ""}
+                    </span>
+                  </div>
+                  <div className={styles.packageRowMeta}>
+                    <span
+                      className={styles.packageSource}
+                      title={entry.packageUrl}
+                    >
+                      {entry.packageUrl || "—"}
+                    </span>
+                    {entry.packageUrl ? (
+                      <CopyButton
+                        text={entry.packageUrl}
+                        label="复制"
+                        className={styles.inlineCopyButton}
+                      />
+                    ) : null}
+                    <span className={styles.packageSha}>
+                      {packageShaLabel(entry.packageSha256)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
@@ -314,48 +328,60 @@ export function SubsystemAgentPackagePage() {
         <section className={styles.card} aria-labelledby="install-package-add">
           <header className={styles.cardHead}>
             <h2 id="install-package-add">添加安装包</h2>
-            <p>保存即从该地址拉取；拉不到或摘要不符，整次添加不生效。</p>
+            <p>
+              agentd 是三平台制品：一次填齐三个平台的来源；任一拉不到或摘要不符，整次添加不生效。
+            </p>
           </header>
 
           <form className={styles.form} onSubmit={handlePackageSubmit}>
-            <label className={styles.field}>
-              <span>来源地址</span>
-              <input
-                type="text"
-                value={packageUrl}
-                onChange={(event) => setPackageUrl(event.target.value)}
-                placeholder="https://mirror.example.com/wist/wist-agentd-<版本>-<arch>.tar.gz"
-                autoComplete="off"
-                required
-              />
-              <small>
-                https:// 链接，或网关主机上的绝对路径（如 /srv/wist/agentd.tar.gz）；不支持明文 http。
-              </small>
-            </label>
-            <label className={styles.field}>
-              <span>期望摘要 sha256（必填）</span>
-              <input
-                type="text"
-                value={packageSha256}
-                onChange={(event) => {
-                  setPackageSha256(event.target.value);
-                  if (packageShaError) setPackageShaError(null);
-                }}
-                placeholder="64 位十六进制，可带 sha256: 前缀"
-                autoComplete="off"
-                spellCheck={false}
-                required
-                aria-invalid={packageShaError ? true : undefined}
-              />
-              <small>
-                必填：填发布侧 *.sha256 里那串（算的是来源 tarball 字节）；网关先校验，不符即拒绝。
-              </small>
-            </label>
-            {packageShaError ? (
-              <div className={styles.errorBanner} role="alert">
-                {packageShaError}
+            {PLATFORM_SLOTS.map((slot, index) => (
+              <div key={slot.id} className={styles.variantBlock}>
+                <div className={styles.variantTitle}>
+                  <strong>{slot.label}</strong>
+                  <code>{slot.id}</code>
+                </div>
+                <label className={styles.field}>
+                  <span>来源地址</span>
+                  <input
+                    type="text"
+                    value={rows[index].url}
+                    onChange={(event) => {
+                      updateRow(index, { url: event.target.value });
+                      if (rowErrors[index]) setRowError(index, null);
+                    }}
+                    placeholder={`https://mirror.example.com/wist-agentd-<版本>-${slot.id}.tar.gz`}
+                    autoComplete="off"
+                    required
+                  />
+                </label>
+                <label className={styles.field}>
+                  <span>期望摘要 sha256（必填）</span>
+                  <input
+                    type="text"
+                    value={rows[index].sha256}
+                    onChange={(event) => {
+                      updateRow(index, { sha256: event.target.value });
+                      if (rowErrors[index]) setRowError(index, null);
+                    }}
+                    placeholder="64 位十六进制，可带 sha256: 前缀"
+                    autoComplete="off"
+                    spellCheck={false}
+                    required
+                    aria-invalid={rowErrors[index] ? true : undefined}
+                  />
+                </label>
+                {rowErrors[index] ? (
+                  <div className={styles.errorBanner} role="alert">
+                    {rowErrors[index]}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            ))}
+            <small className={styles.fieldHint}>
+              https:// 链接，或网关主机上的绝对路径（如
+              /srv/wist/agentd.tar.gz）；不支持明文 http。摘要填发布侧 *.sha256
+              里那串，网关先校验，不符即拒。
+            </small>
             {setInstallPackage.isError ? (
               <div className={styles.errorBanner} role="alert">
                 {packageAddErrorMessage(setInstallPackage.error)}
@@ -363,7 +389,7 @@ export function SubsystemAgentPackagePage() {
             ) : null}
             {setInstallPackage.isSuccess ? (
               <div className={styles.formNotice} role="status">
-                {`已添加：网关已从该来源拉取到本地，并设为当前分发包${setInstallPackage.data.packageSha256 ? `（制品摘要 ${setInstallPackage.data.packageSha256}）` : ""}。`}
+                {`已添加：网关已从这些来源拉取到本地，并按平台设为当前分发包（共 ${setInstallPackage.data?.packages.length ?? 0} 个平台）。`}
               </div>
             ) : null}
             <div className={styles.formActions}>
@@ -372,7 +398,7 @@ export function SubsystemAgentPackagePage() {
                 className={styles.primaryButton}
                 disabled={!canSubmitPackage}
               >
-                {setInstallPackage.isPending ? "正在添加…" : "添加"}
+                {setInstallPackage.isPending ? "正在添加…" : "添加三平台"}
               </button>
               <span className={styles.actionHint}>
                 只影响之后新签发的安装命令，已分发的不变。

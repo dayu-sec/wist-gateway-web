@@ -255,22 +255,30 @@ export interface AgentInstallCode {
  * `packageSha256` / `updatedAt` 为 null 表示从未在管理面添加过。地址仍会返回（网关自己的
  * 分端点，与当前生效值无关，便于页面直接展示）；但**没有添加过就没有可用包**。
  */
-export interface AgentInstallPackage {
-  addressId: string;
+export interface AgentInstallPackagePlatform {
+  /** 目标平台（target-triple，如 `aarch64-apple-darwin`）。 */
+  platform: string;
   packageUrl: string;
   packageSha256: string | null;
   updatedBy: string;
   updatedAt: string | null;
 }
 
-export interface SetAgentInstallPackageCommand {
+export interface AgentInstallPackage {
+  /** 已录入的平台安装包（每平台一行；空 = 还没添加过）。 */
+  packages: AgentInstallPackagePlatform[];
+}
+
+export interface SetAgentInstallPackageArtifact {
+  platform: string;
   packageUrl: string;
-  /**
-   * 期望摘要（sha256，可带 `sha256:` 前缀）：网关拿块字节核对，不符即拒。
-   *
-   * **必填**：包的 sha256 是内容身份，缺了就没有可校验的事实来源（页面也按必填拦）。
-   */
+  /** 期望摘要（sha256，可带 `sha256:` 前缀）：网关拿块字节核对，不符即拒。 */
   packageSha256: string;
+}
+
+export interface SetAgentInstallPackageCommand {
+  /** 多平台：一次提交各平台一份（缺任一都会被网关整体拒绝）。 */
+  artifacts: SetAgentInstallPackageArtifact[];
   requestedBy?: string;
 }
 
@@ -543,28 +551,34 @@ function normalizeAgentHealth(
 }
 
 export function normalizeAgentInstallPackage(payload: any): AgentInstallPackage {
-  const setting = payload.install_package ?? payload.installPackage ?? payload;
+  const root = payload.install_package ?? payload.installPackage ?? payload;
   return {
-    addressId: requiredString(
-      setting.address_id ?? setting.addressId,
-      "agentInstallPackage.addressId",
-    ),
-    packageUrl: requiredString(
-      setting.package_url ?? setting.packageUrl,
-      "agentInstallPackage.packageUrl",
-    ),
-    packageSha256: nullableString(
-      setting.package_sha256 ?? setting.packageSha256 ?? null,
-      "agentInstallPackage.packageSha256",
-    ),
-    updatedBy: requiredString(
-      setting.updated_by ?? setting.updatedBy,
-      "agentInstallPackage.updatedBy",
-    ),
-    updatedAt: nullableString(
-      setting.updated_at ?? setting.updatedAt ?? null,
-      "agentInstallPackage.updatedAt",
-    ),
+    packages: requiredArray(
+      root.packages,
+      "agentInstallPackage.packages",
+    ).map((item, index) => {
+      const at = `agentInstallPackage.packages[${index}]`;
+      const record = requiredRecord(item, at);
+      return {
+        platform: requiredString(record.platform, `${at}.platform`),
+        packageUrl: requiredString(
+          record.package_url ?? record.packageUrl,
+          `${at}.packageUrl`,
+        ),
+        packageSha256: nullableString(
+          record.package_sha256 ?? record.packageSha256 ?? null,
+          `${at}.packageSha256`,
+        ),
+        updatedBy: requiredString(
+          record.updated_by ?? record.updatedBy,
+          `${at}.updatedBy`,
+        ),
+        updatedAt: nullableString(
+          record.updated_at ?? record.updatedAt ?? null,
+          `${at}.updatedAt`,
+        ),
+      };
+    }),
   };
 }
 
@@ -1164,8 +1178,11 @@ export async function setAgentInstallPackage(
     {
       method: "POST",
       body: JSON.stringify({
-        package_url: command.packageUrl,
-        package_sha256: command.packageSha256.trim(),
+        artifacts: command.artifacts.map((artifact) => ({
+          platform: artifact.platform,
+          package_url: artifact.packageUrl,
+          package_sha256: artifact.packageSha256.trim(),
+        })),
         requested_by: command.requestedBy,
       }),
     },

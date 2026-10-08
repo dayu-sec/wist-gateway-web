@@ -5,6 +5,16 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.3.0-alpha] - 2026-10-08
+
+### 变更
+
+- **「安装包」页改为多平台**（`/install-package`）：agentd 是平台专用制品，现按
+  macOS-ARM / Linux x86_64-musl / Linux ARM64-musl 三个平台槽位管理 ——
+  「当前安装包」逐平台列出，新增「添加安装包」一次填齐三个平台（缺任一整体拒绝）。
+  请求体随之改为 `{artifacts: [{platform, package_url, package_sha256}], requested_by?}`，
+  读取响应为 `{packages: [{platform, package_url, package_sha256, updated_by, updated_at}]}`。
+
 ## [0.2.0-alpha] - 2026-10-07
 
 ### 新增

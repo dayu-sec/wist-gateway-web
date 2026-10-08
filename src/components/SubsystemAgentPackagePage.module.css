@@ -423,6 +423,46 @@
   font-size: 13px;
 }
 
+/* 多平台录入：每个平台一组（标题 + 来源 + 摘要），组与组之间拉开。 */
+.variantBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.variantBlock:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.variantTitle {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.variantTitle strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.variantTitle code {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+/* 跨平台共用的一句字段说明（挂在三组之后）。 */
+.fieldHint {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 @media (max-width: 560px) {
   .main {
     padding: 22px 16px 40px;
