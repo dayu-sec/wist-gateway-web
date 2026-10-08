@@ -59,25 +59,25 @@ function loadText(value: number | null): string {
 /**
  * 网关（容器）自身健康 → 色调 + 文案。
  *
- * 自述面**不自带** health 字符串（只有三个原始信号），健康度在此派生 —— 与 gwlinkd 上报中心时的
- * 口径一致（`GatewaySelfState::health`）：存储可查 **且** 数据面上送已启用 **且** 无最近错误 = 健康。
+ * 只看**网关自身**能不能干活：存储可查 **且** 无最近错误 = 健康。
+ * **不看**「数据面上送」—— 那是「配没配数据面上送地址 / 开没开开关」，属**机队侧**的事，
+ * 与网关进程自身是否健康无关；没配地址不该把一台好网关判成降级。
  */
 function gatewayHealth(gw: GatewaySelfStateView): {
   tone: "ok" | "crit";
   label: string;
   hint: string;
 } {
-  const healthy = gw.storeHealthy && gw.uplinkEnabled && !gw.lastError;
+  const healthy = gw.storeHealthy && !gw.lastError;
   if (healthy) {
     return {
       tone: "ok",
       label: "健康",
-      hint: "存储可查、数据面上送已启用、无最近错误。",
+      hint: "存储可查、无最近错误。",
     };
   }
   const reasons: string[] = [];
   if (!gw.storeHealthy) reasons.push("存储不可查");
-  if (!gw.uplinkEnabled) reasons.push("数据面上送未启用");
   if (gw.lastError) reasons.push(`最近错误：${gw.lastError}`);
   return { tone: "crit", label: "降级", hint: reasons.join("；") + "。" };
 }
@@ -87,7 +87,7 @@ type GatewayLayerTab = "container" | "linkd";
 /**
  * 「网关状态」页（路由 `/gwlinkd`）：**网关两层**的运行状态。
  *
- * ① **网关（容器）** —— `wist-gateway` 进程自己：版本 / 存储健康 / 已登记 Agent 数 / 数据面上送开关 /
+ * ① **网关（容器）** —— `wist-gateway` 进程自己：版本 / 存储健康 / 已登记 Agent 数 /
  *    最近错误。这正是 host 侧 gwlinkd 拉自述面后**上报中心**的那份值（设计 `edge/gateway-linkd-status.md`）。
  * ② **接入代理（gwlinkd）** —— 宿主侧常驻进程：把网关接入上级控制中心并维持链路（注册 / 心跳 /
  *    凭据续期 / 升级取指令）。它**纯出站**（无入站面），页面拉不到它 —— 状态靠它周期心跳环回推给网关。
@@ -205,10 +205,7 @@ export function SubsystemGatewayStatusPage() {
                 <dt>存储</dt>
                 <dd>{gw.storeHealthy ? "可查（健康）" : "不可查"}</dd>
               </div>
-              <div className={styles.gridItem}>
-                <dt>数据面上送</dt>
-                <dd>{gw.uplinkEnabled ? "已启用" : "未启用"}</dd>
-              </div>
+
               <div className={styles.gridItem}>
                 <dt>Agent 在线 / 离线</dt>
                 <dd>

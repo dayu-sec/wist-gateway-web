@@ -143,11 +143,12 @@ function status(overrides: Partial<GatewayLinkdStatusView> = {}): GatewayLinkdSt
     );
   }
   // 该页同屏还展示**网关（容器）自己**的状态（自述面）—— 与 gwlinkd 版本不是一回事。
+  // 注：「数据面上送」是机队侧的事，与网关容器自身健康无关，页面刻意不展示、也不据此判降级
+  // （自述面的 `uplink_enabled` 字段已删除）。
   for (const field of [
     "useGatewaySelfState",
     "storeHealthy",
     "agentCount",
-    "uplinkEnabled",
     "uptimeSeconds",
     "cpuPercent",
     "memoryBytes",
@@ -171,6 +172,11 @@ function status(overrides: Partial<GatewayLinkdStatusView> = {}): GatewayLinkdSt
       `「网关状态」页缺网关自身状态（${field}）—— 应同时展示「网关容器」与「接入代理」`,
     );
   }
+  // 反向守卫：「数据面上送」不得再被拿来判网关容器健康 / 降级。
+  check(
+    !page.includes("数据面上送未启用"),
+    "「网关状态」页又按「数据面上送」判降级了 —— 网关容器健康只看存储与最近错误",
+  );
 
   // 路由 + 侧边栏入口必须在（否则独立页进不去）。
   check(

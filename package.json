@@ -15,6 +15,7 @@
     "test:linkd-status": "tsx tests/linkd-status-contract.test.ts",
     "test:linkd-history": "tsx tests/linkd-history-contract.test.ts",
     "test:linkd-summary": "tsx tests/linkd-summary.test.ts",
+    "test:link-upstream-status": "tsx tests/link-upstream-status.test.ts",
     "test:dev-admin-token": "tsx tests/dev-admin-token.test.ts",
     "test:gateway-self-state": "tsx tests/gateway-self-state-contract.test.ts",
     "test:self-state-history": "tsx tests/self-state-history-contract.test.ts",

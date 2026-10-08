@@ -1524,7 +1524,6 @@ export interface GatewaySelfStateView {
   collectedAt: string;
   storeHealthy: boolean;
   agentCount: number;
-  uplinkEnabled: boolean;
   lastError: string | null;
   /** 网关**进程**已运行秒数。 */
   uptimeSeconds: number;
@@ -1573,7 +1572,6 @@ export function normalizeGatewaySelfStateView(
     collectedAt: requiredString(view.collected_at, "collected_at"),
     storeHealthy: requiredBoolean(view.store_healthy, "store_healthy"),
     agentCount: requiredNumber(view.agent_count, "agent_count"),
-    uplinkEnabled: requiredBoolean(view.uplink_enabled, "uplink_enabled"),
     lastError: nullableString(view.last_error, "last_error"),
     uptimeSeconds: requiredNumber(view.uptime_seconds, "uptime_seconds"),
     // 进程资源：契约里总是**在场**，量不出时是 `null`（非缺失）—— 用 `nullableNumberField`。
