@@ -3,6 +3,7 @@ import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
 import { parseUpgradeSpec } from "../api/admin";
 import { useRolloutPlan, useRolloutPlanAction } from "../hooks";
 import { RateLimitNotice } from "./RateLimitNotice";
+import { rolloutActionLabel } from "./rolloutActionNotice";
 import {
   advanceRuleLabel,
   countEntries,
@@ -84,6 +85,7 @@ function toneClass(tone: RolloutTone): string {
  * 一份「Agent 升级」计划的分阶段推进就落在这里，承载两处人工闸门：
  *   · 草稿 → 批准（进入第一阶段，为阶段内的 Agent 各派一件升级）；
  *   · 进行中 → 推进（金丝雀确认无问题后，把下一阶段范围也铺下去）。
+ * 失败的目标可以**重试**（逐台或一次全部）—— 网关会派一件新工作并把计划重开为进行中。
  * 逐台进度是条目（entry），由 agentd 上报的升级结果回填而来。
  */
 export function SubsystemAgentUpgradeDetailPage() {
@@ -208,7 +210,7 @@ export function SubsystemAgentUpgradeDetailPage() {
           ) : null}
           {action.isSuccess ? (
             <div className={styles.noticeBanner} role="status">
-              已{action.variables?.kind === "approve" ? "批准" : "推进"}：
+              已{rolloutActionLabel(action.variables?.kind)}：
               {plan.status === "completed"
                 ? "计划已完成。"
                 : `当前处于第 ${plan.currentPhase} 阶段。`}
@@ -250,7 +252,7 @@ export function SubsystemAgentUpgradeDetailPage() {
                 <dt>包地址</dt>
                 <dd>
                   <span className={styles.mono}>
-                    {spec?.packageUrl ?? "（未指定，用网关默认来源）"}
+                    {spec?.packageUrl ?? "（按 Agent 平台自动选择）"}
                   </span>
                 </dd>
               </div>
@@ -258,7 +260,7 @@ export function SubsystemAgentUpgradeDetailPage() {
                 <dt>包摘要</dt>
                 <dd>
                   <span className={styles.mono}>
-                    {spec?.packageSha256 ?? "—"}
+                    {spec?.packageSha256 ?? "（按 Agent 平台自动选择）"}
                   </span>
                 </dd>
               </div>
@@ -380,6 +382,25 @@ export function SubsystemAgentUpgradeDetailPage() {
               </div>
             ) : null}
 
+            {counts.failed > 0 ? (
+              <div className={styles.gateRow}>
+                <div className={styles.gateCopy}>
+                  <span className={styles.gateTitle}>重试失败项</span>
+                  <span className={styles.gateHint}>
+                    为 {counts.failed} 个失败目标重新派发升级（新的工作 id），并把计划重开为进行中。
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={styles.primaryButton}
+                  disabled={action.isPending}
+                  onClick={() => action.mutate({ kind: "retry", planId })}
+                >
+                  {action.isPending ? "正在重试…" : "重试失败项"}
+                </button>
+              </div>
+            ) : null}
+
             {!activeSettled && plan.status === "rolling" ? (
               <p className={styles.gateWarn} role="note">
                 本阶段未全部了结就推进，未了结目标的结果仍会回填到条目，但阶段会被标记为已完成 —— 人工闸门的判断权在你。
@@ -447,6 +468,7 @@ export function SubsystemAgentUpgradeDetailPage() {
                       <th scope="col">升级工作</th>
                       <th scope="col">说明</th>
                       <th scope="col">更新时间</th>
+                      <th scope="col">操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -481,6 +503,26 @@ export function SubsystemAgentUpgradeDetailPage() {
                           <span className={styles.mono}>
                             {formatTimestamp(entry.updatedAt)}
                           </span>
+                        </td>
+                        <td>
+                          {entry.status === "failed" ? (
+                            <button
+                              type="button"
+                              className={styles.smallButton}
+                              disabled={action.isPending}
+                              onClick={() =>
+                                action.mutate({
+                                  kind: "retry",
+                                  planId,
+                                  targetIds: [entry.targetId],
+                                })
+                              }
+                            >
+                              重试
+                            </button>
+                          ) : (
+                            <span className={styles.valueMuted}>—</span>
+                          )}
                         </td>
                       </tr>
                     ))}

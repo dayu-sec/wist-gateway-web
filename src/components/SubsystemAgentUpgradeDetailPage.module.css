@@ -420,6 +420,34 @@
   filter: brightness(1.06);
 }
 
+/* 逐台进度表里的紧凑次级按钮（「重试」）。 */
+.smallButton {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.smallButton:hover:not(:disabled) {
+  background: var(--bg-elevated);
+}
+
+.smallButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.smallButton:disabled {
+  border-color: var(--border-strong);
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
 /* ---------- 阶段列表 ---------- */
 
 .phaseList {

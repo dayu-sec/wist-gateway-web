@@ -9,6 +9,7 @@ import {
   normalizeRolloutPlan,
   normalizeRolloutPlanDetail,
   parseUpgradeSpec,
+  retryRolloutPlan,
   setAdminApiToken,
 } from "../src/api/admin";
 import {
@@ -38,6 +39,7 @@ import {
   timeRangeBounds,
 } from "@dayu-sec/wist-web-core/release";
 import { selectUpgradeTargets } from "../src/components/agentUpgradeTargets";
+import { rolloutActionLabel } from "../src/components/rolloutActionNotice";
 
 // 契约测试：管理面「灰度发布计划」（模型 `Control.Rollout` 的列表/创建/批准/推进/查看）。
 //
@@ -277,10 +279,24 @@ const explicitTarget = JSON.parse(
 );
 assert(explicitTarget.target_version === "0.1.5", "填了目标版本就写进去");
 
+// 只给版本（新路径）：spec 里**没有** package_url / package_sha256 —— 制品由网关按目标平台解析。
+const versionOnlySpec = jsonUpgradeSpec({ targetVersion: "v0.2.1-alpha" });
+assert(
+  versionOnlySpec === `{"target_version":"v0.2.1-alpha"}`,
+  `按版本的 spec 只写 target_version，实际：${versionOnlySpec}`,
+);
+// 空地址 / 空摘要（成对可省）→ 不写这两个键（等同按版本）。
 const blankSpec = JSON.parse(jsonUpgradeSpec({ packageUrl: "", packageSha256: "" }));
 assert(
-  "package_url" in blankSpec && "package_sha256" in blankSpec,
-  "package_url / package_sha256 键必须始终在（UpgradeSpec 对它们没有 serde default）",
+  !("package_url" in blankSpec) && !("package_sha256" in blankSpec),
+  "空地址不下发 package_url / package_sha256 键（按版本处理）",
+);
+// 地址与摘要必须**成对**：单给一个也不下发（否则会给 agentd 一个半截制品）。
+const partialPackageSpec = JSON.parse(jsonUpgradeSpec({ packageSha256: "abc" }));
+assert(
+  !("package_url" in partialPackageSpec) &&
+    !("package_sha256" in partialPackageSpec),
+  "地址与摘要必须成对，单给一个也不下发",
 );
 
 // `allow_downgrade` 是可选的：不给 / false 都不写这个键，产物与旧 spec 字节一致（旧 agentd 也能用）。
@@ -427,6 +443,36 @@ assert(
   "advance must carry plan_id",
 );
 
+// 重试：逐台（带 target_ids）与全部（不带）都要能发。
+recorded = [];
+responder = () => Response.json(planPayload({ status: "rolling" }));
+await retryRolloutPlan(PLAN_ID, ["agent-canary"]);
+assert(
+  recorded[0].url === "/api/v1/admin/rollout-plans/retry",
+  "retry path",
+);
+assert(recorded[0].method === "POST", "retry must be POST");
+const retryBody = JSON.parse(recorded[0].body);
+assert(retryBody.plan_id === PLAN_ID, "retry must carry plan_id");
+assert(
+  Array.isArray(retryBody.target_ids) &&
+    retryBody.target_ids.join(",") === "agent-canary",
+  "retry must carry the target subset",
+);
+recorded = [];
+await retryRolloutPlan(PLAN_ID);
+assert(
+  Array.isArray(JSON.parse(recorded[0].body).target_ids) &&
+    JSON.parse(recorded[0].body).target_ids.length === 0,
+  "retry without targets must send an empty list（= 全部失败项）",
+);
+
+// 成功提示条的动词：三个动作各说各的 —— `retry` 不能落进「推进」分支（曾显示成「已推进」）。
+assert(rolloutActionLabel("approve") === "批准", "approve → 批准");
+assert(rolloutActionLabel("advance") === "推进", "advance → 推进");
+assert(rolloutActionLabel("retry") === "重试失败项", "retry 不能被当成推进");
+assert(rolloutActionLabel(undefined) === "操作", "认不出时退化为中性说法");
+
 // --- 6. spec 解析：成功 + 失败不静默 ---------------------------------------
 const parsed = parseUpgradeSpec(
   JSON.stringify({
@@ -543,11 +589,26 @@ assert(
   "未知键不影响必填字段解析",
 );
 
-// 缺键（不是 null）与 null 不同：package_url 键整个缺失 → 报错。
-const missingUrlKey = parseUpgradeSpec(
-  JSON.stringify({ package_sha256: "abc" }),
+// 缺键（不是 null）与 null 不同：但在**按版本**的新路径里，package_url 本来就不写 ——
+// 只有 target_version 的 spec 必须能解析（不是契约漂移）。
+const versionOnlyParsed = parseUpgradeSpec(
+  JSON.stringify({ target_version: "v0.2.1-alpha" }),
 );
-assert(missingUrlKey.error !== null, "缺 package_url 键的 spec 必须报错");
+assert(versionOnlyParsed.error === null, "按版本的 spec 必须能解析");
+assert(
+  versionOnlyParsed.targetVersion === "v0.2.1-alpha" &&
+    versionOnlyParsed.packageUrl === null &&
+    versionOnlyParsed.packageSha256 === null,
+  "按版本的 spec：target_version 读出来，包字段缺省为 null",
+);
+// package_url 显式为 null 也当缺省（不是契约漂移）。
+const nullUrlParsed = parseUpgradeSpec(
+  JSON.stringify({ target_version: "v0.2.1-alpha", package_url: null }),
+);
+assert(
+  nullUrlParsed.error === null && nullUrlParsed.packageUrl === null,
+  "package_url:null 读作缺省",
+);
 
 // camelCase 拼写也认（normalizer 同时接受两种），且口径一致。
 const camelDowngrade = parseUpgradeSpec(

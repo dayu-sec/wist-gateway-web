@@ -25,11 +25,12 @@ import {
 } from "@dayu-sec/wist-web-core/release";
 import {
   canSubmitUpgrade,
-  findSelectedPackage,
+  distinctVersionOptions,
+  findVersionOption,
   indexPackagesByUrl,
   isEmptyPackageHistory,
-  packageCellLabel,
-  packageOptionLabel,
+  planVersionCellLabel,
+  versionOptionLabel,
 } from "./agentUpgradePackages";
 import { selectUpgradeTargets } from "./agentUpgradeTargets";
 import { RateLimitNotice } from "./RateLimitNotice";
@@ -121,8 +122,9 @@ function toneClass(tone: string): string {
  * （2/3/4/5），每个阶段的 agent_id 由 `planPhases` 按固定阶梯**自动分配**，不用手填。
  * 批准/推进在升级计划详情页 —— 那两个是灰度发布的**人工闸门**。
  *
- * 更具体地说，「升级」在这里只是一组参数（从网关已录入的安装包里选一个）；目标版本由包决定
- * （升级器从包内 agentd 自报取得）。它的推进方式（灰度阶段、阶段内并发、截止）由引擎提供。
+ * 更具体地说，「升级」在这里只要选**一个版本** —— 每个 Agent 对应平台的制品由**网关**在派活时
+ * 按目标 agent 的平台自动挑好（与中心按网关平台派生 gops/gx 制品同一思路），不用手选制品。
+ * 它的推进方式（灰度阶段、阶段内并发、截止）由引擎提供。
  * 将来日志清理、数据备份等各是一片独立的页。
  */
 export function SubsystemAgentUpgradePage() {
@@ -143,7 +145,7 @@ export function SubsystemAgentUpgradePage() {
   );
 
   // ── 表单状态 ────────────────────────────────────────────────────────────
-  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [selectedVersion, setSelectedVersion] = useState("");
   const [allowDowngrade, setAllowDowngrade] = useState(false);
   const [deadline, setDeadline] = useState(defaultDeadline);
   const [timeoutSeconds, setTimeoutSeconds] = useState("600");
@@ -156,11 +158,10 @@ export function SubsystemAgentUpgradePage() {
   const [timeRange, setTimeRange] = useState<PlanTimeRange>("all");
 
   const installPackages = packages.data ?? [];
-  const selectedPackage = findSelectedPackage(
-    installPackages,
-    selectedPackageId,
-  );
-  // 计划 → 包：新建计划写的就是所选包的下载地址，按它反查「哪个包」。
+  // 升级按**版本**选：把已录入包折叠成按版本的选项（每个版本已覆盖哪些平台）。
+  const versionOptions = distinctVersionOptions(installPackages);
+  const selectedVersionOption = findVersionOption(versionOptions, selectedVersion);
+  // 计划 → 包（仅旧计划 / 显式制品兑底显示用）：按下载地址反查「哪个包」。
   const packageByUrl = indexPackagesByUrl(installPackages);
 
   // 阶段数按机队台数收窄：每段至少 1 台，小机队就不再多轮。
@@ -215,8 +216,8 @@ export function SubsystemAgentUpgradePage() {
     timeout: number;
     batch: number;
   } | null {
-    if (!selectedPackage) {
-      setFormError("请先选择一个已录入的安装包。");
+    if (!selectedVersionOption) {
+      setFormError("请先选择一个已录入的版本。");
       return null;
     }
     const at = new Date(deadline);
@@ -240,11 +241,10 @@ export function SubsystemAgentUpgradePage() {
     }
     setFormError(null);
     return {
-      // 不写 target_version：由升级器从包内 agentd 自报的版本取（单一事实来源）。
-      // package_url / package_sha256 一律取自网关录入项：下载地址由网关派生，前端不自己拼。
+      // 只写 target_version：制品由**网关**在派活时按每个目标 agent 的平台解析（不手选制品）。
+      // 不写 target_version 以外的包字段 —— 那才是「按版本」这一路径的判据。
       spec: jsonUpgradeSpec({
-        packageUrl: selectedPackage.agentPackageUrl,
-        packageSha256: selectedPackage.packageSha256,
+        targetVersion: selectedVersionOption.version,
         allowDowngrade,
       }),
       // 阶段交给服务端切（只给目标 + 段数）；上面的 `phasePlan` 只用于预览。
@@ -397,7 +397,7 @@ export function SubsystemAgentUpgradePage() {
                 <tr>
                   <th scope="col">计划</th>
                   <th scope="col" className={styles.pkgCol}>
-                    安装包
+                    目标版本
                   </th>
                   <th scope="col">状态</th>
                   <th scope="col">阶段</th>
@@ -428,14 +428,14 @@ export function SubsystemAgentUpgradePage() {
                         </Link>
                       </td>
                       <td className={styles.pkgCol}>
-                        {/* 升级到哪个版本由包决定，所以这里认得是**哪个包**：
-                            能对上已录入项就显示「版本 · 架构」，对不上（旧计划写的是原始路径）
-                            退回文件名；悬停一律给全地址。 */}
+                        {/* 按版本选：列目标版本。旧计划（显式制品）退回「版本 · 架构」/ 文件名。 */}
                         <span
                           className={styles.pkgCell}
-                          title={spec.packageUrl ?? undefined}
+                          title={
+                            spec.targetVersion ?? spec.packageUrl ?? undefined
+                          }
                         >
-                          {packageCellLabel(spec.packageUrl, packageByUrl)}
+                          {planVersionCellLabel(spec, packageByUrl)}
                         </span>
                       </td>
                       <td>
@@ -503,7 +503,7 @@ export function SubsystemAgentUpgradePage() {
             <div className={styles.sectionHead}>
               <h3 className={styles.formSectionTitle}>升级参数</h3>
               <span className={styles.sectionNote}>
-                从网关已录入的安装包里选一个 —— 升到哪个版本由包决定，升级器读包内 agentd 自报的版本
+                选一个版本 —— 每个 Agent 对应平台的制品由网关在派活时自动挑好，无需手选制品
               </span>
             </div>
 
@@ -532,41 +532,49 @@ export function SubsystemAgentUpgradePage() {
               </div>
             ) : null}
 
-            {installPackages.length > 0 ? (
+            {versionOptions.length > 0 ? (
               <div className={styles.fieldColumn}>
                 <label className={styles.field}>
-                  <span>安装包</span>
+                  <span>目标版本</span>
                   <select
-                    value={selectedPackageId}
-                    onChange={(event) =>
-                      setSelectedPackageId(event.target.value)
-                    }
+                    value={selectedVersion}
+                    onChange={(event) => setSelectedVersion(event.target.value)}
                     required
                   >
-                    <option value="">选择一个已录入的安装包…</option>
-                    {installPackages.map((pkg) => (
-                      <option key={pkg.packageId} value={pkg.packageId}>
-                        {packageOptionLabel(pkg)}
+                    <option value="">选择一个已录入的版本…</option>
+                    {versionOptions.map((option) => (
+                      <option key={option.version} value={option.version}>
+                        {versionOptionLabel(option)}
                       </option>
                     ))}
                   </select>
                   <small>
-                    列出网关包目录里已录入的制品；升级器按它的下载地址与摘要取件、校验。
+                    只选版本；每个 Agent 对应平台的制品由网关在派活时自动挑好（与 gops
+                    计划同一思路）。
                   </small>
                 </label>
 
-                {selectedPackage ? (
+                {selectedVersionOption ? (
                   <div className={styles.packageDetail}>
-                    <span className={styles.packageDetailLabel}>下载地址</span>
+                    <span className={styles.packageDetailLabel}>已覆盖平台</span>
                     <span className={styles.mono}>
-                      {selectedPackage.agentPackageUrl}
-                    </span>
-                    <span className={styles.packageDetailLabel}>摘要</span>
-                    <span className={styles.mono}>
-                      {selectedPackage.packageSha256}
+                      {selectedVersionOption.platforms.length > 0
+                        ? selectedVersionOption.platforms.join(", ")
+                        : "未识别平台（请到「安装包」页确认包是否完整）"}
                     </span>
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+            {installPackages.length > 0 && versionOptions.length === 0 ? (
+              <div className={styles.packageEmpty}>
+                <strong>已录入的安装包都读不出身份</strong>
+                <span>
+                  包内目录名里没有可识别的「版本 + 平台」，无法按版本升级 —— 到{" "}
+                  <Link to="/install-package">安装包</Link>{" "}
+                  页重新录入带身份的包。
+                </span>
               </div>
             ) : null}
 
@@ -743,7 +751,7 @@ export function SubsystemAgentUpgradePage() {
                 !canSubmitUpgrade({
                   isPending: create.isPending,
                   phaseError: phasePlan.error,
-                  selectedPackage,
+                  selectedVersion,
                 })
               }
             >

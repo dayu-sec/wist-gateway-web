@@ -9,15 +9,16 @@ import {
 import {
   PACKAGE_HISTORY_DISPLAY_LIMIT,
   canSubmitUpgrade,
+  distinctVersionOptions,
   findCurrentPackage,
-  findSelectedPackage,
+  findVersionOption,
   indexPackagesByUrl,
   isEmptyPackageHistory,
-  packageCellLabel,
   packageLabel,
-  packageOptionLabel,
   packageShaLabel,
+  planVersionCellLabel,
   recentPackages,
+  versionOptionLabel,
 } from "../src/components/agentUpgradePackages";
 
 // 契约测试：网关**已录入**的安装包历史（`GET /api/v1/admin/agent/install-packages`）。
@@ -408,10 +409,10 @@ if (
   throw new Error(`spec round-trip lost the package facts: ${specText}`);
 }
 
-// --- 「选包」纯派生（components/agentUpgradePackages.ts）---------------------
+// --- 「选版本」纯派生（components/agentUpgradePackages.ts）-------------------
 //
-// 页面的「能否提交 / 历史为空 / 列表里显示哪个包」都抽成了纯函数。这里直接测它们，
-// 不渲染 React —— 契约测试跑在 tsx 里，本就没有 DOM。
+// 升级页按**版本**选：操作者在版本下拉里选一个，制品由网关按目标平台解析。页面的
+// 「能否提交 / 历史为空 / 列表里显示哪个版本」都抽成了纯函数。这里直接测它们，不渲染 React。
 function view(overrides: Partial<InstallPackageView> = {}): InstallPackageView {
   return {
     packageId: "pkg-a",
@@ -435,51 +436,90 @@ const pkgB = view({
   agentPackageUrl: "https://gateway.example.com/api/v1/agent/packages/pkg-b",
 });
 
-// findSelectedPackage：按 id 命中 / 未选（空串）/ 已消失都落到 null，而非 undefined。
-if (findSelectedPackage([pkgA, pkgB], "pkg-b")?.packageId !== "pkg-b") {
-  throw new Error(
-    "findSelectedPackage must resolve the selected package by id",
-  );
+// distinctVersionOptions：把历史折叠成按版本的选项（去重、保持首次出现顺序）。
+const versionOptions = distinctVersionOptions([pkgA, pkgB]);
+if (versionOptions.length !== 2) {
+  throw new Error(`expected one option per version, got ${versionOptions.length}`);
 }
-if (findSelectedPackage([pkgA, pkgB], "") !== null) {
+if (
+  versionOptions[0].version !== "0.1.9" ||
+  versionOptions[0].platforms.join(",") !== "aarch64-apple-darwin"
+) {
+  throw new Error(`unexpected first version option: ${JSON.stringify(versionOptions[0])}`);
+}
+// 同一个版本的多平台包折成**一个**选项（平台合并去重）。
+const multi = distinctVersionOptions([
+  view({ packageId: "pkg-x", version: "0.2.0", arch: "aarch64-apple-darwin" }),
+  view({ packageId: "pkg-y", version: "0.2.0", arch: "x86_64-unknown-linux-musl" }),
+  view({ packageId: "pkg-z", version: "0.2.0", arch: "x86_64-unknown-linux-musl" }),
+]);
+if (
+  multi.length !== 1 ||
+  multi[0].platforms.join(",") !== "aarch64-apple-darwin,x86_64-unknown-linux-musl"
+) {
+  throw new Error(`same version must fold into one option: ${JSON.stringify(multi)}`);
+}
+// 版本读不出的包不进选项（按版本选时选到它必败）。
+if (distinctVersionOptions([view({ version: "" })]).length !== 0) {
+  throw new Error("packages without a version must not become options");
+}
+
+// findVersionOption：命中 / 未选（空串）/ 刷新后消失都落到 null，而非 undefined。
+if (findVersionOption(versionOptions, "0.1.10")?.version !== "0.1.10") {
+  throw new Error("findVersionOption must resolve the selected version");
+}
+if (findVersionOption(versionOptions, "") !== null) {
   throw new Error("an unset selection must read as null");
 }
-if (findSelectedPackage([pkgA, pkgB], "pkg-gone") !== null) {
+if (findVersionOption(versionOptions, "9.9.9") !== null) {
   throw new Error("a vanished selection must read as null, not undefined");
 }
 
-// packageOptionLabel：下拉项文字 = 版本 · 架构 · 来源。
-if (
-  packageOptionLabel(pkgB) !==
-  "0.1.10 · x86_64-unknown-linux-gnu · /srv/b.tar.gz"
-) {
-  throw new Error(`unexpected option label: ${packageOptionLabel(pkgB)}`);
+// versionOptionLabel：下拉项文字 = 版本 · 平台1, 平台2；无平台时只说版本。
+if (versionOptionLabel(versionOptions[1]) !== "0.1.10 · x86_64-unknown-linux-gnu") {
+  throw new Error(`unexpected option label: ${versionOptionLabel(versionOptions[1])}`);
+}
+if (versionOptionLabel({ version: "0.3.0", platforms: [] }) !== "0.3.0") {
+  throw new Error("an option without platforms must show only the version");
 }
 
-// 列表「安装包」列：反查到 → 版本 · 架构；反查不到 → 文件名；无地址 → —。
+// 列表「目标版本」列：按版本 → 给版本；旧计划（显式制品）→ 反查到的「版本 · 架构」/ 文件名 / —。
 const byUrl = indexPackagesByUrl([pkgA, pkgB]);
 if (byUrl.get(pkgA.agentPackageUrl)?.packageId !== "pkg-a") {
   throw new Error("indexPackagesByUrl must key by agentPackageUrl");
 }
 if (
-  packageCellLabel(pkgB.agentPackageUrl, byUrl) !==
-  "0.1.10 · x86_64-unknown-linux-gnu"
+  planVersionCellLabel({ targetVersion: "0.1.10", packageUrl: null }, byUrl) !==
+  "0.1.10"
 ) {
-  throw new Error(
-    "a plan matching an installed package must show version · arch",
-  );
+  throw new Error("a version-based plan must show its target version");
 }
 if (
-  packageCellLabel("/srv/legacy/wist-agentd-0.1.4.tar.gz", byUrl) !==
-  "wist-agentd-0.1.4.tar.gz"
+  planVersionCellLabel(
+    { targetVersion: null, packageUrl: pkgB.agentPackageUrl },
+    byUrl,
+  ) !== "0.1.10 · x86_64-unknown-linux-gnu"
+) {
+  throw new Error("a legacy plan must fall back to version · arch");
+}
+if (
+  planVersionCellLabel(
+    { targetVersion: null, packageUrl: "/srv/legacy/wist-agentd-0.1.4.tar.gz" },
+    byUrl,
+  ) !== "wist-agentd-0.1.4.tar.gz"
 ) {
   throw new Error("an unknown url must fall back to the file name");
 }
-if (packageCellLabel("/srv/legacy/", byUrl) !== "legacy") {
+if (
+  planVersionCellLabel({ targetVersion: null, packageUrl: "/srv/legacy/" }, byUrl) !==
+  "legacy"
+) {
   throw new Error("trailing slashes must be folded away");
 }
-if (packageCellLabel(null, byUrl) !== "—") {
-  throw new Error("a missing package url must read as —");
+if (
+  planVersionCellLabel({ targetVersion: null, packageUrl: null }, byUrl) !== "—"
+) {
+  throw new Error("a plan with neither version nor url must read as —");
 }
 
 // packageLabel：版本 · 架构；读不出的部分不留悬空分隔符。
@@ -598,38 +638,34 @@ if (isEmptyPackageHistory({ isLoading: false, isError: false, count: 1 })) {
   throw new Error("a non-empty history is not empty");
 }
 
-// canSubmitUpgrade：没选包 / 阶段分不出来 / 正在提交 —— 任一为真都禁用。
+// canSubmitUpgrade：没选版本 / 阶段分不出来 / 正在提交 —— 任一为真都禁用。
 if (
   !canSubmitUpgrade({
     isPending: false,
     phaseError: null,
-    selectedPackage: pkgA,
+    selectedVersion: "0.1.9",
   })
 ) {
   throw new Error(
-    "selected package + no phase error + idle must be submittable",
+    "selected version + no phase error + idle must be submittable",
   );
 }
 if (
-  canSubmitUpgrade({
-    isPending: false,
-    phaseError: null,
-    selectedPackage: null,
-  })
+  canSubmitUpgrade({ isPending: false, phaseError: null, selectedVersion: "" })
 ) {
-  throw new Error("no selected package must block submit");
+  throw new Error("no selected version must block submit");
 }
 if (
   canSubmitUpgrade({
     isPending: false,
     phaseError: "机队为空",
-    selectedPackage: pkgA,
+    selectedVersion: "0.1.9",
   })
 ) {
   throw new Error("a phase error must block submit");
 }
 if (
-  canSubmitUpgrade({ isPending: true, phaseError: null, selectedPackage: pkgA })
+  canSubmitUpgrade({ isPending: true, phaseError: null, selectedVersion: "0.1.9" })
 ) {
   throw new Error("pending must block submit");
 }

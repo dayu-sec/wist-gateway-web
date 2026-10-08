@@ -11,6 +11,7 @@ import {
   activateKnowledgePackage,
   advanceRolloutPlan,
   approveRolloutPlan,
+  retryRolloutPlan,
   classifyAgentPurpose,
   createRolloutPlan,
   deleteAgent,
@@ -843,18 +844,24 @@ export function useCreateRolloutPlan() {
 }
 
 /**
- * 批准 / 推进一份计划。
+ * 批准 / 推进 / 重试一份计划。
  *
- * 两个动作合成一个 mutation（而不是两个 hook）：它们在详情页上是**相邻的两个按钮**，
- * 失败提示与刷新策略完全一样，拆开只会让调用方多写两份重复样板。
+ * 三个动作合成一个 mutation（而不是三个 hook）：它们在详情页上是**相邻的按钮**，
+ * 失败提示与刷新策略完全一样，拆开只会让调用方多写几份重复样板。
  */
 export function useRolloutPlanAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (action: { kind: "approve" | "advance"; planId: string }) =>
+    mutationFn: (action: {
+      kind: "approve" | "advance" | "retry";
+      planId: string;
+      targetIds?: string[];
+    }) =>
       action.kind === "approve"
         ? approveRolloutPlan(action.planId)
-        : advanceRolloutPlan(action.planId),
+        : action.kind === "advance"
+          ? advanceRolloutPlan(action.planId)
+          : retryRolloutPlan(action.planId, action.targetIds ?? []),
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["rollout-plans"] });
       void queryClient.invalidateQueries({

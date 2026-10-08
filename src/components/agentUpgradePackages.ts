@@ -1,9 +1,10 @@
 /**
  * 安装包相关的纯派生逻辑（「安装包」页与升级页共用）。
  *
- * 升级页不再让操作者手输包地址 + 摘要，而是从网关**已录入**的安装包历史里选一个；「安装包」页
- * 则要报「当前生效的是哪一份」并截断历史列表。这一组判断都能离开 React 单独验证，所以抽到这里
- * —— 页面只负责把 hook 的数据喂进来、把结果显示出去。
+ * 升级页的「新建升级计划」**按版本选**：操作者从网关**已录入**的安装包历史里选**一个版本**，
+ * 每个平台的制品由**网关**在派活时按目标 agent 的平台解析 —— 与中心按网关平台派生 gops/gx
+ * 制品同一思路。这一组判断都能离开 React 单独验证，所以抽到这里 —— 页面只负责把 hook 的数据
+ * 喂进来、把结果显示出去。
  */
 
 import type { InstallPackageView } from "../api/admin";
@@ -62,29 +63,60 @@ export function findCurrentPackage(
   return packages.find((pkg) => pkg.packageSha256 === packageSha256) ?? null;
 }
 
-/** 下拉项文字：`版本 · 架构 · 来源`（来源用来区分「同一个包从哪儿录入」）。 */
-export function packageOptionLabel(pkg: InstallPackageView): string {
-  return `${packageLabel(pkg)} · ${pkg.source}`;
-}
-
 /**
- * 按 `package_id` 找出选中的包。
+ * 一个**版本**（升级页下拉的选项）：该版本下已录入的包覆盖了哪些平台。
  *
- * 选不到（还没选 / 已选的那项在刷新后从历史里消失）返回 `null`：页面据此禁用提交，
- * 不让「选了一个不存在的包」被当成可选。
+ * 升级按版本选，但网关要按**每个目标平台的包**才能派活 —— 所以选项要把「这个版本已有哪些
+ * 平台」摆出来，让操作者一眼看到覆盖情况（缺哪个平台由网关在建计划时拒）。
  */
-export function findSelectedPackage(
-  packages: readonly InstallPackageView[],
-  packageId: string,
-): InstallPackageView | null {
-  return packages.find((pkg) => pkg.packageId === packageId) ?? null;
+export interface VersionOption {
+  version: string;
+  /** 该版本已录入包覆盖的平台（target-triple），去重、按录入顺序。 */
+  platforms: string[];
 }
 
 /**
- * 按下载地址建索引：升级计划列表用它反查「这份计划用的是哪个已录入包」。
+ * 把安装包历史折叠成**按版本**的选项（去重，保持首次出现的顺序；历史已按录入时间倒序）。
  *
- * 新建计划写的 `package_url` 就是所选包的 `agentPackageUrl`，所以地址能对上；对不上
- * （旧计划写的是原始路径）由调用方退回文件名。同一地址取先出现者（内容寻址下不应重复）。
+ * 版本读不出（空串）的包不进选项 —— 按版本选时它没有可匹配的版本，列出来只会选到必败的项。
+ */
+export function distinctVersionOptions(
+  packages: readonly InstallPackageView[],
+): VersionOption[] {
+  const byVersion = new Map<string, VersionOption>();
+  for (const pkg of packages) {
+    const version = pkg.version.trim();
+    if (version === "") continue;
+    const option = byVersion.get(version) ?? { version, platforms: [] };
+    const arch = pkg.arch.trim();
+    if (arch !== "" && !option.platforms.includes(arch)) {
+      option.platforms.push(arch);
+    }
+    byVersion.set(version, option);
+  }
+  return [...byVersion.values()];
+}
+
+/** 下拉项文字：`版本 · 平台1, 平台2`；平台读不出时只说版本。 */
+export function versionOptionLabel(option: VersionOption): string {
+  return option.platforms.length > 0
+    ? `${option.version} · ${option.platforms.join(", ")}`
+    : option.version;
+}
+
+/** 按版本值找出选中的选项；选不到（还没选 / 刷新后消失）返回 `null`。 */
+export function findVersionOption(
+  options: readonly VersionOption[],
+  version: string,
+): VersionOption | null {
+  return options.find((option) => option.version === version) ?? null;
+}
+
+/**
+ * 按下载地址建索引：**显式制品**的旧计划在列表里用它反查「用的是哪个已录入包」。
+ *
+ * 旧计划写的 `package_url` 就是所选包的 `agentPackageUrl`，所以地址能对上；对不上由调用方
+ * 退回文件名。同一地址取先出现者（内容寻址下不应重复）。
  */
 export function indexPackagesByUrl(
   packages: readonly InstallPackageView[],
@@ -105,17 +137,18 @@ function packageFileName(url: string | null): string {
 }
 
 /**
- * 计划列表「安装包」列的显示文字。
+ * 计划列表「目标版本」列的显示文字。
  *
- * 能在已录入历史里按地址反查到就显示 `版本 · 架构`（升级到哪个版本由包决定，所以列表要
- * 认得的是**哪个包**）；反查不到（旧计划写的是原始路径）退回文件名。
+ * 按版本的新计划直接给版本；**显式制品**的旧计划没有 `target_version`，退回按地址反查到的
+ * `版本 · 架构`（再对不上就退回文件名）。
  */
-export function packageCellLabel(
-  url: string | null,
+export function planVersionCellLabel(
+  spec: { targetVersion: string | null; packageUrl: string | null },
   byUrl: Map<string, InstallPackageView>,
 ): string {
-  const pkg = url ? byUrl.get(url) : undefined;
-  return pkg ? packageLabel(pkg) : packageFileName(url);
+  if (spec.targetVersion) return spec.targetVersion;
+  const pkg = spec.packageUrl ? byUrl.get(spec.packageUrl) : undefined;
+  return pkg ? packageLabel(pkg) : packageFileName(spec.packageUrl);
 }
 
 /** 已加载、无错、且历史为空 —— 页面据此给「去安装包页添加一个包」的指引。 */
@@ -128,18 +161,18 @@ export function isEmptyPackageHistory(input: {
 }
 
 /**
- * 「创建升级计划」按钮是否可点：正在提交 / 阶段分不出来 / 没选包 —— 任一为真都禁用。
+ * 「创建升级计划」按钮是否可点：正在提交 / 阶段分不出来 / 没选版本 —— 任一为真都禁用。
  *
  * 把这条口径抽成纯函数，是为了钉在测试里，而不是散在 JSX 的布尔表达式里漂移。
  */
 export function canSubmitUpgrade(input: {
   isPending: boolean;
   phaseError: string | null;
-  selectedPackage: InstallPackageView | null;
+  selectedVersion: string;
 }): boolean {
   return (
     !input.isPending &&
     input.phaseError === null &&
-    input.selectedPackage !== null
+    input.selectedVersion.trim() !== ""
   );
 }

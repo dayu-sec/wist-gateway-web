@@ -3012,40 +3012,45 @@ export interface CreateRolloutPlanCommand {
 }
 
 /**
- * 拼 `upgrade` 动作的 spec（与 agentd 侧 `UpgradeSpec` 同形）。
+ * 拼「升级计划」的 `spec`（与存储的计划同形，**不是** agentd 吃的形状）。
  *
- * `target_version` **可省**（留空就不写）：新 agentd 会从包内 agentd 自报的版本取。
- * 但**旧 agentd 要求这个键必须存在**，所以升级一批还没跟上的旧 Agent 时要把目标版本填上。
- * 页面上不暴露这个键（版本以包内 agentd 自报为单一事实来源），需要时由调用方在此传入。
- * `package_url` 必须是 `https://…` 或**目标 Agent 主机上的绝对路径**；`package_sha256` 必须是
- * 64 位 hex（可带 `sha256:` 前缀）。这两个键永远写。
+ * 两种选择方式：
+ * - **按版本**（推荐）：只给 `targetVersion`，制品由**网关**在派活时按每个目标 agent 的平台
+ *   从已录入的安装包里解析（与中心按网关平台派生 gops/gx 制品同一思路）；
+ * - **显式制品**（旧）：同时给 `packageUrl` 与 `packageSha256`，整份计划原样透传给所有目标。
  *
- * `allow_downgrade` **可选**：agentd 默认只允许更新（版本必须更高），只有显式置 `true` 才允许
- * 同版本 / 降级。`true` 才写进 JSON —— 不给 / `false` 都不写这个键，这样产物与旧 spec 字节一致，
- * 还没认这个字段的旧 agentd 也能照常解析。
+ * `package_url` / `package_sha256` **成对可省**：两个都非空才写；否则不写 —— 那就是「按版本」。
+ * `target_version` 留空也不写。`allow_downgrade` 只有 `true` 才写（旧 spec 字节口径不变）。
  */
 export function jsonUpgradeSpec(input: {
   targetVersion?: string;
-  packageUrl: string;
-  packageSha256: string;
+  packageUrl?: string;
+  packageSha256?: string;
   allowDowngrade?: boolean;
 }): string {
   const target = input.targetVersion?.trim();
+  const packageUrl = input.packageUrl?.trim() ?? "";
+  const packageSha256 = input.packageSha256?.trim() ?? "";
+  const hasExplicitPackage = packageUrl !== "" && packageSha256 !== "";
   return JSON.stringify({
     ...(target ? { target_version: target } : {}),
-    package_url: input.packageUrl.trim(),
-    package_sha256: input.packageSha256.trim(),
+    ...(hasExplicitPackage
+      ? { package_url: packageUrl, package_sha256: packageSha256 }
+      : {}),
     ...(input.allowDowngrade === true ? { allow_downgrade: true } : {}),
   });
 }
 
 /**
- * 解析 `upgrade` 计划的 `spec`（与 `jsonUpgradeSpec` 反向）。
+ * 解析「升级计划」的 `spec`（与 `jsonUpgradeSpec` 反向）。
  *
- * `target_version` 是**可省**的（版本由包内 agentd 自报决定），所以它缺省时返回 `null`、
- * 不当成错误；`package_url` / `package_sha256` 必须存在。`allow_downgrade` 也是**可省**的，
- * 缺省读作 `false`（旧 spec 没这个键 —— 那就是默认的「只允许更新」）。解析失败**不抛错**，
- * 而是把原文与原因交给页面如实呈现。
+ * `target_version` 与 `package_url` / `package_sha256` 都**可省**：
+ * - 按版本的计划只有 `target_version`（制品由网关按目标平台解析），所以 `packageUrl` 缺省
+ *   返回 `null`、**不当成错误**；
+ * - 显式制品的旧计划则带 `package_url` / `package_sha256`。
+ *
+ * `allow_downgrade` 也是可省的，缺省读作 `false`。解析失败**不抛错**，而是把原文与原因交给
+ * 页面如实呈现。
  */
 export function parseUpgradeSpec(raw: string): {
   targetVersion: string | null;
@@ -3063,12 +3068,12 @@ export function parseUpgradeSpec(raw: string): {
         ["target_version", "targetVersion"],
         "upgradeSpec.targetVersion",
       ),
-      packageUrl: nullableStringField(
+      packageUrl: optionalStringField(
         record,
         ["package_url", "packageUrl"],
         "upgradeSpec.packageUrl",
       ),
-      packageSha256: nullableStringField(
+      packageSha256: optionalStringField(
         record,
         ["package_sha256", "packageSha256"],
         "upgradeSpec.packageSha256",
@@ -3240,6 +3245,26 @@ export async function advanceRolloutPlan(planId: string): Promise<RolloutPlanVie
   const payload = await requestJson<unknown>(
     "/api/v1/admin/rollout-plans/advance",
     { method: "POST", body: JSON.stringify({ plan_id: planId }) },
+  );
+  return normalizeRolloutPlan(payload);
+}
+
+/**
+ * 重试计划里**失败**的目标。
+ *
+ * `targetIds` 省略 / 为空 = 该计划里**所有**失败目标。网关会为每个目标派一件**新**升级工作
+ * （新的 `work_id` —— agentd 只对没跑过的 id 才起升级器），并把计划 / 阶段重开为 `rolling`。
+ */
+export async function retryRolloutPlan(
+  planId: string,
+  targetIds: string[] = [],
+): Promise<RolloutPlanView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/rollout-plans/retry",
+    {
+      method: "POST",
+      body: JSON.stringify({ plan_id: planId, target_ids: targetIds }),
+    },
   );
   return normalizeRolloutPlan(payload);
 }
