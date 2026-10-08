@@ -463,6 +463,46 @@
   line-height: 1.6;
 }
 
+/* GitHub Release 一键填充（可选）：输入 + 按钮。 */
+.resolveBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.secondaryButton {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondaryButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
 @media (max-width: 560px) {
   .main {
     padding: 22px 16px 40px;

@@ -42,6 +42,7 @@ import {
   liftAgentRevocation,
   pauseWork,
   recordKnowledgePackage,
+  resolveGitHubRelease,
   resumeWork,
   revokeAgent,
   revokeWork,
@@ -243,6 +244,13 @@ export function useSetAgentInstallPackage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["agent-install-package"] });
     },
+  });
+}
+
+/** 解析 GitHub Release 页面地址（安装包页「一键填充」用）。不回落示例：失败要冒出来。 */
+export function useResolveGitHubRelease() {
+  return useMutation({
+    mutationFn: (releaseUrl: string) => resolveGitHubRelease(releaseUrl),
   });
 }
 

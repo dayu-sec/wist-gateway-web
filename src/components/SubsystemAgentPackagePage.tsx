@@ -5,6 +5,7 @@ import type { InstallPackageView } from "../api/admin";
 import {
   useAgentInstallPackage,
   useInstallPackages,
+  useResolveGitHubRelease,
   useSetAgentInstallPackage,
 } from "../hooks";
 import { CopyButton } from "./CopyButton";
@@ -135,15 +136,19 @@ export function SubsystemAgentPackagePage() {
   const installPackage = useAgentInstallPackage();
   const setInstallPackage = useSetAgentInstallPackage();
   const packages = useInstallPackages();
+  const resolve = useResolveGitHubRelease();
   const queryClient = useQueryClient();
 
   const blankRows = () =>
     PLATFORM_SLOTS.map((slot) => ({ platform: slot.id, url: "", sha256: "" }));
   const [rows, setRows] = useState(blankRows);
   // 两个框都不预填、成功后也都清空：这张卡的语义是**添加一个新包**。
-  const [rowErrors, setRowErrors] = useState<(string | null)[]>(() =>
-    PLATFORM_SLOTS.map(() => null),
+  const [rowErrors, setRowErrors] = useState<(string | null)[]>(
+    () => PLATFORM_SLOTS.map(() => null),
   );
+  // GitHub Release 地址：可选，一键把各平台资产填进对应槽位（对齐 gops 的录入范式）。
+  const [releaseUrl, setReleaseUrl] = useState("");
+  const [resolveNote, setResolveNote] = useState<string | null>(null);
 
   const setting = installPackage.data ?? null;
   const current = setting?.packages ?? [];
@@ -167,6 +172,35 @@ export function SubsystemAgentPackagePage() {
     setRowErrors((current) =>
       current.map((value, i) => (i === index ? message : value)),
     );
+  }
+
+  function handleResolve() {
+    const url = releaseUrl.trim();
+    if (!url) return;
+    resolve.mutate(url, {
+      onSuccess: (result) => {
+        const missing: string[] = [];
+        setRows((current) =>
+          current.map((row, index) => {
+            const slot = PLATFORM_SLOTS[index];
+            const asset = result.assets.find(
+              (item) => item.platform === slot.id,
+            );
+            if (!asset) {
+              missing.push(slot.label);
+              return row;
+            }
+            return { ...row, url: asset.artifactUrl, sha256: asset.sha256 ?? "" };
+          }),
+        );
+        setRowErrors(PLATFORM_SLOTS.map(() => null));
+        setResolveNote(
+          missing.length === 0
+            ? `已按 ${result.version} 填充 ${PLATFORM_SLOTS.length} 个平台。`
+            : `${result.version}：已填充 ${PLATFORM_SLOTS.length - missing.length} 个平台，缺少 ${missing.join(" / ")}，请手动补址（或该平台本次没有资产）。`,
+        );
+      },
+    });
   }
 
   function handlePackageSubmit(event: FormEvent<HTMLFormElement>) {
@@ -334,6 +368,42 @@ export function SubsystemAgentPackagePage() {
           </header>
 
           <form className={styles.form} onSubmit={handlePackageSubmit}>
+            <div className={styles.resolveBlock}>
+              <label className={styles.field}>
+                <span>GitHub Release 地址（可选，一键填充）</span>
+                <input
+                  type="text"
+                  value={releaseUrl}
+                  onChange={(event) => {
+                    setReleaseUrl(event.target.value);
+                    if (resolveNote) setResolveNote(null);
+                  }}
+                  placeholder="https://github.com/<owner>/<repo>/releases/tag/<tag>"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <small>
+                  填 release 页面地址后点「解析并填充」：网关拉该 release 的资产，按
+                  target-triple 自动填到对应平台槽位。
+                </small>
+              </label>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={handleResolve}
+                disabled={resolve.isPending || !releaseUrl.trim()}
+              >
+                {resolve.isPending ? "解析中…" : "解析并填充"}
+              </button>
+            </div>
+            {resolve.error ? (
+              <div className={styles.errorBanner} role="alert">
+                {`解析失败：${packageAddErrorMessage(resolve.error)}`}
+              </div>
+            ) : null}
+            {resolveNote ? (
+              <p className={styles.fieldHint}>{resolveNote}</p>
+            ) : null}
             {PLATFORM_SLOTS.map((slot, index) => (
               <div key={slot.id} className={styles.variantBlock}>
                 <div className={styles.variantTitle}>

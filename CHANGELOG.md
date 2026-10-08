@@ -5,6 +5,14 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.4.0-alpha] - 2026-10-08
+
+### 新增
+
+- **安装包页「GitHub Release 一键填充」**：填 release 页面地址后一键解析
+  （`POST /api/v1/admin/github-release/resolve`），按 target-triple 自动把各平台资产的地址与
+  sha256 填进对应槽位（对齐 gops 的录入范式）；解析响应里的非制品（如 `.sha256` 清单）platform 为空，会归入「缺少」提示、需手动补。
+
 ## [0.3.0-alpha] - 2026-10-08
 
 ### 变更

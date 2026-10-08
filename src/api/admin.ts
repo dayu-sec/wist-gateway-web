@@ -282,6 +282,19 @@ export interface SetAgentInstallPackageCommand {
   requestedBy?: string;
 }
 
+/** GitHub Release 里的一个资产（含平台槽位与 sha256）。 */
+export interface ResolvedGitHubAsset {
+  name: string;
+  artifactUrl: string;
+  sha256: string | null;
+  platform: string | null;
+}
+
+export interface ResolvedGitHubRelease {
+  version: string;
+  assets: ResolvedGitHubAsset[];
+}
+
 /**
  * Agent 的数据面上送目标（生效值）。
  *
@@ -1188,6 +1201,33 @@ export async function setAgentInstallPackage(
     },
   );
   return normalizeAgentInstallPackage(payload);
+}
+
+/**
+ * 解析 GitHub Release 页面地址：拉出 tag（版本）与各平台制品地址（含 sha256），供「安装包」页一键填充。
+ *
+ * 输入 `https://github.com/<owner>/<repo>/releases/tag/<tag>`。**不回落示例**：这是解析请求，失败要冒出来。
+ */
+export async function resolveGitHubRelease(
+  releaseUrl: string,
+): Promise<ResolvedGitHubRelease> {
+  const raw = await requestJson<{
+    version?: unknown;
+    assets?: Array<Record<string, unknown>>;
+  }>("/api/v1/admin/github-release/resolve", {
+    method: "POST",
+    body: JSON.stringify({ release_url: releaseUrl }),
+  });
+  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
+  return {
+    version: typeof raw?.version === "string" ? raw.version : "",
+    assets: assets.map((asset) => ({
+      name: String(asset?.name ?? ""),
+      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
+      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
+      platform: typeof asset?.platform === "string" ? asset.platform : null,
+    })),
+  };
 }
 
 export async function fetchAgentUplink(): Promise<AgentUplink> {
