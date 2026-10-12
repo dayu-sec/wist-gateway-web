@@ -15,6 +15,7 @@ import {
 } from "./agentPurposeConfidence";
 import { factSummaryExport } from "./agentPurposeExport";
 import { CopyButton } from "./CopyButton";
+import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentPurposeView.module.css";
 
 interface SubsystemAgentPurposeViewProps {
@@ -23,28 +24,54 @@ interface SubsystemAgentPurposeViewProps {
 
 const EMPTY = "—";
 
-/** 机器类别中文名（模型 `Content.MachineClass`）。 */
-const MACHINE_CLASS_LABEL: Record<MachineClass, string> = {
-  MacDaily: "macOS 日常机",
-  MacDev: "macOS 开发机",
-  LinuxHost: "Linux 通用服务器",
-  LinuxCompute: "Linux 计算服务器",
-  LinuxData: "Linux 数据服务器",
-};
+/**
+ * 机器类别中文名（模型 `Content.MachineClass`）。
+ *
+ * **必须是函数**：模块级常量里的 `t()` 只在导入时求值一次，切语言不会变。
+ */
+function machineClassLabel(machineClass: MachineClass): string {
+  switch (machineClass) {
+    case "MacDaily":
+      return t("macOS 日常机", "macOS daily driver");
+    case "MacDev":
+      return t("macOS 开发机", "macOS developer machine");
+    case "LinuxHost":
+      return t("Linux 通用服务器", "Linux general-purpose server");
+    case "LinuxCompute":
+      return t("Linux 计算服务器", "Linux compute server");
+    case "LinuxData":
+      return t("Linux 数据服务器", "Linux data server");
+  }
+}
 
 /** 依据的信号种类（模型的 `kind` 是开放字符串，认不出来的原样展示）。 */
-const SIGNAL_KIND_LABEL: Record<string, string> = {
-  process: "进程",
-  process_path: "进程路径",
-  listen_port: "监听端口",
-  package: "已装包",
-  unit: "采集单元",
-};
+function signalKindLabel(kind: string): string {
+  switch (kind) {
+    case "process":
+      return t("进程", "Process");
+    case "process_path":
+      return t("进程路径", "Process path");
+    case "listen_port":
+      return t("监听端口", "Listening port");
+    case "package":
+      return t("已装包", "Installed package");
+    case "unit":
+      return t("采集单元", "Collection unit");
+    default:
+      return kind;
+  }
+}
 
-const METHOD_LABEL: Record<string, string> = {
-  rule: "规则表推断",
-  model: "模型推断",
-};
+function methodLabel(method: string): string {
+  switch (method) {
+    case "rule":
+      return t("规则表推断", "Rule table inference");
+    case "model":
+      return t("模型推断", "Model inference");
+    default:
+      return method;
+  }
+}
 
 /**
  * 列表渲染上限。`process_executables` / `packages` / `listen_ports` 是**被管机器上报**
@@ -86,6 +113,8 @@ function barToneClass(tone: ConfidenceTone): string {
 /**
  * 有上限的字符串列表：超出 `LIST_RENDER_LIMIT` 时**明确告知被截断**，
  * 并给一个「显示全部」的显式控件（agent 可控的列表可达数万条）。
+ *
+ * `unit` 要传**已取词**的单位（`t("条", "entries")`）：它要拼进句子，不能是中文原文。
  */
 function CappedList({
   values,
@@ -115,15 +144,31 @@ function CappedList({
         <div className={styles.truncation}>
           <span role="status">
             {showAll
-              ? `已展开全部 ${values.length} ${unit}。`
-              : `只显示前 ${LIST_RENDER_LIMIT} ${unit}，还有 ${values.length - LIST_RENDER_LIMIT} ${unit}未显示。`}
+              ? t("已展开全部 {n} {unit}。", "Expanded all {n} {unit}.", {
+                  n: values.length,
+                  unit,
+                })
+              : t(
+                  "只显示前 {limit} {unit}，还有 {rest} {unit}未显示。",
+                  "Showing only the first {limit} {unit}; {rest} more not shown.",
+                  {
+                    limit: LIST_RENDER_LIMIT,
+                    rest: values.length - LIST_RENDER_LIMIT,
+                    unit,
+                  },
+                )}
           </span>
           <button
             type="button"
             className={styles.truncationButton}
             onClick={() => setShowAll((current) => !current)}
           >
-            {showAll ? "收起" : `显示全部 ${values.length} ${unit}`}
+            {showAll
+              ? t("收起", "Collapse")
+              : t("显示全部 {n} {unit}", "Show all {n} {unit}", {
+                  n: values.length,
+                  unit,
+                })}
           </button>
         </div>
       ) : null}
@@ -131,20 +176,12 @@ function CappedList({
   );
 }
 
-function signalKindLabel(kind: string): string {
-  return SIGNAL_KIND_LABEL[kind] ?? kind;
-}
-
-function methodLabel(method: string): string {
-  return METHOD_LABEL[method] ?? method;
-}
-
 /** 时间戳：后端给 RFC3339（含时区）；解析不了就原样展示，不猜。 */
 function formatTimestamp(value: string | null): string {
   if (!value) return EMPTY;
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return value;
-  return at.toLocaleString("zh-CN", { hour12: false });
+  return at.toLocaleString(dateLocale(), { hour12: false });
 }
 
 function displayWeight(weight: number): string {
@@ -169,9 +206,14 @@ function PurposeStateNotice({
   if (!factSummary) {
     return (
       <div className={`${styles.notice} ${styles.noticeUnknown}`} role="status">
-        <span className={styles.noticeTitle}>尚未上报事实</span>
+        <span className={styles.noticeTitle}>
+          {t("尚未上报事实", "No facts reported yet")}
+        </span>
         <span className={styles.noticeText}>
-          agentd 还没上报过这台机器的采集事实（新注册的 Agent 常见）。网关不伪造结论：事实与建议都为空，等下一次上报或人工判定。
+          {t(
+            "agentd 还没上报过这台机器的采集事实（新注册的 Agent 常见）。网关不伪造结论：事实与建议都为空，等下一次上报或人工判定。",
+            "agentd has not reported collection facts for this machine yet (common for newly registered Agents). The gateway does not invent conclusions: both facts and suggestion are empty; wait for the next report or a manual decision.",
+          )}
         </span>
       </div>
     );
@@ -180,9 +222,14 @@ function PurposeStateNotice({
   if (!suggestion) {
     return (
       <div className={`${styles.notice} ${styles.noticeWeak}`} role="status">
-        <span className={styles.noticeTitle}>有事实，但无建议</span>
+        <span className={styles.noticeTitle}>
+          {t("有事实，但无建议", "Facts present, but no suggestion")}
+        </span>
         <span className={styles.noticeText}>
-          事实摘要已经在，网关却没有给出用途建议：可能没有任何规则命中、且该平台规则册没有基线类别，也可能这台机器的平台还没有规则册（宁可不猜）。事实仍然完整保留。
+          {t(
+            "事实摘要已经在，网关却没有给出用途建议：可能没有任何规则命中、且该平台规则册没有基线类别，也可能这台机器的平台还没有规则册（宁可不猜）。事实仍然完整保留。",
+            "The fact summary is in, but the gateway gives no purpose suggestion: no rule may have matched and the platform rule set may have no baseline class, or this machine's platform may have no rule set yet (better to guess nothing). The facts are still kept in full.",
+          )}
         </span>
       </div>
     );
@@ -190,9 +237,14 @@ function PurposeStateNotice({
 
   return (
     <div className={`${styles.notice} ${styles.noticeOk}`} role="status">
-      <span className={styles.noticeTitle}>事实 / 推断 / 判定 并列展示</span>
+      <span className={styles.noticeTitle}>
+        {t("事实 / 推断 / 判定 并列展示", "Facts / inference / decision shown side by side")}
+      </span>
       <span className={styles.noticeText}>
-        推断由规则表算出、可变可过期；判定是人定的、留痕。两者冲突时以判定为准，但推断仍然并列展示 —— 不是谁盖掉谁。
+        {t(
+          "推断由规则表算出、可变可过期；判定是人定的、留痕。两者冲突时以判定为准，但推断仍然并列展示 —— 不是谁盖掉谁。",
+          "The inference is computed from the rule table and can change or expire; the decision is made by a human and leaves an audit trail. When the two conflict the decision prevails, but the inference is still shown alongside — neither overwrites the other.",
+        )}
       </span>
     </div>
   );
@@ -277,22 +329,31 @@ function VerdictBand({
     <div className={styles.verdictBand}>
       <section className={styles.verdictCell} aria-labelledby={CLASSIFICATION_TITLE_ID}>
         <div className={styles.verdictCellHead}>
-          <span className={`${styles.panelTag} ${styles.tagDecision}`}>判定</span>
-          <span className={styles.verdictCellCaption}>人工判定 · 冲突时以此为准</span>
+          <span className={`${styles.panelTag} ${styles.tagDecision}`}>
+            {t("判定", "Decision")}
+          </span>
+          <span className={styles.verdictCellCaption}>
+            {t("人工判定 · 冲突时以此为准", "Manual decision · authoritative on conflict")}
+          </span>
         </div>
         {classification ? (
           <div className={styles.verdictRow}>
             <span className={styles.verdictClass}>
-              {MACHINE_CLASS_LABEL[classification.machineClass]}
+              {machineClassLabel(classification.machineClass)}
             </span>
             <span className={styles.mono}>{classification.machineClass}</span>
-            <span className={`${styles.badge} ${styles.badgeOk}`}>人工判定</span>
+            <span className={`${styles.badge} ${styles.badgeOk}`}>
+              {t("人工判定", "Manual decision")}
+            </span>
           </div>
         ) : (
           <div className={styles.verdictEmpty}>
-            <strong>尚未人工判定</strong>
+            <strong>{t("尚未人工判定", "Not yet decided manually")}</strong>
             <span>
-              管理面的判定写入端点还没实现，所以现在不可能有判定值 —— 旁边的推断只是建议，不代表这台机器已被归类。
+              {t(
+                "管理面的判定写入端点还没实现，所以现在不可能有判定值 —— 旁边的推断只是建议，不代表这台机器已被归类。",
+                "The admin decision write endpoint is not implemented yet, so a decision value cannot exist now — the inference next to it is only a suggestion and does not mean this machine has been classified.",
+              )}
             </span>
           </div>
         )}
@@ -300,18 +361,23 @@ function VerdictBand({
 
       <section className={styles.verdictCell} aria-labelledby={SUGGESTION_TITLE_ID}>
         <div className={styles.verdictCellHead}>
-          <span className={styles.panelTag}>推断</span>
-          <span className={styles.verdictCellCaption}>规则表算出 · 可变、可过期</span>
+          <span className={styles.panelTag}>{t("推断", "Inference")}</span>
+          <span className={styles.verdictCellCaption}>
+            {t("规则表算出 · 可变、可过期", "Computed from the rule table · mutable, can expire")}
+          </span>
         </div>
         {suggestion ? (
           <VerdictInference suggestion={suggestion} />
         ) : (
           <div className={styles.verdictEmpty}>
-            <strong>没有建议</strong>
+            <strong>{t("没有建议", "No suggestion")}</strong>
             <span>
               {hasFact
-                ? "规则未命中，或这台机器的平台没有规则册 —— 网关宁可不猜，也不给没有依据的结论。"
-                : "还没有事实摘要，没有东西可供推断。"}
+                ? t(
+                    "规则未命中，或这台机器的平台没有规则册 —— 网关宁可不猜，也不给没有依据的结论。",
+                    "No rule matched, or this machine's platform has no rule set — the gateway would rather not guess than give a conclusion without evidence.",
+                  )
+                : t("还没有事实摘要，没有东西可供推断。", "No fact summary yet, so there is nothing to infer from.")}
             </span>
           </div>
         )}
@@ -319,9 +385,18 @@ function VerdictBand({
 
       {conflict ? (
         <div className={`${styles.notice} ${styles.noticeWeak} ${styles.bandConflict}`} role="status">
-          <span className={styles.noticeTitle}>与网关推断不一致</span>
+          <span className={styles.noticeTitle}>
+            {t("与网关推断不一致", "Conflicts with the gateway inference")}
+          </span>
           <span className={styles.noticeText}>
-            推断为 {MACHINE_CLASS_LABEL[conflict.suggestedClass]}（{conflict.suggestedClass}）。冲突时以人工判定为准，但推断仍然并列展示，不被盖掉。
+            {t(
+              "推断为 {label}（{code}）。冲突时以人工判定为准，但推断仍然并列展示，不被盖掉。",
+              "Inferred as {label} ({code}). On conflict the manual decision prevails, but the inference is still shown alongside and is not overwritten.",
+              {
+                label: machineClassLabel(conflict.suggestedClass),
+                code: conflict.suggestedClass,
+              },
+            )}
           </span>
         </div>
       ) : null}
@@ -337,7 +412,7 @@ function VerdictInference({ suggestion }: { suggestion: PurposeSuggestion }) {
     <>
       <div className={styles.verdictRow}>
         <span className={styles.verdictClass}>
-          {MACHINE_CLASS_LABEL[suggestion.suggestedClass]}
+          {machineClassLabel(suggestion.suggestedClass)}
         </span>
         <span className={styles.mono}>{suggestion.suggestedClass}</span>
         <span className={`${styles.badge} ${badgeToneClass(tone)}`}>
@@ -346,7 +421,7 @@ function VerdictInference({ suggestion }: { suggestion: PurposeSuggestion }) {
       </div>
       <div className={styles.confidence}>
         <div className={styles.confidenceTop}>
-          <span className={styles.confidenceLabel}>置信度</span>
+          <span className={styles.confidenceLabel}>{t("置信度", "Confidence")}</span>
           <span className={`${styles.mono} ${textToneClass(tone)}`}>
             {suggestion.confidence} / 100
           </span>
@@ -377,24 +452,26 @@ function ClassificationLedger({
   return (
     <dl className={styles.ledger}>
       <div className={styles.ledgerItem}>
-        <dt>判定人</dt>
+        <dt>{t("判定人", "Decided by")}</dt>
         <dd className={styles.mono}>{classification.decidedBy}</dd>
       </div>
       <div className={styles.ledgerItem}>
-        <dt>判定时间</dt>
+        <dt>{t("判定时间", "Decided at")}</dt>
         <dd className={styles.mono}>{formatTimestamp(classification.decidedAt)}</dd>
       </div>
       <div className={styles.ledgerItem}>
-        <dt>采纳的建议</dt>
+        <dt>{t("采纳的建议", "Adopted suggestion")}</dt>
         <dd className={styles.mono}>
           {classification.suggestionId ?? EMPTY}
           <span className={styles.ledgerMeta}>
-            {classification.suggestionId ? "采纳了这一次建议" : "人工直接判定或推翻了建议"}
+            {classification.suggestionId
+              ? t("采纳了这一次建议", "This suggestion was adopted")
+              : t("人工直接判定或推翻了建议", "Decided manually, or the suggestion was overruled")}
           </span>
         </dd>
       </div>
       <div className={styles.ledgerItem}>
-        <dt>备注</dt>
+        <dt>{t("备注", "Note")}</dt>
         <dd className={styles.wrapText}>{classification.note ?? EMPTY}</dd>
       </div>
     </dl>
@@ -407,15 +484,18 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
     return (
       <section className={styles.panel} aria-labelledby={FACT_TITLE_ID}>
         <PanelHeader
-          tag="事实"
-          title="Agent 事实摘要"
-          caption="agentd 上报，覆盖式一台一条"
+          tag={t("事实", "Facts")}
+          title={t("Agent 事实摘要", "Agent fact summary")}
+          caption={t("agentd 上报，覆盖式一台一条", "Reported by agentd, one overwritten record per machine")}
           titleId={FACT_TITLE_ID}
         />
         <div className={styles.panelEmpty}>
-          <strong>尚未上报事实</strong>
+          <strong>{t("尚未上报事实", "No facts reported yet")}</strong>
           <span>
-            新注册的 Agent 还没报过摘要；这里为空不是「没有用途」，而是「还不知道」。
+            {t(
+              "新注册的 Agent 还没报过摘要；这里为空不是「没有用途」，而是「还不知道」。",
+              "A newly registered Agent has not reported a summary yet; empty here does not mean no purpose, it means not known yet.",
+            )}
           </span>
         </div>
       </section>
@@ -428,14 +508,14 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
   return (
     <section className={styles.panel} aria-labelledby={FACT_TITLE_ID}>
       <PanelHeader
-        tag="事实"
-        title="Agent 事实摘要"
-        caption="agentd 上报，覆盖式一台一条"
+        tag={t("事实", "Facts")}
+        title={t("Agent 事实摘要", "Agent fact summary")}
+        caption={t("agentd 上报，覆盖式一台一条", "Reported by agentd, one overwritten record per machine")}
         titleId={FACT_TITLE_ID}
         action={
           <CopyButton
             className={styles.copyButton}
-            label="复制 JSON"
+            label={t("复制 JSON", "Copy JSON")}
             text={factSummaryExport(factSummary)}
           />
         }
@@ -443,7 +523,7 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
 
       <dl className={styles.factGrid}>
         <div className={styles.factRow}>
-          <dt>平台</dt>
+          <dt>{t("平台", "Platform")}</dt>
           <dd>
             <span className={styles.mono}>
               {factSummary.os} / {factSummary.arch}
@@ -451,67 +531,93 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>主机标识</dt>
+          <dt>{t("主机标识", "Host id")}</dt>
           <dd>
             <span className={styles.mono}>{factSummary.hostId || EMPTY}</span>
             <span className={styles.factMeta}>
-              发现方向 host 的 host.id；仅留痕、不参与内容摘要，改机器名或换网不触发重报与重算。空值（{EMPTY}）表示这台还没上报过 —— 旧版 agentd 不带这些字段
+              {t(
+                "发现方向 host 的 host.id；仅留痕、不参与内容摘要，改机器名或换网不触发重报与重算。空值（{empty}）表示这台还没上报过 —— 旧版 agentd 不带这些字段",
+                "host.id from the discovery direction host; for audit only and not part of the content digest: renaming the machine or changing networks triggers neither a re-report nor a recompute. An empty value ({empty}) means this machine has not reported yet — older agentd builds do not carry these fields",
+                { empty: EMPTY },
+              )}
             </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>主机名</dt>
+          <dt>{t("主机名", "Host name")}</dt>
           <dd>
             <span className={styles.mono}>{factSummary.hostName || EMPTY}</span>
             <span className={styles.factMeta}>
-              host.name；同样是留痕字段，同样不进内容摘要
+              {t(
+                "host.name；同样是留痕字段，同样不进内容摘要",
+                "host.name; also an audit field, also excluded from the content digest",
+              )}
             </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>观测时间</dt>
+          <dt>{t("观测时间", "Observed at")}</dt>
           <dd>
             <span className={styles.mono}>
               {formatTimestamp(factSummary.observedAt)}
             </span>
-            <span className={styles.factMeta}>agentd 采集到这份摘要的时刻</span>
+            <span className={styles.factMeta}>
+              {t("agentd 采集到这份摘要的时刻", "When agentd collected this summary")}
+            </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>入库时间</dt>
+          <dt>{t("入库时间", "Stored at")}</dt>
           <dd>
             <span className={styles.mono}>
               {formatTimestamp(factSummary.receivedAt)}
             </span>
-            <span className={styles.factMeta}>网关收到并覆盖写入的时刻</span>
+            <span className={styles.factMeta}>
+              {t("网关收到并覆盖写入的时刻", "When the gateway received and overwrote it")}
+            </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>上报版本</dt>
+          <dt>{t("上报版本", "Reported revision")}</dt>
           <dd>
             <span className={styles.mono}>revision {factSummary.revision}</span>
-            <span className={styles.factMeta}>仅留痕，不参与判重</span>
+            <span className={styles.factMeta}>
+              {t("仅留痕，不参与判重", "For audit only, not used for dedupe")}
+            </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>内容摘要</dt>
+          <dt>{t("内容摘要", "Content digest")}</dt>
           <dd>
             <span className={styles.mono}>{factSummary.contentDigest}</span>
             <span className={styles.factMeta}>
-              幂等键：上报按内容变化触发，不按版本前进
+              {t(
+                "幂等键：上报按内容变化触发，不按版本前进",
+                "Idempotency key: reports are triggered by content changes, not by revision increments",
+              )}
             </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>进程条数</dt>
+          <dt>{t("进程条数", "Process count")}</dt>
           <dd>
             <span className={styles.mono}>
-              去重前 {factSummary.processCount} / 去重后 {dedupedProcesses}
+              {t("去重前 {before} / 去重后 {after}", "Before dedupe {before} / after dedupe {after}", {
+                before: factSummary.processCount,
+                after: dedupedProcesses,
+              })}
             </span>
             <span className={styles.factMeta}>
-              去重会毁掉基数，所以另存去重前的条数
+              {t(
+                "去重会毁掉基数，所以另存去重前的条数",
+                "Dedupe destroys the cardinality, so the pre-dedupe count is stored separately",
+              )}
               {droppedByDedup > 0
-                ? `（差额 ${droppedByDedup}：重复的可执行标识被合并，或进程本来就没有可执行名）`
+                ? t(
+                    "（差额 {n}：重复的可执行标识被合并，或进程本来就没有可执行名）",
+                    " ({n} fewer: duplicate executable identifiers were merged, or the processes never had an executable name)",
+                    { n: droppedByDedup },
+                  )
                 : ""}
             </span>
           </dd>
@@ -520,89 +626,114 @@ function FactSection({ factSummary }: { factSummary: AgentFactSummary | null }) 
 
       <div className={styles.listBlock}>
         <div className={styles.listHead}>
-          <h3 className={styles.listTitle}>进程可执行标识</h3>
-          <span className={styles.listCount}>{dedupedProcesses} 条（去重后）</span>
+          <h3 className={styles.listTitle}>
+            {t("进程可执行标识", "Process executable identifiers")}
+          </h3>
+          <span className={styles.listCount}>
+            {t("{n} 条（去重后）", "{n} entries (after dedupe)", { n: dedupedProcesses })}
+          </span>
         </div>
         {dedupedProcesses === 0 ? (
           <p className={styles.listEmpty}>
             {factSummary.processCount > 0
-              ? "未取到可执行名：这台上报了进程条数，但一条可执行标识都没拿到（内核线程等进程本来就没有可执行名）。这不是「没有进程」，去重前的条数以上报为准。"
-              : "去重前的条数也是 0：这台机器没有采集到进程。"}
+              ? t(
+                  "未取到可执行名：这台上报了进程条数，但一条可执行标识都没拿到（内核线程等进程本来就没有可执行名）。这不是「没有进程」，去重前的条数以上报为准。",
+                  "No executable name obtained: this machine reported a process count but not a single executable identifier (kernel threads and the like never have one). This is not \"no processes\": the pre-dedupe count as reported is authoritative.",
+                )
+              : t(
+                  "去重前的条数也是 0：这台机器没有采集到进程。",
+                  "The pre-dedupe count is 0 as well: no processes were collected on this machine.",
+                )}
           </p>
         ) : (
           <CappedList
             values={factSummary.processExecutables}
             listClassName={styles.valueList}
             itemClassName={styles.mono}
-            unit="条"
+            unit={t("条", "entries")}
           />
         )}
         <p className={styles.listCaption}>
-          macOS 侧是完整路径（ps -axo comm=），Linux 侧只是 basename
-          （/proc/&#123;pid&#125;/comm）—— 路径类规则目前只在 macOS 成立。
+          {t(
+            "macOS 侧是完整路径（ps -axo comm=），Linux 侧只是 basename（/proc/{pid}/comm）—— 路径类规则目前只在 macOS 成立。",
+            "On macOS this is the full path (ps -axo comm=); on Linux it is only the basename (/proc/{pid}/comm) — path-based rules currently hold on macOS only.",
+          )}
         </p>
       </div>
 
       <div className={styles.factGrid}>
         <div className={styles.listBlock}>
           <div className={styles.listHead}>
-            <h3 className={styles.listTitle}>已装包</h3>
-            <span className={styles.listCount}>{factSummary.packages.length} 条</span>
+            <h3 className={styles.listTitle}>{t("已装包", "Installed packages")}</h3>
+            <span className={styles.listCount}>
+              {t("{n} 条", "{n} entries", { n: factSummary.packages.length })}
+            </span>
           </div>
           {factSummary.packages.length === 0 ? (
             <p className={styles.listEmpty}>
-              包清单探针尚未实现，此列恒空，不代表未安装。
+              {t(
+                "包清单探针尚未实现，此列恒空，不代表未安装。",
+                "The package inventory probe is not implemented yet, so this column is always empty; it does not mean nothing is installed.",
+              )}
             </p>
           ) : (
             <CappedList
               values={factSummary.packages}
               listClassName={styles.chipList}
               itemClassName={styles.chip}
-              unit="条"
+              unit={t("条", "entries")}
             />
           )}
         </div>
 
         <div className={styles.listBlock}>
           <div className={styles.listHead}>
-            <h3 className={styles.listTitle}>监听端口</h3>
+            <h3 className={styles.listTitle}>{t("监听端口", "Listening ports")}</h3>
             <span className={styles.listCount}>
-              {factSummary.listenPorts.length} 条
+              {t("{n} 条", "{n} entries", { n: factSummary.listenPorts.length })}
             </span>
           </div>
           {factSummary.listenPorts.length === 0 ? (
-            <p className={styles.listEmpty}>没有采集到监听端口。</p>
+            <p className={styles.listEmpty}>
+              {t("没有采集到监听端口。", "No listening ports collected.")}
+            </p>
           ) : (
             <CappedList
               values={factSummary.listenPorts}
               listClassName={styles.chipList}
               itemClassName={`${styles.chip} ${styles.mono}`}
-              unit="条"
+              unit={t("条", "entries")}
             />
           )}
         </div>
 
         <div className={styles.listBlock}>
           <div className={styles.listHead}>
-            <h3 className={styles.listTitle}>网卡地址</h3>
+            <h3 className={styles.listTitle}>{t("网卡地址", "Network addresses")}</h3>
             <span className={styles.listCount}>
-              {factSummary.networkAddresses.length} 条
+              {t("{n} 条", "{n} entries", { n: factSummary.networkAddresses.length })}
             </span>
           </div>
           {factSummary.networkAddresses.length === 0 ? (
             <p className={styles.listEmpty}>
-              这台还没上报过网卡信息 —— 旧版 agentd 不带这些字段。
+              {t(
+                "这台还没上报过网卡信息 —— 旧版 agentd 不带这些字段。",
+                "This machine has not reported network interface info yet — older agentd builds do not carry these fields.",
+              )}
             </p>
           ) : (
             <CappedList
               values={factSummary.networkAddresses}
               listClassName={styles.chipList}
               itemClassName={`${styles.chip} ${styles.mono}`}
-              unit="条"
+              unit={t("条", "entries")}
             />
           )}
           <p className={styles.listCaption}>
-            每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。
+            {t(
+              "每块网卡一条（形如 en0 192.168.1.5/24）；仅留痕、不参与内容摘要，换网（DHCP）不触发重报与重算 —— 所以这里可能是这台机器最近一次上报时的地址。",
+              "One entry per network interface (for example en0 192.168.1.5/24); for audit only and not part of the content digest: changing networks (DHCP) triggers neither a re-report nor a recompute — so these may be the addresses from this machine's most recent report.",
+            )}
           </p>
         </div>
       </div>
@@ -622,17 +753,23 @@ function EvidenceSection({
     return (
       <section className={styles.panel} aria-labelledby={SUGGESTION_TITLE_ID}>
         <PanelHeader
-          tag="推断"
-          title="逐条依据"
-          caption="网关凭什么给出这个建议 —— 规则表算出，可变、可过期"
+          tag={t("推断", "Inference")}
+          title={t("逐条依据", "Evidence")}
+          caption={t(
+            "网关凭什么给出这个建议 —— 规则表算出，可变、可过期",
+            "Why the gateway made this suggestion — computed from the rule table, mutable and expirable",
+          )}
           titleId={SUGGESTION_TITLE_ID}
         />
         <div className={styles.panelEmpty}>
-          <strong>没有依据</strong>
+          <strong>{t("没有依据", "No evidence")}</strong>
           <span>
             {hasFact
-              ? "规则未命中，或这台机器的平台没有规则册 —— 网关宁可不猜，也不给没有依据的结论。"
-              : "还没有事实摘要，没有东西可供推断。"}
+              ? t(
+                  "规则未命中，或这台机器的平台没有规则册 —— 网关宁可不猜，也不给没有依据的结论。",
+                  "No rule matched, or this machine's platform has no rule set — the gateway would rather not guess than give a conclusion without evidence.",
+                )
+              : t("还没有事实摘要，没有东西可供推断。", "No fact summary yet, so there is nothing to infer from.")}
           </span>
         </div>
       </section>
@@ -647,35 +784,40 @@ function EvidenceSection({
   return (
     <section className={styles.panel} aria-labelledby={SUGGESTION_TITLE_ID}>
       <PanelHeader
-        tag="推断"
-        title="逐条依据"
-        caption="网关凭什么给出这个建议 —— 规则表算出，可变、可过期"
+        tag={t("推断", "Inference")}
+        title={t("逐条依据", "Evidence")}
+        caption={t(
+          "网关凭什么给出这个建议 —— 规则表算出，可变、可过期",
+          "Why the gateway made this suggestion — computed from the rule table, mutable and expirable",
+        )}
         titleId={SUGGESTION_TITLE_ID}
       />
 
       <dl className={styles.factGrid}>
         <div className={styles.factRow}>
-          <dt>判定方法</dt>
+          <dt>{t("判定方法", "Method")}</dt>
           <dd>
             <span className={styles.mono}>{methodLabel(suggestion.method)}</span>
             <span className={styles.factMeta}>
               {suggestion.ruleSetId
-                ? `规则册 ${suggestion.ruleSetId}`
-                : "未记录规则册"}
+                ? t("规则册 {id}", "Rule set {id}", { id: suggestion.ruleSetId })
+                : t("未记录规则册", "No rule set recorded")}
             </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>依据的事实</dt>
+          <dt>{t("依据的事实", "Facts used")}</dt>
           <dd>
             <span className={styles.mono}>
               {formatTimestamp(suggestion.observedAt)}
             </span>
-            <span className={styles.factMeta}>算这一版建议用的是哪次上报</span>
+            <span className={styles.factMeta}>
+              {t("算这一版建议用的是哪次上报", "Which report this suggestion version was computed from")}
+            </span>
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>计算时间</dt>
+          <dt>{t("计算时间", "Computed at")}</dt>
           <dd>
             <span className={styles.mono}>
               {formatTimestamp(suggestion.computedAt)}
@@ -683,7 +825,7 @@ function EvidenceSection({
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>建议 ID</dt>
+          <dt>{t("建议 ID", "Suggestion ID")}</dt>
           <dd>
             <span className={styles.mono}>{suggestion.suggestionId}</span>
           </dd>
@@ -692,26 +834,31 @@ function EvidenceSection({
 
       <div className={styles.listBlock}>
         <div className={styles.listHead}>
-          <h3 className={styles.listTitle}>信号明细</h3>
+          <h3 className={styles.listTitle}>{t("信号明细", "Signal details")}</h3>
           <span className={styles.listCount}>
-            {suggestion.signals.length} 条依据 · 合计权重{" "}
-            {displayWeight(totalWeight)}
+            {t("{n} 条依据 · 合计权重 {weight}", "{n} evidence entries · total weight {weight}", {
+              n: suggestion.signals.length,
+              weight: displayWeight(totalWeight),
+            })}
           </span>
         </div>
         {suggestion.signals.length === 0 ? (
           <p className={styles.listEmpty}>
-            这次建议没有逐条依据：它来自规则册的基线类别兜底（置信度 0），需要人工判定才能定下来。
+            {t(
+              "这次建议没有逐条依据：它来自规则册的基线类别兜底（置信度 0），需要人工判定才能定下来。",
+              "This suggestion has no per-signal evidence: it comes from the rule set's baseline class fallback (confidence 0) and needs a manual decision to settle.",
+            )}
           </p>
         ) : (
           <div className={styles.signalWrap}>
             <table className={styles.signalTable}>
               <thead>
                 <tr>
-                  <th scope="col">规则</th>
-                  <th scope="col">信号</th>
-                  <th scope="col">命中值</th>
+                  <th scope="col">{t("规则", "Rule")}</th>
+                  <th scope="col">{t("信号", "Signal")}</th>
+                  <th scope="col">{t("命中值", "Matched value")}</th>
                   <th scope="col" className={styles.thWeight}>
-                    权重
+                    {t("权重", "Weight")}
                   </th>
                 </tr>
               </thead>
@@ -742,7 +889,11 @@ function SignalRow({ signal }: { signal: PurposeSignal }) {
         className={`${styles.mono} ${styles.tdWeight} ${
           supporting ? styles.weightPositive : styles.weightNegative
         }`}
-        title={supporting ? "支持该类别" : "反向证据：削弱该类别"}
+        title={
+          supporting
+            ? t("支持该类别", "Supports this class")
+            : t("反向证据：削弱该类别", "Counter-evidence: weakens this class")
+        }
       >
         {displayWeight(signal.weight)}
       </td>

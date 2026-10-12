@@ -1,0 +1,42 @@
+/* 版本块：钉在侧边栏左下角、始终可见。
+   侧边栏（.container）本身是 `height:100vh; overflow-y:auto` 的滚动容器，导航可能很长；
+   给这一块 `position: sticky; bottom: 0` 就能把它**吸底**在滚动视口下沿 —— 只加这一条规则，
+   不动既有布局与滚动行为（贴底的 Admin Token 表单仍按原样）。吸住时它会浮在滚动中的导航之上，
+   故底色取侧边栏底色，把穿过去的内容盖住，读起来就是一条不起眼的底栏。 */
+.version {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 6px 2px;
+  background: var(--sidebar-bg);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.label {
+  color: var(--text-4);
+}
+
+.value {
+  color: var(--sidebar-text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 860px) {
+  /* 窄屏：侧边栏改成顶部横条、不再内滚（见 .container 的媒体查询），吸底会让它跟着整页视口
+     漂在屏幕下方，故此处回到普通流，排在横条末尾。 */
+  .version {
+    position: static;
+    padding: 0;
+  }
+}

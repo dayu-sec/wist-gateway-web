@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { t } from "../i18n";
 import styles from "./SubsystemAgentHostListPage.module.css";
 import { useAllAgentsHostMetrics } from "../hooks";
 import { adminApiErrorMessage } from "./adminApiError";
@@ -9,8 +10,8 @@ import {
   formatPercent,
   severityForLoad,
   severityForUsage,
+  severityLabel,
   summarizeAddresses,
-  SEVERITY_LABEL,
   type AddressSummary,
   type Severity,
 } from "../lib/format";
@@ -175,23 +176,31 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
     }
   }
 
+  // 严重度标签取 `lib/format` 的**同一份**口径（`severityLabel()`：渲染期取词、随语言变）。
+  // 别在这里另抄一张表 —— 两处迟早会漂（本页曾为了避开别人的改动抄过一份，已合并回去）。
   const filters: { key: Severity | "all"; label: string; count: number }[] = [
-    { key: "all", label: "全部", count: rows.length },
-    { key: "crit", label: SEVERITY_LABEL.crit, count: counts.crit },
-    { key: "warn", label: SEVERITY_LABEL.warn, count: counts.warn },
-    { key: "ok", label: SEVERITY_LABEL.ok, count: counts.ok },
-    { key: "unknown", label: SEVERITY_LABEL.unknown, count: counts.unknown },
+    { key: "all", label: t("全部", "All"), count: rows.length },
+    { key: "crit", label: severityLabel("crit"), count: counts.crit },
+    { key: "warn", label: severityLabel("warn"), count: counts.warn },
+    { key: "ok", label: severityLabel("ok"), count: counts.ok },
+    { key: "unknown", label: severityLabel("unknown"), count: counts.unknown },
   ];
 
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>主机指标</h1>
+        <h1 className={styles.pageTitle}>{t("主机指标", "Host metrics")}</h1>
         <p className={styles.pageSummary}>
-          机队实时负载视图：一行一台已接入主机，按严重度排序，优先暴露需要处理的主机。数据每 5 秒刷新。
+          {t(
+            "机队实时负载视图：一行一台已接入主机，按严重度排序，优先暴露需要处理的主机。数据每 5 秒刷新。",
+            "Live load view of the fleet: one row per enrolled host, sorted by severity, surfacing the hosts that need attention first. Refreshes every 5 seconds.",
+          )}
         </p>
         <p className={styles.pageThresholds}>
-          分级口径：内存 / 磁盘使用率 ≥90% 为危急、≥75% 为偏高；1 分钟负载按 8 核基准折算。
+          {t(
+            "分级口径：内存 / 磁盘使用率 ≥90% 为危急、≥75% 为偏高；1 分钟负载按 8 核基准折算。",
+            "Thresholds: memory / disk usage ≥90% is critical, ≥75% is elevated; 1-minute load is normalized to 8 cores.",
+          )}
         </p>
       </header>
 
@@ -208,9 +217,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
         </div>
       ) : rows.length === 0 ? (
         <div className={styles.empty}>
-          <strong className={styles.emptyTitle}>暂无主机数据</strong>
+          <strong className={styles.emptyTitle}>{t("暂无主机数据", "No host data")}</strong>
           <span className={styles.emptyText}>
-            确认 Agent 已启动并完成注册；也可以在「安装 Agent」页获取安装命令。
+            {t(
+              "确认 Agent 已启动并完成注册；也可以在「安装 Agent」页获取安装命令。",
+              "Make sure the agent is running and enrolled; you can also get the install command on the Install agent page.",
+            )}
           </span>
         </div>
       ) : (
@@ -237,14 +249,21 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
               <input
                 type="search"
                 className={styles.searchInput}
-                placeholder="搜索主机名 / ID / IP"
+                placeholder={t("搜索主机名 / ID / IP", "Search hostname / ID / IP")}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                aria-label="搜索主机名、Agent ID 或 IP"
+                aria-label={t(
+                  "搜索主机名、Agent ID 或 IP",
+                  "Search hostname, Agent ID, or IP",
+                )}
               />
             </div>
 
-            <div className={styles.filters} role="group" aria-label="按状态筛选">
+            <div
+              className={styles.filters}
+              role="group"
+              aria-label={t("按状态筛选", "Filter by status")}
+            >
               {filters.map((filter) => {
                 const active = filter.key === severityFilter;
                 const tone =
@@ -272,7 +291,8 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
             </div>
 
             <span className={styles.resultCount}>
-              显示 <strong>{visible.length}</strong> / {rows.length} 台
+              {t("显示", "Showing")} <strong>{visible.length}</strong> / {rows.length}{" "}
+              {t("台", "hosts")}
             </span>
           </div>
 
@@ -286,7 +306,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       className={styles.sortHead}
                       onClick={() => toggleSort("agentId")}
                     >
-                      主机
+                      {t("主机", "Host")}
                       <SortMark active={sortKey === "agentId"} asc={sortAsc} />
                     </button>
                   </th>
@@ -296,7 +316,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       className={styles.sortHead}
                       onClick={() => toggleSort("severity")}
                     >
-                      状态
+                      {t("状态", "Status")}
                       <SortMark active={sortKey === "severity"} asc={sortAsc} />
                     </button>
                   </th>
@@ -306,7 +326,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       className={styles.sortHead}
                       onClick={() => toggleSort("cpu")}
                     >
-                      CPU 负载 1m
+                      {t("CPU 负载 1m", "CPU load 1m")}
                       <SortMark active={sortKey === "cpu"} asc={sortAsc} />
                     </button>
                   </th>
@@ -316,7 +336,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       className={styles.sortHead}
                       onClick={() => toggleSort("memory")}
                     >
-                      内存
+                      {t("内存", "Memory")}
                       <SortMark active={sortKey === "memory"} asc={sortAsc} />
                     </button>
                   </th>
@@ -326,12 +346,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       className={styles.sortHead}
                       onClick={() => toggleSort("disk")}
                     >
-                      磁盘
+                      {t("磁盘", "Disk")}
                       <SortMark active={sortKey === "disk"} asc={sortAsc} />
                     </button>
                   </th>
                   <th scope="col" className={styles.thAction}>
-                    <span className={styles.srOnly}>操作</span>
+                    <span className={styles.srOnly}>{t("操作", "Actions")}</span>
                   </th>
                 </tr>
               </thead>
@@ -366,7 +386,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       <span
                         className={`${styles.badge} ${severityClass("badge", row.severity)}`}
                       >
-                        {SEVERITY_LABEL[row.severity]}
+                        {severityLabel(row.severity)}
                       </span>
                     </td>
                     <td className={styles.tdMetric}>
@@ -397,19 +417,19 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                           className={styles.detailLink}
                           to={`/agents/${encodeURIComponent(row.agentId)}/work`}
                         >
-                          采集工作
+                          {t("采集工作", "Collection work")}
                         </Link>
                         <Link
                           className={styles.detailLink}
                           to={`/agents/${encodeURIComponent(row.agentId)}/purpose`}
                         >
-                          用途
+                          {t("用途", "Purpose")}
                         </Link>
                         <Link
                           className={styles.detailLink}
                           to={`/agents/${encodeURIComponent(row.agentId)}/metrics`}
                         >
-                          详情
+                          {t("详情", "Details")}
                           <span aria-hidden="true">→</span>
                         </Link>
                       </div>
@@ -419,7 +439,10 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                 {visible.length === 0 ? (
                   <tr>
                     <td className={styles.tdEmpty} colSpan={6}>
-                      没有符合条件的主机，试试换个关键词或状态筛选。
+                      {t(
+                        "没有符合条件的主机，试试换个关键词或状态筛选。",
+                        "No hosts match. Try another keyword or status filter.",
+                      )}
                     </td>
                   </tr>
                 ) : null}

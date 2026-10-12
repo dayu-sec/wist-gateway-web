@@ -1,10 +1,10 @@
 import {
   ApiError,
-  parseKnowledgeErrorDetail,
   type KnowledgeLocksView,
   type KnowledgePackageView,
   type KnowledgeView,
 } from "../api";
+import { t } from "../i18n";
 
 /**
  * 「知识库」页（`/knowledge`）的显示口径。
@@ -15,7 +15,7 @@ import {
 
 /** 包自报版本的显示形式：`v0.1.1`；版本为空时不装作有。 */
 export function knowledgeVersionLabel(pkg: KnowledgePackageView): string {
-  return pkg.version ? `v${pkg.version}` : "未知版本";
+  return pkg.version ? `v${pkg.version}` : t("未知版本", "Unknown version");
 }
 
 /**
@@ -42,11 +42,17 @@ export function knowledgeSourceText(
 ): string {
   switch (kind) {
     case "initial":
-      return "出厂初始包（[knowledge] source_dir）";
+      return t(
+        "出厂初始包（[knowledge] source_dir）",
+        "Factory initial package ([knowledge] source_dir)",
+      );
     case "none":
-      return "未配置（空载）";
+      return t("未配置（空载）", "Not configured (empty)");
     default:
-      return "从配置文件装载（过渡态）";
+      return t(
+        "从配置文件装载（过渡态）",
+        "Loaded from config files (transitional)",
+      );
   }
 }
 
@@ -62,8 +68,13 @@ export function knowledgeShaLabel(sha256: string): string {
  * 录入时只记了摘要。所以这里分开说，而不是显示一个空的「签发者」。
  */
 export function knowledgeSignatureLabel(pkg: KnowledgePackageView): string {
-  if (!pkg.signedBy) return "未验签（网关未配公钥）";
-  return `已验签 · ${pkg.signedBy.slice(0, 12)}…`;
+  if (!pkg.signedBy)
+    return t("未验签（网关未配公钥）", "Unsigned (no public key on gateway)");
+  return t(
+    "已验签 · {signer}…",
+    "Signed · {signer}…",
+    { signer: pkg.signedBy.slice(0, 12) },
+  );
 }
 
 /**
@@ -108,13 +119,13 @@ interface ContentVersions {
 function versionSummary(versions: ContentVersions): string {
   const parts: string[] = [];
   if (versions.catalogVersion !== null)
-    parts.push(`目录 ${versions.catalogVersion}`);
+    parts.push(t("目录 {n}", "Catalog {n}", { n: versions.catalogVersion }));
   if (versions.templateVersion !== null)
-    parts.push(`模板 ${versions.templateVersion}`);
+    parts.push(t("模板 {n}", "Templates {n}", { n: versions.templateVersion }));
   if (versions.policyVersion !== null)
-    parts.push(`策略 ${versions.policyVersion}`);
+    parts.push(t("策略 {n}", "Policies {n}", { n: versions.policyVersion }));
   if (versions.purposeVersion !== null)
-    parts.push(`用途 ${versions.purposeVersion}`);
+    parts.push(t("用途 {n}", "Purposes {n}", { n: versions.purposeVersion }));
   return parts.join(" · ");
 }
 
@@ -146,15 +157,20 @@ export function rollbackTarget(
     return {
       packageId,
       pkg: null,
-      blockedReason: "上一版不在录入历史里（网关换过库，或记录被清）",
+      blockedReason: t(
+        "上一版不在录入历史里（网关换过库，或记录被清）",
+        "The previous version is not in the record history (the gateway switched stores, or records were cleared)",
+      ),
     };
   }
   if (!pkg.available) {
     return {
       packageId,
       pkg,
-      blockedReason:
+      blockedReason: t(
         "上一版的副本已不在网关（包目录被手工清过，或备份还原不完整）",
+        "The previous version's copy is no longer on the gateway (package dir cleared by hand, or an incomplete restore)",
+      ),
     };
   }
   return { packageId, pkg, blockedReason: null };
@@ -190,10 +206,14 @@ export function staleLocks(
  * 同时 500，因为代理目标 `https://127.0.0.1:443` 没人监听）。
  */
 function gatewayNoAnswerMessage(status: number): string {
-  return (
-    `网关没有应答（HTTP ${status}，响应体为空）—— 请求很可能根本没到网关：` +
-    "先确认网关在跑，再看前端 dev 代理（WARP_INSIGHT_WEB_PROXY_TARGET）指的地址有没有服务监听。" +
-    "（知识库这几个接口自己的 5xx 都会带 {code, message} 正文。）"
+  return t(
+    `网关没有应答（HTTP {status}，响应体为空）—— 请求很可能根本没到网关：` +
+      "先确认网关在跑，再看前端 dev 代理（WARP_INSIGHT_WEB_PROXY_TARGET）指的地址有没有服务监听。" +
+      "（知识库这几个接口自己的 5xx 都会带 {code, message} 正文。）",
+    `Gateway did not answer (HTTP {status}, empty body) — the request most likely never reached it: ` +
+      "first make sure the gateway is running, then check that something is listening at the address the web dev proxy (WARP_INSIGHT_WEB_PROXY_TARGET) points to. " +
+      "(The knowledge routes' own 5xx responses always carry a {code, message} body.)",
+    { status },
   );
 }
 
@@ -206,19 +226,40 @@ function gatewayNoAnswerMessage(status: number): string {
 export function knowledgeErrorAdvice(code: string): string | null {
   switch (code) {
     case "package_source_invalid":
-      return "地址必须是 https:// 链接，或「容器内」的绝对路径（宿主路径容器里看不见）";
+      return t(
+        "地址必须是 https:// 链接，或「容器内」的绝对路径（宿主路径容器里看不见）",
+        "The address must be an https:// URL, or an absolute path inside the container (host paths are not visible there)",
+      );
     case "package_source_unavailable":
-      return "网关拉不到来源：核对地址、网络，以及离线投放时文件确实挂进了容器";
+      return t(
+        "网关拉不到来源：核对地址、网络，以及离线投放时文件确实挂进了容器",
+        "The gateway cannot fetch the source: check the address and network, and that the file really is mounted into the container for offline delivery",
+      );
     case "package_sha256_mismatch":
-      return "摘要与来源字节不符：核对发布侧的 *.sha256（它算的是来源 tarball 的字节）";
+      return t(
+        "摘要与来源字节不符：核对发布侧的 *.sha256（它算的是来源 tarball 的字节）",
+        "Digest does not match the source bytes: check the *.sha256 on the release side (it covers the source tarball's bytes)",
+      );
     case "package_manifest_inconsistent":
-      return "包自相矛盾（manifest 与内容对不上）：重新从 wist-knowledge 的 Release 取一份";
+      return t(
+        "包自相矛盾（manifest 与内容对不上）：重新从 wist-knowledge 的 Release 取一份",
+        "The package contradicts itself (manifest does not match the content): fetch a fresh copy from the wist-knowledge Release",
+      );
     case "package_content_invalid":
-      return "内容本身不合法：先让 wist-knowledge 修内容再重发，网关不会将就装载";
+      return t(
+        "内容本身不合法：先让 wist-knowledge 修内容再重发，网关不会将就装载",
+        "The content itself is invalid: have wist-knowledge fix it and republish; the gateway will not load it as-is",
+      );
     case "package_signature_invalid":
-      return "包被动过，或签名不是这套发布私钥签的";
+      return t(
+        "包被动过，或签名不是这套发布私钥签的",
+        "The package was modified, or it was not signed with this release private key",
+      );
     case "package_not_found":
-      return "这个包不在网关库里（换过库，或从备份还原过）";
+      return t(
+        "这个包不在网关库里（换过库，或从备份还原过）",
+        "This package is not in the gateway store (the store was switched, or restored from backup)",
+      );
     default:
       return null;
   }
@@ -228,42 +269,113 @@ export function knowledgeErrorAdvice(code: string): string | null {
 export function knowledgeLoadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
-      return "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。";
-    if (error.status === 429) return "认证失败次数过多，请稍后再试。";
+      return t(
+        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
+        "Admin Token is missing or invalid: enter the correct Admin Token on the left and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentication attempts. Try again later.",
+      );
     // 404 特指「路由不存在」：网关进程在应答，只是没有这个接口 —— 多半在跑旧构建。
     if (error.status === 404)
-      return "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。";
-    const parsed = parseKnowledgeErrorDetail(error.detail);
-    if (parsed) return `网关返回 HTTP ${error.status}：${parsed.message}`;
-    if (error.detail) return `网关返回 HTTP ${error.status}：${error.detail}`;
+      return t(
+        "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+        "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build. Rebuild and restart it, then retry.",
+      );
+    if (error.detail)
+      return t(
+        "网关返回 HTTP {status}：{detail}",
+        "Gateway returned HTTP {status}: {detail}",
+        { status: error.status, detail: error.detail },
+      );
     if (error.status >= 500) return gatewayNoAnswerMessage(error.status);
-    return `网关返回 HTTP ${error.status}，请检查网关日志。`;
+    return t(
+      "网关返回 HTTP {status}，请检查网关日志。",
+      "Gateway returned HTTP {status}. Check the gateway logs.",
+      { status: error.status },
+    );
   }
-  return "读取失败：响应不符合当前契约，请检查网关与前端版本。";
+  return t(
+    "读取失败：响应不符合当前契约，请检查网关与前端版本。",
+    "Load failed: the response does not match the current contract. Check the gateway and web versions.",
+  );
 }
 
-/** 录入 / 切换失败的提示。正文是 `{code, message}`，能解出 `code` 就顺带给处置建议。 */
+/** 录入 / 切换失败的提示。正文是 `{error:{code, message}}`，能解出 `code` 就顺带给处置建议。 */
 export function knowledgeActionErrorMessage(
   error: unknown,
   action: string,
 ): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
-      return "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。";
-    if (error.status === 429) return "认证失败次数过多，请稍后再试。";
+      return t(
+        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
+        "Admin Token is missing or invalid: enter the correct Admin Token on the left and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentication attempts. Try again later.",
+      );
     if (error.status === 404)
-      return "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。";
-    const parsed = parseKnowledgeErrorDetail(error.detail);
-    if (parsed) {
-      const advice = knowledgeErrorAdvice(parsed.code);
-      const head = `${action}失败（HTTP ${error.status}${parsed.code ? ` · ${parsed.code}` : ""}）：${parsed.message}`;
-      return advice ? `${head} —— ${advice}` : head;
+      return t(
+        "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+        "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build. Rebuild and restart it, then retry.",
+      );
+    if (error.detail) {
+      const advice = error.code ? knowledgeErrorAdvice(error.code) : null;
+      const code = error.code ? ` · ${error.code}` : "";
+      const head = t(
+        "{action}失败（HTTP {status}{code}）：{detail}",
+        "{action} failed (HTTP {status}{code}): {detail}",
+        {
+          action: actionLabel(action),
+          status: error.status,
+          code,
+          detail: error.detail,
+        },
+      );
+      return advice
+        ? t("{head} —— {advice}", "{head} — {advice}", { head, advice })
+        : head;
     }
-    if (error.detail)
-      return `${action}失败（HTTP ${error.status}）：${error.detail}`;
     if (error.status >= 500)
-      return `${action}失败：${gatewayNoAnswerMessage(error.status)}`;
-    return `${action}失败（HTTP ${error.status}），请检查网关日志。`;
+      return t(
+        "{action}失败：{reason}",
+        "{action} failed: {reason}",
+        {
+          action: actionLabel(action),
+          reason: gatewayNoAnswerMessage(error.status),
+        },
+      );
+    return t(
+      "{action}失败（HTTP {status}），请检查网关日志。",
+      "{action} failed (HTTP {status}). Check the gateway logs.",
+      { action: actionLabel(action), status: error.status },
+    );
   }
-  return `${action}失败：响应不符合当前契约，请检查网关与前端版本。`;
+  return t(
+    "{action}失败：响应不符合当前契约，请检查网关与前端版本。",
+    "{action} failed: the response does not match the current contract. Check the gateway and web versions.",
+    { action: actionLabel(action) },
+  );
+}
+
+/**
+ * 动作名的当前语言取词。
+ *
+ * 调用方传进来的 `action` 是**中文原文**（`"录入"` / `"切换"`）—— 它同时是这段话的中文用词，
+ * 所以这里按它取英文；认不出的动作（调用方自带文案）原样回。
+ */
+function actionLabel(action: string): string {
+  switch (action) {
+    case "录入":
+      return t("录入", "Record");
+    case "切换":
+      return t("切换", "Activate");
+    default:
+      return action;
+  }
 }

@@ -7,6 +7,8 @@ import {
   getAdminApiToken,
   setAdminApiToken,
 } from "../api";
+import { t } from "../i18n";
+import { SubsystemVersionFooter } from "./SubsystemVersionFooter";
 import styles from "./SubsystemAdminTopNavigation.module.css";
 
 interface SubsystemAdminTopNavigationProps {
@@ -250,78 +252,105 @@ function IconGwlinkd() {
   );
 }
 
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+/**
+ * 导航分组。**必须是函数**：写成模块级常量的话 `t()` 只在导入时求值一次，切语言不会变 ——
+ * 全站文案都守这条（渲染期求值，见 `src/i18n/index.ts`）。
+ */
+function navGroups(): { label: string; items: NavItem[] }[] {
+  return [
   {
-    label: "监控",
+    label: t("监控", "Monitoring"),
     items: [
-      { to: "/", label: "Agent 总览", icon: <IconOverview />, end: true },
-      { to: "/hosts", label: "主机指标", icon: <IconHost /> },
-      { to: "/work", label: "采集工作", icon: <IconWork /> },
-      { to: "/software", label: "资产清单", icon: <IconSoftware /> },
-      { to: "/pipeline", label: "数据采集", icon: <IconPipeline /> },
-      { to: "/logs", label: "采集日志", icon: <IconLogs /> },
+      { to: "/", label: t("Agent 总览", "Agent overview"), icon: <IconOverview />, end: true },
+      { to: "/hosts", label: t("主机指标", "Host metrics"), icon: <IconHost /> },
+      { to: "/work", label: t("采集工作", "Collection work"), icon: <IconWork /> },
+      { to: "/software", label: t("资产清单", "Software inventory"), icon: <IconSoftware /> },
+      { to: "/pipeline", label: t("数据采集", "Data pipeline"), icon: <IconPipeline /> },
+      { to: "/logs", label: t("采集日志", "Collection logs"), icon: <IconLogs /> },
     ],
   },
   {
-    label: "运维",
+    label: t("运维", "Operations"),
     items: [
       // 机队 = 注册在册的机器（含离线）。删除离线机器在这里（不可恢复，两次确认）。
-      { to: "/fleet", label: "Agent 机队", icon: <IconFleet /> },
+      { to: "/fleet", label: t("Agent 机队", "Agent fleet"), icon: <IconFleet /> },
       // 被按 agent_id 封锁的一批机器（拒绝名单）：机队页看「在册」，这里看「被封」。
-      { to: "/revocations", label: "吹销名单", icon: <IconRevocation /> },
-      { to: "/upgrade", label: "Agent 升级", icon: <IconUpgrade /> },
+      { to: "/revocations", label: t("吊销名单", "Revocations"), icon: <IconRevocation /> },
+      { to: "/upgrade", label: t("Agent 升级", "Agent upgrade"), icon: <IconUpgrade /> },
     ],
   },
   {
-    label: "设置",
+    label: t("设置", "Settings"),
     items: [
       // 「链接上级」= 把本网关接入**上级控制中心**（Center 那一侧）—— 页名点明动作与对象。
-      { to: "/link-upstream", label: "链接上级", icon: <IconLinkUpstream /> },
+      { to: "/link-upstream", label: t("链接上级", "Link upstream"), icon: <IconLinkUpstream /> },
       // gwlinkd（宿主侧常驻）专用观测页：一页看清网关两层 —— 「网关容器」与「接入代理 gwlinkd」
       // 的运行状态。「接入成没成」在链接上级页，「谁活着」归这里。
-      { to: "/gwlinkd", label: "网关状态", icon: <IconGwlinkd /> },
+      { to: "/gwlinkd", label: t("网关状态", "Gateway status"), icon: <IconGwlinkd /> },
       // 网关对外地址（只读，由部署配置派生）与数据面上送目标 + 启用开关（可改）合成一页。
-      { to: "/gateway-info", label: "Gateway 信息", icon: <IconGatewayInfo /> },
+      { to: "/gateway-info", label: t("Gateway 信息", "Gateway info"), icon: <IconGatewayInfo /> },
       // 取包来源单独一页（从该页拆回）：配网关从哪取件 + 看已录入的包历史。
-      { to: "/install-package", label: "安装包", icon: <IconPackage /> },
+      { to: "/install-package", label: t("安装包", "Install packages"), icon: <IconPackage /> },
       // 策展内容（知识库）单独一页：录入包 + 切生效版本 + 看谁还锁在旧版目录。
-      { to: "/knowledge", label: "知识库", icon: <IconKnowledge /> },
-      { to: "/install", label: "安装 Agent", icon: <IconInstall /> },
+      { to: "/knowledge", label: t("知识库", "Knowledge base"), icon: <IconKnowledge /> },
+      { to: "/install", label: t("安装 Agent", "Install agent"), icon: <IconInstall /> },
     ],
   },
-];
+  ];
+}
 
 export function SubsystemAdminTopNavigation({
   children,
 }: SubsystemAdminTopNavigationProps) {
   const queryClient = useQueryClient();
-  const [token, setToken] = useState(() => getAdminApiToken() ?? "");
+  // 输入框**不预填已存 token**：曾经它预填旧值（还是密码框），粘新 token 容易拼成「旧+新」，
+  // 结果「明明输了新 token 却一直 401（继而触发限流 429）」。现在空框起步，粘贴即整体替换。
+  const [token, setToken] = useState("");
+  // 「已设置」以**实际存储**为准（经变更事件刷新），不再拿输入框内容当判据 —— 输入框现在空框起步。
+  const [hasStoredToken, setHasStoredToken] = useState(() =>
+    Boolean(getAdminApiToken()),
+  );
   const [applied, setApplied] = useState(false);
   // 已设置时表单折叠成一行状态条，点「更换」才展开 —— 凭证是低频操作，
   // 不该常驻占据侧边栏底部一整块。
   const [editing, setEditing] = useState(false);
   const appliedTimer = useRef<number | undefined>(undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => window.clearTimeout(appliedTimer.current), []);
 
   useEffect(() => {
-    function refreshToken() {
-      setToken(getAdminApiToken() ?? "");
+    function onAuthChanged() {
+      const hasToken = Boolean(getAdminApiToken());
+      setHasStoredToken(hasToken);
+      // token 变了：设了 → 重新取；清了 → **丢弃**缓存（含上一条 401/429）。
+      // 不丢的话，清完页面上还挂着旧错误横幅，看起来就像「点了清除没生效」。
+      if (hasToken) {
+        void queryClient.invalidateQueries();
+      } else {
+        queryClient.removeQueries();
+      }
     }
 
-    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, refreshToken);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
     return () => {
-      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, refreshToken);
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
     };
-  }, []);
+  }, [queryClient]);
 
-  const hasToken = Boolean(token);
-  const collapsed = hasToken && !editing;
+  const collapsed = hasStoredToken && !editing;
+
+  // 展开输入：清空 + 聚焦全选 —— 让任何来源的内容（含浏览器密码管理器自动填充）被下一次粘贴整体替换。
+  function openEditor() {
+    setToken("");
+    setEditing(true);
+    window.setTimeout(() => inputRef.current?.select(), 0);
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAdminApiToken(token);
-    setToken(getAdminApiToken() ?? "");
+    setToken(""); // 不把密钥留在输入框
     setApplied(true);
     window.clearTimeout(appliedTimer.current);
     // 「已应用」反馈展示完顺手收回表单，回到一行状态条。
@@ -329,13 +358,12 @@ export function SubsystemAdminTopNavigation({
       setApplied(false);
       setEditing(false);
     }, 1600);
-    void queryClient.invalidateQueries();
+    // 查询的刷新交给上面监听 `ADMIN_AUTH_CHANGED_EVENT` 的 onAuthChanged（设/清走同一处）。
   }
 
   function handleClear() {
     clearAdminApiToken();
     setToken("");
-    void queryClient.invalidateQueries();
   }
 
   return (
@@ -357,12 +385,12 @@ export function SubsystemAdminTopNavigation({
             </span>
             <span className={styles.brandCopy}>
               <span className={styles.brandText}>WarpGateway</span>
-              <span className={styles.brandSub}>主机与 Agent 管理台</span>
+              <span className={styles.brandSub}>{t("主机与 Agent 管理台", "Host & Agent console")}</span>
             </span>
           </div>
 
-          <nav className={styles.links} aria-label="主导航">
-            {NAV_GROUPS.map((group) => (
+          <nav className={styles.links} aria-label={t("主导航", "Main navigation")}>
+            {navGroups().map((group) => (
               <div key={group.label} className={styles.navGroup}>
                 <span className={styles.navLabel}>{group.label}</span>
                 {group.items.map((item) => (
@@ -390,14 +418,21 @@ export function SubsystemAdminTopNavigation({
                 Admin Token
               </span>
               <span className={`${styles.authState} ${styles.authStateOn}`}>
-                已设置
+                {t("已设置", "Set")}
               </span>
               <button
                 type="button"
                 className={styles.authChange}
-                onClick={() => setEditing(true)}
+                onClick={openEditor}
               >
-                更换
+                {t("更换", "Change")}
+              </button>
+              <button
+                type="button"
+                className={styles.authChange}
+                onClick={handleClear}
+              >
+                {t("清除", "Clear")}
               </button>
             </div>
           ) : (
@@ -411,54 +446,64 @@ export function SubsystemAdminTopNavigation({
                 </label>
                 <span
                   className={
-                    hasToken
+                    hasStoredToken
                       ? `${styles.authState} ${styles.authStateOn}`
                       : styles.authState
                   }
                 >
-                  {hasToken ? "已设置" : "未设置"}
+                  {hasStoredToken ? t("已设置", "Set") : t("未设置", "Not set")}
                 </span>
               </div>
               <input
                 id="warp-insight-admin-token"
+                ref={inputRef}
                 className={styles.authInput}
                 type="password"
                 autoComplete="off"
-                placeholder="粘贴管理令牌"
+                placeholder={t("粘贴管理令牌", "Paste admin token")}
                 value={token}
                 onChange={(event) => setToken(event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
               />
               <p className={styles.authHint}>
-                仅存于本会话标签页，用于调用 Gateway 管理接口。
+                {t(
+                  "仅存于本会话标签页，用于调用 Gateway 管理接口。",
+                  "Kept in this browser tab only; used to call the Gateway admin API.",
+                )}
               </p>
               <div className={styles.authActions}>
                 <button
                   className={`${styles.authButton} ${styles.authPrimary}`}
                   type="submit"
-                  disabled={!token || token === getAdminApiToken()}
+                  disabled={!token}
                 >
-                  {applied ? "已应用" : "应用"}
+                  {applied ? t("已应用", "Applied") : t("应用", "Apply")}
                 </button>
                 <button
                   className={styles.authButton}
                   type="button"
                   onClick={handleClear}
-                  disabled={!hasToken}
+                  disabled={!hasStoredToken}
                 >
-                  清除
+                  {t("清除", "Clear")}
                 </button>
-                {hasToken ? (
+                {hasStoredToken ? (
                   <button
                     className={`${styles.authButton} ${styles.authGhost}`}
                     type="button"
-                    onClick={() => setEditing(false)}
+                    onClick={() => {
+                      setToken("");
+                      setEditing(false);
+                    }}
                   >
-                    收起
+                    {t("收起", "Collapse")}
                   </button>
                 ) : null}
               </div>
             </form>
           )}
+
+          <SubsystemVersionFooter />
         </>
       )}
     </aside>

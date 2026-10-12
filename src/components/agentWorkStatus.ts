@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import type {
   ContentCatalogView,
   MachineClass,
@@ -19,12 +20,33 @@ import type {
 /** 与全局设计变量同一套语气：ok / warn / crit / unknown。 */
 export type WorkTone = "ok" | "warn" | "crit" | "unknown";
 
+/**
+ * 常驻工作状态的可读写法。
+ *
+ * ⚠️ 每一项都写成 **getter**：`t()` 只能在**渲染期**求值 —— 写成普通字段就只算一次，
+ * 切语言不会跟着变。保留 `LABEL[key]` 这种按 key 取的写法（页面与契约测试都那么用），
+ * 到取值那一刻才按当前语言算。新代码可以用下面的 `standingStatusLabel()`。
+ */
 export const STANDING_STATUS_LABEL: Record<StandingWorkStatus, string> = {
-  active: "生效中",
-  paused: "已暂停",
-  superseded: "已被新版取代",
-  revoked: "已撤回",
+  get active() {
+    return t("生效中", "Active");
+  },
+  get paused() {
+    return t("已暂停", "Paused");
+  },
+  get superseded() {
+    return t("已被新版取代", "Superseded by a newer version");
+  },
+  get revoked() {
+    return t("已撤回", "Revoked");
+  },
 };
+
+/** 常驻工作状态的可读写法（渲染期函数）；认不出的状态原样露出，不编造。 */
+export function standingStatusLabel(status: string): string {
+  const labels: Record<string, string> = STANDING_STATUS_LABEL;
+  return labels[status] ?? status;
+}
 
 export const STANDING_STATUS_TONE: Record<StandingWorkStatus, WorkTone> = {
   active: "ok",
@@ -34,17 +56,35 @@ export const STANDING_STATUS_TONE: Record<StandingWorkStatus, WorkTone> = {
   revoked: "unknown",
 };
 
-/** Agent 侧的执行状态（一次性工作）。 */
+/** Agent 侧的执行状态（一次性工作）。逐项 getter 的理由同 [`STANDING_STATUS_LABEL`]。 */
 export const ONE_SHOT_STATUS_LABEL: Record<string, string> = {
-  dispatched: "已派发",
-  accepted: "已接受",
-  running: "执行中",
-  paused: "已暂停",
-  succeeded: "成功",
-  failed: "失败",
-  timed_out: "超时",
-  canceled: "已取消",
-  expired: "已过期",
+  get dispatched() {
+    return t("已派发", "Dispatched");
+  },
+  get accepted() {
+    return t("已接受", "Accepted");
+  },
+  get running() {
+    return t("执行中", "Running");
+  },
+  get paused() {
+    return t("已暂停", "Paused");
+  },
+  get succeeded() {
+    return t("成功", "Succeeded");
+  },
+  get failed() {
+    return t("失败", "Failed");
+  },
+  get timed_out() {
+    return t("超时", "Timed out");
+  },
+  get canceled() {
+    return t("已取消", "Canceled");
+  },
+  get expired() {
+    return t("已过期", "Expired");
+  },
 };
 
 export const ONE_SHOT_TERMINAL_STATUSES = [
@@ -77,12 +117,29 @@ export function standingDrift(work: StandingWork): DriftKind {
   return "in-sync";
 }
 
+/** 漂移三态的可读写法；逐项 getter 的理由同 [`STANDING_STATUS_LABEL`]。 */
 export const DRIFT_LABEL: Record<DriftKind, string> = {
-  "never-acked":
-    "从未确认：期望版本发下去了，Agent 一直没回（它每 30 秒拉一次快照）",
-  "stale-ack": "确认的是旧版本：Agent 手上那份还没跟到当前版本",
-  "in-sync": "已确认",
+  get "never-acked"() {
+    return t(
+      "从未确认：期望版本发下去了，Agent 一直没回（它每 30 秒拉一次快照）",
+      "Never acknowledged: the expected version was dispatched, but the Agent never reported back (it polls a snapshot every 30 seconds)",
+    );
+  },
+  get "stale-ack"() {
+    return t(
+      "确认的是旧版本：Agent 手上那份还没跟到当前版本",
+      "Stale acknowledgement: the Agent's copy has not caught up with the current version",
+    );
+  },
+  get "in-sync"() {
+    return t("已确认", "Acknowledged");
+  },
 };
+
+/** 漂移三态的可读写法（渲染期函数形式）。 */
+export function driftLabel(kind: DriftKind): string {
+  return DRIFT_LABEL[kind];
+}
 
 export const DRIFT_TONE: Record<DriftKind, WorkTone> = {
   "never-acked": "crit",
@@ -180,10 +237,12 @@ export function unsupportedSourceReason(
   target: string,
 ): string | null {
   if (isExecutableSource(kind, target)) return null;
-  if (kind === "FileGlob") return "通配路径";
-  if (kind === "Exporter") return "未知导出器（未实现）";
-  if (kind === "UnifiedLogPredicate") return "统一日志谓词";
-  return `未知类型 ${kind}`;
+  if (kind === "FileGlob") return t("通配路径", "Glob path");
+  if (kind === "Exporter")
+    return t("未知导出器（未实现）", "Unknown exporter (not implemented)");
+  if (kind === "UnifiedLogPredicate")
+    return t("统一日志谓词", "Unified log predicate");
+  return t("未知类型 {kind}", "Unknown kind {kind}", { kind });
 }
 
 /** 工作里「今天采不到」的来源条数（摘要与告警用）。 */
@@ -247,11 +306,17 @@ export function duplicatedCollectedPaths(
   return byPath;
 }
 
-/** 本机侧一次性工作的执行阶段（`AgentLocalOneShotWorkView.execution`）。 */
+/** 本机侧一次性工作的执行阶段（`AgentLocalOneShotWorkView.execution`）。逐项 getter 同前。 */
 export const LOCAL_EXECUTION_LABEL: Record<string, string> = {
-  unexecuted: "未开始",
-  executing: "执行中",
-  executed: "已执行",
+  get unexecuted() {
+    return t("未开始", "Not started");
+  },
+  get executing() {
+    return t("执行中", "Running");
+  },
+  get executed() {
+    return t("已执行", "Executed");
+  },
 };
 
 export function localExecutionLabel(execution: string): string {
@@ -389,7 +454,11 @@ export function blockedFamilies(
     return [
       {
         family: "-",
-        reason: `采集目录里没有机器类别 ${machineClass} 的模板（网关授权时会回 409）`,
+        reason: t(
+          "采集目录里没有机器类别 {machineClass} 的模板（网关授权时会回 409）",
+          "The content catalog has no template for machine class {machineClass} (the gateway returns HTTP 409 on grant)",
+          { machineClass },
+        ),
       },
     ];
   }
@@ -403,8 +472,15 @@ export function blockedFamilies(
       const entry = readiness.get(family);
       if (entry && entry.ready) return null;
       const detail = entry
-        ? `该面还没有采集就绪（status = active）的单元（${entry.activeUnits}/${entry.totalUnits}）`
-        : "该平台上没有这个面的采集单元";
+        ? t(
+            "该面还没有采集就绪（status = active）的单元（{active}/{total}）",
+            "This family has no collection-ready unit yet (status = active) ({active}/{total})",
+            { active: entry.activeUnits, total: entry.totalUnits },
+          )
+        : t(
+            "该平台上没有这个面的采集单元",
+            "There is no collection unit for this family on this platform",
+          );
       return { family, reason: detail };
     })
     .filter((entry): entry is { family: string; reason: string } => entry !== null)

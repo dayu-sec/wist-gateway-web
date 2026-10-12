@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemGetAgentInstallCode.module.css";
 
 interface SubsystemGetAgentInstallCodeProps {
@@ -7,7 +8,7 @@ interface SubsystemGetAgentInstallCodeProps {
 export function SubsystemGetAgentInstallCode({ children }: SubsystemGetAgentInstallCodeProps) {
   return (
     <div className={styles.container}>
-      <div className={styles.label}>获取安装代码</div>
+      <div className={styles.label}>{t("获取安装代码", "Get install code")}</div>
       {children}
     </div>
   );

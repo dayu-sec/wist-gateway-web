@@ -6,6 +6,7 @@ import { TrendChart } from "./TrendChart";
 import { isRateLimitedError } from "../api";
 import type { PipelineGroup, PipelineNode } from "../api";
 import { usePipelineTopology } from "../hooks";
+import { t } from "../i18n";
 import {
   formatAxis,
   formatClock,
@@ -48,13 +49,20 @@ function isAllZero(target: Selection): boolean {
   );
 }
 
-/** 可选时间窗。步长固定 1 分钟 —— 数据面写入 VM 的粒度实测就是 60 秒。 */
-const WINDOWS = [
-  { seconds: 900, label: "近 15 分钟" },
-  { seconds: 1800, label: "近 30 分钟" },
-  { seconds: 3600, label: "近 1 小时" },
-  { seconds: 21600, label: "近 6 小时" },
-];
+/**
+ * 可选时间窗。步长固定 1 分钟 —— 数据面写入 VM 的粒度实测就是 60 秒。
+ *
+ * 必须是**函数**：写成模块级常量的话 `t()` 只在导入时求值一次，切语言不会变
+ * （全站文案都守这条，见 `src/i18n/index.ts`）。
+ */
+function windows(): { seconds: number; label: string }[] {
+  return [
+    { seconds: 900, label: t("近 15 分钟", "Last 15 minutes") },
+    { seconds: 1800, label: t("近 30 分钟", "Last 30 minutes") },
+    { seconds: 3600, label: t("近 1 小时", "Last hour") },
+    { seconds: 21600, label: t("近 6 小时", "Last 6 hours") },
+  ];
+}
 
 export function SubsystemPipelinePage() {
   const [windowSeconds, setWindowSeconds] = useState(1800);
@@ -80,7 +88,8 @@ export function SubsystemPipelinePage() {
     if (sources.length === 0) return null;
     return {
       id: "aggregate:sources",
-      label: "来源汇总",
+      // 这里是渲染期（组件体 + useMemo），取词照常；语言切换会整棵树重挂载，缓存不会留住旧语言。
+      label: t("来源汇总", "Source total"),
       layer: "sources",
       series: sumPoints(sources.map((node) => node.series)),
       totalSeries: sumPoints(sources.map((node) => node.totalSeries)),
@@ -124,24 +133,48 @@ export function SubsystemPipelinePage() {
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>数据采集</h1>
+        <h1 className={styles.pageTitle}>{t("数据采集", "Data pipeline")}</h1>
         <p className={styles.pageSummary}>
-          数据面（wparse）三层的实时吞吐：来源接入 → 规则解析 → 落存储。点击任意节点，下方会画出它的速率与累计量曲线。
+          {t(
+            "数据面（wparse）三层的实时吞吐：来源接入 → 规则解析 → 落存储。点击任意节点，下方会画出它的速率与累计量曲线。",
+            "Live throughput of the three data plane (wparse) layers: source ingress → rule parsing → storage egress. Click any node to plot its rate and total below.",
+          )}
         </p>
         <p className={styles.pageNote}>
-          聚合粒度 1 分钟 —— 数据面写入 VictoriaMetrics 的间隔实测为 60 秒，指标按 2 个周期（120 秒）计算速率。所以这里是「近一分钟的平均吞吐」，不是逐秒瞬时值。
+          {t(
+            "聚合粒度 1 分钟 —— 数据面写入 VictoriaMetrics 的间隔实测为 60 秒，指标按 2 个周期（120 秒）计算速率。所以这里是「近一分钟的平均吞吐」，不是逐秒瞬时值。",
+            "Aggregation granularity is 1 minute — the data plane writes to VictoriaMetrics every 60 seconds in practice, and rates are computed over 2 periods (120 seconds). So these are average throughputs over the last minute, not per-second instantaneous values.",
+          )}
         </p>
       </header>
 
       {isStale || hasNoSample ? (
         <div className={styles.staleBanner}>
-          <strong>指标通道已停止上报</strong>
+          <strong>{t("指标通道已停止上报", "Metrics channel stopped reporting")}</strong>
           <span>
             {hasNoSample
-              ? "所选时间窗内没有任何采样点，页面内容不代表当前状态。"
-              : `最后采样 ${formatClock(data?.latestSampleAt)}（${formatRelativeSeconds(sampleAgeSeconds).text}前），页面内容已不代表当前状态。`}
-            {" "}这通常意味着数据面的 VictoriaMetrics 推送失败（数据面日志关键字{" "}
-            <code>VictoriaMetric periodic push failed</code>），重启数据面即可恢复；通道正常时是看不出解析规则是空的。
+              ? t(
+                  "所选时间窗内没有任何采样点，页面内容不代表当前状态。",
+                  "There is no sample at all in the selected time window; this page does not reflect the current state.",
+                )
+              : t(
+                  "最后采样 {at}（{age}前），页面内容已不代表当前状态。",
+                  "Last sample at {at} ({age} ago); this page no longer reflects the current state.",
+                  {
+                    at: formatClock(data?.latestSampleAt),
+                    age: formatRelativeSeconds(sampleAgeSeconds).text,
+                  },
+                )}
+            {" "}
+            {t(
+              "这通常意味着数据面的 VictoriaMetrics 推送失败（数据面日志关键字 ",
+              "This usually means the data plane failed to push to VictoriaMetrics (data plane log keyword ",
+            )}
+            <code>VictoriaMetric periodic push failed</code>
+            {t(
+              "），重启数据面即可恢复；通道正常时是看不出解析规则是空的。",
+              "); restarting the data plane recovers it. When the channel is healthy, an empty set of parse rules is invisible.",
+            )}
           </span>
         </div>
       ) : null}
@@ -151,40 +184,50 @@ export function SubsystemPipelinePage() {
           <RateLimitNotice error={error} />
         ) : (
           <div className={styles.errorBanner}>
-            无法获取采集指标。请确认数据面（wparse）与 VictoriaMetrics 都在运行，并在左下角设置 Admin Token。
+            {t(
+              "无法获取采集指标。请确认数据面（wparse）与 VictoriaMetrics 都在运行，并在左下角设置 Admin Token。",
+              "Cannot fetch collection metrics. Make sure the data plane (wparse) and VictoriaMetrics are running, and set the Admin Token at the bottom left.",
+            )}
           </div>
         )
       ) : null}
 
       <section className={styles.summary}>
         <MetricTile
-          label="入流速率"
+          label={t("入流速率", "Ingress rate")}
           value={formatRate(summary?.ingressRate)}
-          hint="所有来源合计；这是采集实际收到的量"
+          hint={t("所有来源合计；这是采集实际收到的量", "Sum over all sources; this is what collection actually received")}
           tone="accent"
           loading={isLoading}
         />
         <MetricTile
-          label="解析速率"
+          label={t("解析速率", "Parse rate")}
           value={formatRate(summary?.parseRate)}
-          hint="进入解析规则的速率（含未通过的行）"
+          hint={t("进入解析规则的速率（含未通过的行）", "Rate entering the parse rules (including rows that fail them)")}
           tone="unknown"
           loading={isLoading}
         />
         <MetricTile
-          label="落存储速率"
+          label={t("落存储速率", "Storage rate")}
           value={formatRate(summary?.egressRate)}
-          hint="各输出口写入速率合计；同一分组写多个目标会重复计入"
+          hint={t(
+            "各输出口写入速率合计；同一分组写多个目标会重复计入",
+            "Sum of write rates across sinks; one group writing to several targets is counted more than once",
+          )}
           tone="ok"
           loading={isLoading}
         />
         <MetricTile
-          label="未落存储"
+          label={t("未落存储", "Not stored")}
           value={formatRate(summary?.lossRate)}
           hint={
             summary
-              ? `占入流 ${formatShare(summary.lossRate, summary.ingressRate)}，期望 ≤0.1 e/s`
-              : "miss / residue / error 三路合计"
+              ? t(
+                  "占入流 {share}，期望 ≤0.1 e/s",
+                  "{share} of ingress; expected ≤0.1 e/s",
+                  { share: formatShare(summary.lossRate, summary.ingressRate) },
+                )
+              : t("miss / residue / error 三路合计", "miss / residue / error combined")
           }
           tone={lossTone}
           loading={isLoading}
@@ -203,19 +246,22 @@ export function SubsystemPipelinePage() {
         <>
           <section className={styles.section}>
             <header className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>接入与输出</h2>
+              <h2 className={styles.sectionTitle}>{t("接入与输出", "Ingress and egress")}</h2>
               <p className={styles.sectionNote}>
-                来源接入与落盘出口；两者数量通常稳定。
+                {t(
+                  "来源接入与落盘出口；两者数量通常稳定。",
+                  "Source ingress and storage egress; both counts are usually stable.",
+                )}
               </p>
             </header>
             <div className={`${styles.board} ${styles.boardPair}`}>
               <PipelineLayer
                 layer="sources"
-                title="来源层"
+                title={t("来源层", "Sources")}
                 accent="source"
                 items={data?.sources ?? []}
                 canCollapse={false}
-                emptyText="没有来源在推数据"
+                emptyText={t("没有来源在推数据", "No source is pushing data")}
                 renderItem={(node, silent) => (
                   <NodeRow
                     key={node.id}
@@ -230,11 +276,11 @@ export function SubsystemPipelinePage() {
 
               <PipelineLayer
                 layer="sinks"
-                title="输出层"
+                title={t("输出层", "Sinks")}
                 accent="sink"
                 items={data?.sinks ?? []}
                 canCollapse
-                emptyText="没有输出分组在接收数据"
+                emptyText={t("没有输出分组在接收数据", "No sink group is receiving data")}
                 onExpandAll={() => setAllCollapsed(data?.sinks ?? [], false)}
                 onCollapseAll={() => setAllCollapsed(data?.sinks ?? [], true)}
                 renderItem={(group, silent) => (
@@ -242,7 +288,7 @@ export function SubsystemPipelinePage() {
                     key={group.id}
                     group={group}
                     layer="sinks"
-                    unitLabel="个出口"
+                    unitLabel={t("个出口", "sinks")}
                     silent={silent}
                     expanded={!collapsedGroups.has(group.id)}
                     onToggle={() => toggleGroup(group.id)}
@@ -255,37 +301,45 @@ export function SubsystemPipelinePage() {
             <div className={styles.sectionChart}>
               <div className={styles.chartHead}>
                 <span className={styles.chartTitle}>
-                  {selected ? "选中项" : "来源汇总"}
+                  {selected ? t("选中项", "Selected") : t("来源汇总", "Source total")}
                 </span>
                 <span className={styles.chartNote}>
                   {selected
-                    ? `${selected.label} · 速率与累计量`
-                    : "所有来源的合计；点上方任意条目即可切成单项（再点一次回到汇总）"}
+                    ? t("{label} · 速率与累计量", "{label} · rate and total", {
+                        label: selected.label,
+                      })
+                    : t(
+                        "所有来源的合计；点上方任意条目即可切成单项（再点一次回到汇总）",
+                        "Total across all sources; click any entry above to switch to a single one (click again to return to the total)",
+                      )}
                 </span>
               </div>
               <SelectionCharts
                 selected={sectionTarget}
                 windowSeconds={windowSeconds}
-                emptyText="暂无来源数据。"
+                emptyText={t("暂无来源数据。", "No source data yet.")}
               />
             </div>
           </section>
 
           <section className={styles.section}>
             <header className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>解析规则</h2>
+              <h2 className={styles.sectionTitle}>{t("解析规则", "Parse rules")}</h2>
               <p className={styles.sectionNote}>
-                按可用宽度自动分栏；规则多时在节内滚动。
+                {t(
+                  "按可用宽度自动分栏；规则多时在节内滚动。",
+                  "Columns adapt to the available width; with many rules the section scrolls.",
+                )}
               </p>
             </header>
             <div className={`${styles.board} ${styles.boardSingle}`}>
               <PipelineLayer
                 layer="parses"
-                title="PARSE 层"
+                title={t("PARSE 层", "PARSE layer")}
                 accent="parse"
                 items={data?.parses ?? []}
                 canCollapse
-                emptyText="没有规则在解析数据"
+                emptyText={t("没有规则在解析数据", "No rule is parsing data")}
                 onExpandAll={() => setAllCollapsed(data?.parses ?? [], false)}
                 onCollapseAll={() => setAllCollapsed(data?.parses ?? [], true)}
                 renderItem={(group, silent) => (
@@ -293,7 +347,7 @@ export function SubsystemPipelinePage() {
                     key={group.id}
                     group={group}
                     layer="parses"
-                    unitLabel="条规则"
+                    unitLabel={t("条规则", "rules")}
                     silent={silent}
                     expanded={!collapsedGroups.has(group.id)}
                     onToggle={() => toggleGroup(group.id)}
@@ -310,12 +364,16 @@ export function SubsystemPipelinePage() {
       <section className={styles.detail}>
         <div className={styles.detailHead}>
           <div className={styles.detailTitleGroup}>
-            <h2 className={styles.detailTitle}>节点详情</h2>
+            <h2 className={styles.detailTitle}>{t("节点详情", "Node details")}</h2>
             <span className={styles.detailTarget}>
-              {selected ? selected.label : "未选择节点 —— 点上方任意节点查看曲线"}
+              {selected
+                ? selected.label
+                : t("未选择节点 —— 点上方任意节点查看曲线", "No node selected — click any node above to view its chart")}
             </span>
             {selectedHasNoData ? (
-              <span className={styles.detailIdleNote}>窗口内无数据（全程 0）</span>
+              <span className={styles.detailIdleNote}>
+                {t("窗口内无数据（全程 0）", "No data in window (zero throughout)")}
+              </span>
             ) : null}
           </div>
           <div className={styles.detailControls}>
@@ -323,9 +381,9 @@ export function SubsystemPipelinePage() {
               className={styles.windowSelect}
               value={windowSeconds}
               onChange={(event) => setWindowSeconds(Number(event.target.value))}
-              aria-label="时间窗"
+              aria-label={t("时间窗", "Time window")}
             >
-              {WINDOWS.map((item) => (
+              {windows().map((item) => (
                 <option key={item.seconds} value={item.seconds}>
                   {item.label}
                 </option>
@@ -340,8 +398,11 @@ export function SubsystemPipelinePage() {
             windowSeconds={windowSeconds}
             emptyText={
               data?.parses.length || data?.sinks.length
-                ? "选择任意来源 / 规则 / 出口，即可查看它的速率与累计量曲线。"
-                : "暂无节点可选。"
+                ? t(
+                    "选择任意来源 / 规则 / 出口，即可查看它的速率与累计量曲线。",
+                    "Select any source / rule / sink to view its rate and total charts.",
+                  )
+                : t("暂无节点可选。", "No node to select yet.")
             }
           />
         </div>
@@ -380,10 +441,10 @@ function LayerColumn({
         {canCollapse ? (
           <div className={styles.columnActions}>
             <button type="button" className={styles.linkButton} onClick={onExpandAll}>
-              全部展开
+              {t("全部展开", "Expand all")}
             </button>
             <button type="button" className={styles.linkButton} onClick={onCollapseAll}>
-              全部收起
+              {t("全部收起", "Collapse all")}
             </button>
           </div>
         ) : null}
@@ -437,7 +498,7 @@ function GroupCard({
         <span className={styles.groupName}>{group.label}</span>
         {isLoss ? (
           <span className={isLossActive ? styles.lossBadge : styles.lossBadgeIdle}>
-            未落存储
+            {t("未落存储", "Not stored")}
           </span>
         ) : null}
       </button>
@@ -461,7 +522,7 @@ function GroupCard({
             });
           }}
         >
-          曲线
+          {t("曲线", "Chart")}
         </button>
       </div>
 
@@ -551,8 +612,8 @@ function SelectionCharts({
     <div className={styles.detailCharts}>
       <ChartPanel
         chartKey={`${selected.id}:rate:${windowSeconds}`}
-        title="速率"
-        note="近一分钟平均吞吐"
+        title={t("速率", "Rate")}
+        note={t("近一分钟平均吞吐", "Average throughput over the last minute")}
         name={selected.label}
         color="var(--series-1)"
         points={selected.series}
@@ -560,8 +621,8 @@ function SelectionCharts({
       />
       <ChartPanel
         chartKey={`${selected.id}:total:${windowSeconds}`}
-        title="累计量"
-        note="进程启动至今累计"
+        title={t("累计量", "Total")}
+        note={t("进程启动至今累计", "Cumulative since process start")}
         name={selected.label}
         color="var(--series-2)"
         points={selected.totalSeries}
@@ -637,8 +698,10 @@ function IdleBadge({ series }: { series: [number, number][] }) {
   return (
     <span className={styles.idleBadge}>
       {lastMs === null
-        ? "窗口内无数据"
-        : `最后活跃 ${formatClock(lastMs / 1000).slice(0, 5)}`}
+        ? t("窗口内无数据", "No data in window")
+        : t("最后活跃 {time}", "Last active {time}", {
+            time: formatClock(lastMs / 1000).slice(0, 5),
+          })}
     </span>
   );
 }
@@ -670,11 +733,11 @@ function ActivityTabs({
   onChange: (value: ActivityKey) => void;
 }) {
   const entries: { key: ActivityKey; label: string; count: number }[] = [
-    { key: "active", label: "活跃", count: activeCount },
-    { key: "silent", label: "静默", count: silentCount },
+    { key: "active", label: t("活跃", "Active"), count: activeCount },
+    { key: "silent", label: t("静默", "Silent"), count: silentCount },
   ];
   return (
-    <div className={styles.activityTabs} role="tablist" aria-label="活跃 / 静默">
+    <div className={styles.activityTabs} role="tablist" aria-label={t("活跃 / 静默", "Active / Silent")}>
       {entries.map((entry) => {
         const disabled = entry.count === 0;
         const selected = !disabled && entry.key === value;

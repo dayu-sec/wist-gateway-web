@@ -6,6 +6,7 @@ import {
   useAgentSoftwareInventory,
   useSoftwareFleetInventory,
 } from "../hooks";
+import { t } from "../i18n";
 import {
   AGENT_LEDGER_STATUS_LABEL,
   SOFTWARE_KIND_LABEL,
@@ -32,10 +33,15 @@ interface SubsystemSoftwareInventoryPageProps {
  */
 type InventoryView = "by-software" | "by-agent";
 
-const VIEW_LABEL: Record<InventoryView, string> = {
-  "by-software": "按软件看机器",
-  "by-agent": "按机器看软件",
-};
+/**
+ * 视图名。**必须是函数**：写成模块级常量的话 `t()` 只在导入时求值一次，切语言不会变 ——
+ * 它只在渲染期（分段控件里）被调用。
+ */
+function viewLabel(view: InventoryView): string {
+  return view === "by-software"
+    ? t("按软件看机器", "By software")
+    : t("按机器看软件", "By machine");
+}
 
 /** 「按软件看机器」的可选上限：后端把 limit 夹到 1..500，默认 100。 */
 const FLEET_LIMIT_DEFAULT = 100;
@@ -60,16 +66,36 @@ function readView(params: URLSearchParams): InventoryView {
 function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
-      return "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击「应用」。";
-    if (error.status === 429) return "认证失败次数过多，请稍后再试。";
+      return t(
+        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击「应用」。",
+        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentication attempts. Try again later.",
+      );
     // 走到这里说明 404 的正文对不上「未知 Agent」：更可能是网关没有这个路由。
     if (error.status === 404)
-      return "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。";
+      return t(
+        "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+        "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build. Rebuild and restart it, then retry.",
+      );
     return error.detail
-      ? `网关返回 HTTP ${error.status}：${error.detail}`
-      : `网关返回 HTTP ${error.status}，请检查网关日志。`;
+      ? t("网关返回 HTTP {status}：{detail}", "Gateway returned HTTP {status}: {detail}", {
+          status: error.status,
+          detail: error.detail,
+        })
+      : t(
+          "网关返回 HTTP {status}，请检查网关日志。",
+          "Gateway returned HTTP {status}. Check the gateway logs.",
+          { status: error.status },
+        );
   }
-  return "读取失败：响应不符合当前契约，请检查网关与前端版本。";
+  return t(
+    "读取失败：响应不符合当前契约，请检查网关与前端版本。",
+    "Load failed: the response does not match the current contract. Check the gateway and frontend versions.",
+  );
 }
 
 /**
@@ -105,18 +131,53 @@ export function SubsystemSoftwareInventoryPage({}: SubsystemSoftwareInventoryPag
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>资产清单</h1>
+        <h1 className={styles.pageTitle}>{t("资产清单", "Software inventory")}</h1>
         <p className={styles.pageSummary}>
-          网关把每台机器上报的事实摘要<strong>机械归并</strong>成「这台机器上有什么」。条目只有名字，而名字来自路径归并（<code className={styles.code}>.app</code> 取包名、其余取路径末段）：
-          <strong>没有版本、没有 vendor</strong> —— 识别需要在被管机器上读 <code className={styles.code}>Info.plist</code> / 包管理器，属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。
+          {t(
+            "网关把每台机器上报的事实摘要",
+            "The gateway ",
+          )}
+          <strong>{t("机械归并", "mechanically merges")}</strong>
+          {t(
+            "成「这台机器上有什么」。条目只有名字，而名字来自路径归并（",
+            " each machine's reported fact digest into “what is on this machine”. Entries carry a name only, and that name comes from path merging (",
+          )}
+          <code className={styles.code}>.app</code>
+          {t(
+            " 取包名、其余取路径末段）：",
+            " uses the bundle name, everything else uses the last path segment): ",
+          )}
+          <strong>{t("没有版本、没有 vendor", "no version, no vendor")}</strong>
+          {t(
+            " —— 识别需要在被管机器上读 ",
+            " — identification requires reading ",
+          )}
+          <code className={styles.code}>Info.plist</code>
+          {t(
+            " / 包管理器，属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。",
+            " / the package manager on the managed machine, which belongs to the next layer (L1b) and is not implemented yet, so “no version” does not mean “collection failed”.",
+          )}
         </p>
         <p className={styles.pageThresholds}>
-          清单是<strong>当前快照</strong>：它是事实摘要的投影，随每次上报覆盖式重建，
-          <strong>不保留历史</strong>，也翻不到「上周还有哪些软件」。
+          {t("清单是", "The inventory is a ")}
+          <strong>{t("当前快照", "current snapshot")}</strong>
+          {t(
+            "：它是事实摘要的投影，随每次上报覆盖式重建，",
+            ": a projection of the fact digest, rebuilt from scratch on every report. ",
+          )}
+          <strong>{t("不保留历史", "No history is kept")}</strong>
+          {t(
+            "，也翻不到「上周还有哪些软件」。",
+            ", so there is no way to look back at “what software was installed last week”.",
+          )}
         </p>
 
         {/* 两个视图不是「筛选」而是两种读法：用分段控件表达，并且同样是按下的状态。 */}
-        <div className={styles.viewSwitch} role="group" aria-label="清单视图">
+        <div
+          className={styles.viewSwitch}
+          role="group"
+          aria-label={t("清单视图", "Inventory view")}
+        >
           {(["by-software", "by-agent"] as InventoryView[]).map((key) => (
             <button
               key={key}
@@ -129,7 +190,7 @@ export function SubsystemSoftwareInventoryPage({}: SubsystemSoftwareInventoryPag
               }
               onClick={() => updateParams({ view: key })}
             >
-              {VIEW_LABEL[key]}
+              {viewLabel(key)}
             </button>
           ))}
         </div>
@@ -182,9 +243,14 @@ function FleetInventory({
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
-        <h2 className={styles.sectionTitle}>按软件看机器</h2>
+        <h2 className={styles.sectionTitle}>{t("按软件看机器", "By software")}</h2>
         <span className={styles.sectionHint}>
-          按<strong>持有机器数</strong>降序；同一个键下会列出持有它的每台机器，以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览 —— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」不等于这台机器没注册。
+          {t("按", "Sorted by ")}
+          <strong>{t("持有机器数", "number of holding machines")}</strong>
+          {t(
+            "降序；同一个键下会列出持有它的每台机器，以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览 —— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」不等于这台机器没注册。",
+            ", descending; under each key every machine that holds it is listed along with the exact paths on that machine (one machine may have several). Machine status comes from the agent overview — that overview covers only recently online and abnormal machines, so “not in the current ledger” does not mean the machine is unregistered.",
+          )}
         </span>
       </div>
 
@@ -203,16 +269,27 @@ function FleetInventory({
       {!isLoading && !isError && !data ? (
         <div className={styles.idleNotice} role="status">
           {getAdminApiToken()
-            ? "尚未取到软件清单，用右上角「刷新」重试。"
-            : "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。"}
+            ? t(
+                "尚未取到软件清单，用右上角「刷新」重试。",
+                "No software inventory loaded yet. Use “Refresh” in the top right to retry.",
+              )
+            : t(
+                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: data is requested from the admin API only after you enter one on the left, so nothing is shown here.",
+              )}
         </div>
       ) : null}
 
       {data && data.software.length === 0 ? (
         <div className={styles.empty} role="status">
-          <strong className={styles.emptyTitle}>还没有任何机器上报过清单</strong>
+          <strong className={styles.emptyTitle}>
+            {t("还没有任何机器上报过清单", "No machine has reported an inventory yet")}
+          </strong>
           <span className={styles.emptyText}>
-            网关里暂时没有任何软件键。这与「接口读不到」不同：请求成功了，只是还没有机器上报过带可执行路径的事实摘要。确认 Agent 已启动并完成上报后，用右上角「刷新」重取。
+            {t(
+              "网关里暂时没有任何软件键。这与「接口读不到」不同：请求成功了，只是还没有机器上报过带可执行路径的事实摘要。确认 Agent 已启动并完成上报后，用右上角「刷新」重取。",
+              "The gateway holds no software keys yet. That is different from “cannot read the endpoint”: the request succeeded, machines simply have not reported a fact digest with executable paths yet. Make sure the agent is running and has reported, then use “Refresh” in the top right to reload.",
+            )}
           </span>
         </div>
       ) : null}
@@ -226,7 +303,7 @@ function FleetInventory({
               className={styles.widenButton}
               onClick={onWidenLimit}
             >
-              取回 500 条
+              {t("取回 500 条", "Fetch 500")}
             </button>
           ) : null}
         </div>
@@ -256,7 +333,9 @@ function FleetInventory({
                     </span>
                   </div>
                   <span className={styles.cardCount}>
-                    持有 <strong>{summary.agentCount}</strong> 台机器
+                    {t("持有", "Held by")}{" "}
+                    <strong>{summary.agentCount}</strong>{" "}
+                    {t("台机器", "machines")}
                   </span>
                 </header>
                 <p className={styles.cardKey}>{summary.softwareKey}</p>
@@ -270,7 +349,10 @@ function FleetInventory({
                           type="button"
                           className={styles.holderLink}
                           onClick={() => onOpenAgent(holder.agentId)}
-                          title="在这台机器上查看完整清单"
+                          title={t(
+                            "在这台机器上查看完整清单",
+                            "View the full inventory on this machine",
+                          )}
                         >
                           {entry.agentId}
                         </button>
@@ -278,9 +360,11 @@ function FleetInventory({
                         <span className={styles.holderPaths}>
                           {holder.paths.length > 1 ? (
                             <>
-                              {holder.paths.length} 条路径：
+                              {t("{n} 条路径：", "{n} paths: ", {
+                                n: holder.paths.length,
+                              })}
                               <span className={styles.pathText}>
-                                {holder.paths.join("、")}
+                                {holder.paths.join(t("、", ", "))}
                               </span>
                             </>
                           ) : (
@@ -307,8 +391,12 @@ function FleetInventory({
                     }
                   >
                     {expanded
-                      ? "收起"
-                      : `显示全部 ${holderGroups.length} 台机器`}
+                      ? t("收起", "Collapse")
+                      : t(
+                          "显示全部 {n} 台机器",
+                          "Show all {n} machines",
+                          { n: holderGroups.length },
+                        )}
                   </button>
                 ) : null}
               </article>
@@ -372,21 +460,27 @@ function AgentInventory({
   return (
     <section className={styles.section}>
       <div className={styles.sectionHead}>
-        <h2 className={styles.sectionTitle}>按机器看软件</h2>
+        <h2 className={styles.sectionTitle}>{t("按机器看软件", "By machine")}</h2>
         <span className={styles.sectionHint}>
-          选择一台机器，看它上报的清单按条目分组后的结果。
+          {t(
+            "选择一台机器，看它上报的清单按条目分组后的结果。",
+            "Pick a machine to see its reported inventory grouped by entry.",
+          )}
         </span>
       </div>
 
       <form className={styles.picker} onSubmit={handleSubmit}>
         <label className={styles.pickerLabel} htmlFor="software-inventory-agent">
-          机器
+          {t("机器", "Machine")}
         </label>
         <input
           id="software-inventory-agent"
           className={styles.pickerInput}
           list="software-inventory-agent-options"
-          placeholder="agent_id，例如 agent-host-20affeee1df3"
+          placeholder={t(
+            "agent_id，例如 agent-host-20affeee1df3",
+            "agent_id, e.g. agent-host-20affeee1df3",
+          )}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           autoComplete="off"
@@ -401,7 +495,7 @@ function AgentInventory({
           className={styles.pickerButton}
           disabled={!draft.trim()}
         >
-          查看清单
+          {t("查看清单", "View inventory")}
         </button>
         {agentId ? (
           <button
@@ -409,7 +503,7 @@ function AgentInventory({
             className={styles.pickerGhost}
             onClick={onClearAgent}
           >
-            清除
+            {t("清除", "Clear")}
           </button>
         ) : null}
       </form>
@@ -417,7 +511,10 @@ function AgentInventory({
       {knownAgents.length > 0 ? (
         <div className={styles.suggestions}>
           <span className={styles.suggestionsLabel}>
-            概览里的机器（点击直接进入；不在这个列表里的 agent_id 也可以直接输入）：
+            {t(
+              "概览里的机器（点击直接进入；不在这个列表里的 agent_id 也可以直接输入）：",
+              "Machines from the overview (click to open directly; you can also type any agent_id not in this list):",
+            )}
           </span>
           <div className={styles.suggestionChips}>
             {knownAgents.slice(0, 24).map((id) => (
@@ -444,10 +541,19 @@ function AgentInventory({
       {/* 未选机器：与「这台机器没有数据」是两回事，先要人给一个 agent_id。 */}
       {!agentId ? (
         <div className={styles.empty} role="status">
-          <strong className={styles.emptyTitle}>未选择机器</strong>
+          <strong className={styles.emptyTitle}>
+            {t("未选择机器", "No machine selected")}
+          </strong>
           <span className={styles.emptyText}>
-            上面填入 agent_id 后点「查看清单」，或用带{" "}
-            <code className={styles.code}>?agent=&lt;agent_id&gt;</code> 的链接直接进入。清单是按机器上报的事实摘要归并出来的，「按软件看机器」则不需要先选机器。
+            {t(
+              "上面填入 agent_id 后点「查看清单」，或用带",
+              "Enter an agent_id above and click “View inventory”, or open a link with ",
+            )}{" "}
+            <code className={styles.code}>?agent=&lt;agent_id&gt;</code>{" "}
+            {t(
+              "的链接直接进入。清单是按机器上报的事实摘要归并出来的，「按软件看机器」则不需要先选机器。",
+              "to go straight in. The inventory is merged from the fact digest each machine reports; “By software” needs no machine selected first.",
+            )}
           </span>
         </div>
       ) : null}
@@ -457,16 +563,24 @@ function AgentInventory({
       {agentId && unknownAgent ? (
         // 「这台机器不存在」（404）与「它存在但还没上报过清单」（200 + 空清单）必须分开呈现。
         <section className={styles.unknownAgent} role="alert">
-          <h2 className={styles.unknownTitle}>未知 Agent</h2>
+          <h2 className={styles.unknownTitle}>{t("未知 Agent", "Unknown agent")}</h2>
           <p className={styles.unknownText}>
-            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。这与「还没上报过清单」是两回事：后者是已知的 Agent 还没报过带可执行路径的摘要，网关会返回空清单与 0 计数，而不是 404。
+            {t("网关里没有 ", "The gateway has no registration record for agent ")}
+            <strong>{agentId}</strong>
+            {t(
+              " 这台 Agent 的注册记录（HTTP 404）。这与「还没上报过清单」是两回事：后者是已知的 Agent 还没报过带可执行路径的摘要，网关会返回空清单与 0 计数，而不是 404。",
+              " (HTTP 404). That is different from “has not reported an inventory yet”: in the latter case the agent is known but has not reported a digest with executable paths, and the gateway returns an empty inventory with a zero count instead of 404.",
+            )}
           </p>
           <p className={styles.unknownHint}>
-            请确认 agent_id 拼写是否正确；已注册的机器可以在
+            {t(
+              "请确认 agent_id 拼写是否正确；已注册的机器可以在",
+              "Check that the agent_id is spelled correctly; registered machines can be verified on the ",
+            )}
             <Link className={styles.unknownLink} to="/hosts">
-              主机指标
+              {t("主机指标", "Host metrics")}
             </Link>
-            页核对。
+            {t("页核对。", " page.")}
           </p>
         </section>
       ) : null}
@@ -484,8 +598,14 @@ function AgentInventory({
       {agentId && !isLoading && !isError && !data ? (
         <div className={styles.idleNotice} role="status">
           {getAdminApiToken()
-            ? "尚未取到这台机器的清单，用右上角「刷新」重试。"
-            : "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。"}
+            ? t(
+                "尚未取到这台机器的清单，用右上角「刷新」重试。",
+                "This machine's inventory has not loaded yet. Use “Refresh” in the top right to retry.",
+              )
+            : t(
+                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: data is requested from the admin API only after you enter one on the left, so nothing is shown here.",
+              )}
         </div>
       ) : null}
 
@@ -493,20 +613,45 @@ function AgentInventory({
         <>
           <div className={styles.summaryCard}>
             <div className={styles.summaryMetrics}>
-              <Metric label="条目行数" value={data.paths} />
-              <Metric label="其中 app 包行" value={data.apps} />
-              <Metric label="条目组（按键）" value={groups.length} />
+              <Metric label={t("条目行数", "Entry rows")} value={data.paths} />
+              <Metric
+                label={t("其中 app 包行", "of which .app bundle rows")}
+                value={data.apps}
+              />
+              <Metric
+                label={t("条目组（按键）", "Entry groups (by key)")}
+                value={groups.length}
+              />
             </div>
             <p className={styles.summaryNote}>
-              前两列是<strong>行数</strong>，<strong>都不是「软件个数」</strong>：同一个 <code className={styles.code}>.app</code> 包里跑了几个可执行文件就是几行，所以「行数」总是远大于「组数」。组数才是「这台机器上有多少个条目」。
+              {t("前两列是", "The first two columns are ")}
+              <strong>{t("行数", "row counts")}</strong>
+              {t("，", ", and ")}
+              <strong>
+                {t("都不是「软件个数」", "neither is a “software count”")}
+              </strong>
+              {t("：同一个 ", ": an executable that runs inside the same ")}
+              <code className={styles.code}>.app</code>
+              {t(
+                " 包里跑了几个可执行文件就是几行，所以「行数」总是远大于「组数」。组数才是「这台机器上有多少个条目」。",
+                " bundle is another row, so the row count is always far larger than the group count. The group count is what tells you how many entries this machine has.",
+              )}
             </p>
           </div>
 
           {data.entries.length === 0 ? (
             <div className={styles.empty} role="status">
-              <strong className={styles.emptyTitle}>这台机器还没有上报过清单</strong>
+              <strong className={styles.emptyTitle}>
+                {t(
+                  "这台机器还没有上报过清单",
+                  "This machine has not reported an inventory yet",
+                )}
+              </strong>
               <span className={styles.emptyText}>
-                网关里存在这台 Agent（不是 404），但它的事实摘要里还没有可执行路径：返回的是 0 条清单，而不是错误。清单随每次上报覆盖式重建，等它上报一次就会出现在这里。
+                {t(
+                  "网关里存在这台 Agent（不是 404），但它的事实摘要里还没有可执行路径：返回的是 0 条清单，而不是错误。清单随每次上报覆盖式重建，等它上报一次就会出现在这里。",
+                  "This agent exists in the gateway (it is not a 404), but its fact digest has no executable paths yet: the gateway returns an inventory of 0 entries, not an error. The inventory is rebuilt from scratch on every report, so it will show up here once the agent reports.",
+                )}
               </span>
             </div>
           ) : (
@@ -527,7 +672,8 @@ function AgentInventory({
                       </span>
                     </div>
                     <span className={styles.cardCount}>
-                      <strong>{group.pathCount}</strong> 条可执行
+                      <strong>{group.pathCount}</strong>{" "}
+                      {t("条可执行", "executables")}
                     </span>
                   </header>
                   <p className={styles.cardKey}>{group.softwareKey}</p>
@@ -540,9 +686,14 @@ function AgentInventory({
                   </ul>
                   {group.matchedRules.length > 0 ? (
                     <p className={styles.cardMeta}>
-                      命中规则：{group.matchedRules.join("、")}
+                      {t("命中规则：{rules}", "Matched rules: {rules}", {
+                        rules: group.matchedRules.join(t("、", ", ")),
+                      })}
                       <span className={styles.cardMetaHint}>
-                        （规则只按路径形状归并，不读包元数据）
+                        {t(
+                          "（规则只按路径形状归并，不读包元数据）",
+                          " (rules merge by path shape only; bundle metadata is not read)",
+                        )}
                       </span>
                     </p>
                   ) : null}
@@ -554,14 +705,22 @@ function AgentInventory({
           {groups.length > ENTRY_RENDER_LIMIT ? (
             <div className={styles.moreRow}>
               <span className={styles.moreHint}>
-                已折叠：共 {groups.length} 组，先显示前 {ENTRY_RENDER_LIMIT} 组。
+                {t(
+                  "已折叠：共 {total} 组，先显示前 {shown} 组。",
+                  "Collapsed: {total} groups in total, showing the first {shown}.",
+                  { total: groups.length, shown: ENTRY_RENDER_LIMIT },
+                )}
               </span>
               <button
                 type="button"
                 className={styles.moreButton}
                 onClick={() => setShowAllEntries((prev) => !prev)}
               >
-                {showAllEntries ? "收起" : `显示全部 ${groups.length} 组`}
+                {showAllEntries
+                  ? t("收起", "Collapse")
+                  : t("显示全部 {n} 组", "Show all {n} groups", {
+                      n: groups.length,
+                    })}
               </button>
             </div>
           ) : null}
@@ -588,7 +747,10 @@ function StatusBadge({ entry }: { entry: AgentLedgerEntry }) {
       className={`${styles.ledgerBadge} ${tone}`}
       title={
         entry.status === "unknown"
-          ? "Agent 概览只覆盖「最近在线」与「异常」的机器：这里仅表示那份视图没提到它，不等于它没注册。"
+          ? t(
+              "Agent 概览只覆盖「最近在线」与「异常」的机器：这里仅表示那份视图没提到它，不等于它没注册。",
+              "The agent overview covers only recently online and abnormal machines: this means the view did not mention it, not that it is unregistered.",
+            )
           : undefined
       }
     >

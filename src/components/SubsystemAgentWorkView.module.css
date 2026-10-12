@@ -109,6 +109,12 @@
   line-height: 1.5;
 }
 
+/* 节级动作（「全部授权」）：靠右站，不与标题/提示挤在一起；窄屏换行时自然落到下一行。 */
+.grantAllButton {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 /* 行内强调：提示本身就是最暗一档 --text-4，加粗必须抬色才读得出（与 SoftwareInventory 同口径）。 */
 .sectionHint strong {
   color: var(--text-2);

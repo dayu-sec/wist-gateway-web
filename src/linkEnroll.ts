@@ -7,6 +7,8 @@
 // 这是**复制粘贴的凭据串**（不点开、不进地址栏），故容忍券/CA 在 URL 里。见设计
 // `wist-design/doc/design/edge/gateway-onboard-request.md`。
 
+import { t } from "./i18n";
+
 export interface ParsedLink {
   centerEndpoint: string;
   linkToken: string;
@@ -33,20 +35,26 @@ export function parseLinkUrl(input: string): {
   try {
     url = new URL(input.trim());
   } catch {
-    return { error: "不是合法的 URL。" };
+    return { error: t("不是合法的 URL。", "Not a valid URL.") };
   }
   const linkToken = url.searchParams.get("link_token") ?? "";
-  if (!linkToken) return { error: "链接里缺少 link_token（接入券）。" };
+  if (!linkToken)
+    return { error: t("链接里缺少 link_token（接入券）。", "The link is missing link_token (the enrollment ticket).") };
   const ca = url.searchParams.get("ca") ?? "";
   if (url.protocol === "https:" && !ca) {
-    return { error: "https 中心的链接必须带 ca（CA 信任锚）。" };
+    return {
+      error: t(
+        "https 中心的链接必须带 ca（CA 信任锚）。",
+        "A link for an https center must carry ca (the CA trust anchor).",
+      ),
+    };
   }
   let trustBundlePem = "";
   if (ca) {
     try {
       trustBundlePem = base64UrlDecode(ca);
     } catch {
-      return { error: "ca 不是合法的 base64url。" };
+      return { error: t("ca 不是合法的 base64url。", "ca is not valid base64url.") };
     }
   }
   return {

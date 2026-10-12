@@ -93,13 +93,33 @@ function linkd(
   check(connected.label === "已接入", `Connected 文案不对：${connected.label}`);
 }
 
-// ── ④ 持久链路优先于内存待办 ────────────────────────────────────────────────
+// ── ④ 持久链路优先于内存待办 ────────────────────────────────────────
 {
   // gwlinkd 已 Linked：即便此刻内存里有一条 Pending 待办（gwlinkd 已注册不会再拉），
   // 也不该把「已接入」的链路显示成「待拉取」。
   const view = linkUpstreamStatus("Pending", linkd());
   check(view.tone === "ok", `Linked 应压过待办，实际 ${view.tone}`);
   check(view.label === "已接入", `持久链路优先文案不对：${view.label}`);
+}
+
+// ── ⑤ unlink 之后：心跳说「未接入」，旧的内存终态待办不能翻回「已接入」 ─────
+{
+  // `wist-gwlinkd unlink` 会把心跳主动改成 `WaitingLinkRequest`（凭据已删）；但网关内存里
+  // 可能还挂着上一回接入留下的终态 `Connected` 待办（重启即丢）。此时必须信心跳 → 「尚未接入」，
+  // 否则 unlink 后卡片会把已断开的链路报成「已接入」（曾把 GX02 的断开态显示成「已接入（降级）」）。
+  const afterUnlink = linkUpstreamStatus(
+    "Connected",
+    linkd({ state: "WaitingLinkRequest", credentialExpiresAt: "" }),
+  );
+  check(afterUnlink.tone === "idle", `unlink 后应 idle，实际 ${afterUnlink.tone}`);
+  check(
+    afterUnlink.label === "尚未接入",
+    `unlink 后文案不对：${afterUnlink.label}`,
+  );
+
+  // 反例：没有心跳时，终态 `Connected` 待办仍算「已接入」（链路由待办见证）。
+  const noHeartbeat = linkUpstreamStatus("Connected", undefined);
+  check(noHeartbeat.label === "已接入", `无心跳时 Connected 应已接入：${noHeartbeat.label}`);
 }
 
 console.log("link upstream status test passed");

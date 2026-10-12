@@ -8,6 +8,7 @@ import {
   useGatewaySelfStateHistory,
 } from "../hooks";
 import type { GatewaySelfStateView } from "../api";
+import { t } from "../i18n";
 import { linkdSummary } from "./linkdStatus";
 import { GatewayMetricTrends } from "./GatewayMetricTrends";
 import { LinkdHeartbeatTrend } from "./LinkdHeartbeatTrend";
@@ -36,14 +37,23 @@ function bytesText(value: number | null): string {
 
 /** 秒 → 「N 天 N 小时 / N 小时 N 分 / N 分 N 秒 / N 秒」。 */
 function durationText(seconds: number): string {
-  if (seconds <= 0) return "0 秒";
+  if (seconds <= 0) return t("0 秒", "0 s");
   const days = Math.floor(seconds / 86_400);
   const hours = Math.floor((seconds % 86_400) / 3_600);
   const minutes = Math.floor((seconds % 3_600) / 60);
-  if (days > 0) return `${days} 天 ${hours} 小时`;
-  if (hours > 0) return `${hours} 小时 ${minutes} 分`;
-  if (minutes > 0) return `${minutes} 分 ${seconds % 60} 秒`;
-  return `${seconds} 秒`;
+  if (days > 0)
+    return t("{days} 天 {hours} 小时", "{days} d {hours} h", { days, hours });
+  if (hours > 0)
+    return t("{hours} 小时 {minutes} 分", "{hours} h {minutes} m", {
+      hours,
+      minutes,
+    });
+  if (minutes > 0)
+    return t("{minutes} 分 {seconds} 秒", "{minutes} m {seconds} s", {
+      minutes,
+      seconds: seconds % 60,
+    });
+  return t("{seconds} 秒", "{seconds} s", { seconds });
 }
 
 /** 单核口径 CPU 占比；`null`（量不出）→ `—`。 */
@@ -72,14 +82,19 @@ function gatewayHealth(gw: GatewaySelfStateView): {
   if (healthy) {
     return {
       tone: "ok",
-      label: "健康",
-      hint: "存储可查、无最近错误。",
+      label: t("健康", "Healthy"),
+      hint: t("存储可查、无最近错误。", "Store reachable, no recent errors."),
     };
   }
   const reasons: string[] = [];
-  if (!gw.storeHealthy) reasons.push("存储不可查");
-  if (gw.lastError) reasons.push(`最近错误：${gw.lastError}`);
-  return { tone: "crit", label: "降级", hint: reasons.join("；") + "。" };
+  if (!gw.storeHealthy) reasons.push(t("存储不可查", "Store unreachable"));
+  if (gw.lastError)
+    reasons.push(t("最近错误：{error}", "Recent error: {error}", { error: gw.lastError }));
+  return {
+    tone: "crit",
+    label: t("降级", "Degraded"),
+    hint: t("{reasons}。", "{reasons}.", { reasons: reasons.join(t("；", "; ")) }),
+  };
 }
 
 type GatewayLayerTab = "container" | "linkd";
@@ -115,13 +130,20 @@ export function SubsystemGatewayStatusPage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>网关状态</h1>
+          <h1 className={styles.pageTitle}>{t("网关状态", "Gateway status")}</h1>
           <p className={styles.pageSummary}>
-            本机网关分两层：**网关容器**（wist-gateway）自己，以及把网关接入上级控制中心的宿主侧常驻 **wist-gwlinkd**。两层各占一个标签页，每 5 秒自动刷新。
+            {t(
+              "本机网关分两层：**网关容器**（wist-gateway）自己，以及把网关接入上级控制中心的宿主侧常驻 **wist-gwlinkd**。两层各占一个标签页，每 5 秒自动刷新。",
+              "The gateway on this host has two layers: the **gateway container** (wist-gateway) itself, and the host-side resident **wist-gwlinkd** that links the gateway to the upstream control center. Each layer has its own tab; both refresh every 5 seconds.",
+            )}
           </p>
         </header>
 
-        <div className={styles.tabs} role="tablist" aria-label="网关两层">
+        <div
+          className={styles.tabs}
+          role="tablist"
+          aria-label={t("网关两层", "Gateway layers")}
+        >
           <button
             type="button"
             role="tab"
@@ -135,7 +157,7 @@ export function SubsystemGatewayStatusPage() {
             }
             onClick={() => setActiveTab("container")}
           >
-            <strong>网关（容器）</strong>
+            <strong>{t("网关（容器）", "Gateway (container)")}</strong>
             <span>wist-gateway</span>
           </button>
           <button
@@ -151,7 +173,7 @@ export function SubsystemGatewayStatusPage() {
             }
             onClick={() => setActiveTab("linkd")}
           >
-            <strong>接入代理</strong>
+            <strong>{t("接入代理", "Link daemon")}</strong>
             <span>wist-gwlinkd</span>
           </button>
         </div>
@@ -173,10 +195,10 @@ export function SubsystemGatewayStatusPage() {
           >
             <span className={styles.statusDot} aria-hidden="true" />
             <div className={styles.statusBody}>
-              <div className={styles.statusEyebrow}>运行状态</div>
+              <div className={styles.statusEyebrow}>{t("运行状态", "Runtime status")}</div>
               <h3 className={styles.statusValue}>{gwHealth?.label ?? "—"}</h3>
               <p className={styles.statusHint}>
-                {gwHealth?.hint ?? "正在读取…"}
+                {gwHealth?.hint ?? t("正在读取…", "Loading…")}
               </p>
             </div>
           </section>
@@ -184,8 +206,11 @@ export function SubsystemGatewayStatusPage() {
           {gwQuery.isLoading || gwQuery.isError ? (
             <div className={styles.notice} role="status">
               {gwQuery.isLoading
-                ? "正在读取网关自身状态…"
-                : "读取失败：请检查本机网关与 Admin Token（顶栏「应用」）。"}
+                ? t("正在读取网关自身状态…", "Loading gateway self state…")
+                : t(
+                    "读取失败：请检查本机网关与 Admin Token（顶栏「应用」）。",
+                    "Load failed: check the local gateway and the Admin Token (Apply in the top bar).",
+                  )}
             </div>
           ) : null}
 
@@ -194,71 +219,91 @@ export function SubsystemGatewayStatusPage() {
           {gw ? (
             <dl className={styles.grid}>
               <div className={styles.gridItem}>
-                <dt>版本</dt>
+                <dt>{t("版本", "Version")}</dt>
                 <dd>{gw.version || "—"}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>运行时长</dt>
+                <dt>{t("运行时长", "Uptime")}</dt>
                 <dd>{durationText(gw.uptimeSeconds)}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>存储</dt>
-                <dd>{gw.storeHealthy ? "可查（健康）" : "不可查"}</dd>
+                <dt>{t("存储", "Store")}</dt>
+                <dd>
+                  {gw.storeHealthy
+                    ? t("可查（健康）", "Reachable (healthy)")
+                    : t("不可查", "Unreachable")}
+                </dd>
               </div>
 
               <div className={styles.gridItem}>
-                <dt>Agent 在线 / 离线</dt>
+                <dt>{t("Agent 在线 / 离线", "Agents online / offline")}</dt>
                 <dd>
-                  {gw.onlineAgents} / {gw.offlineAgents}（共 {gw.agentCount}）
+                  {gw.onlineAgents} / {gw.offlineAgents}
+                  {t("（共 {n}）", " ({n} total)", { n: gw.agentCount })}
                 </dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>机队最近上报滞后</dt>
-                <dd>{gw.lastSeenLagSeconds} 秒</dd>
+                <dt>{t("机队最近上报滞后", "Fleet last-report lag")}</dt>
+                <dd>{t("{n} 秒", "{n} s", { n: gw.lastSeenLagSeconds })}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>CPU（单核口径）</dt>
+                <dt>{t("CPU（单核口径）", "CPU (per core)")}</dt>
                 <dd>{percentText(gw.cpuPercent)}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>内存（RSS）</dt>
+                <dt>{t("内存（RSS）", "Memory (RSS)")}</dt>
                 <dd>{bytesText(gw.memoryBytes)}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>主机内存总量</dt>
+                <dt>{t("主机内存总量", "Host memory total")}</dt>
                 <dd>{bytesText(gw.memoryTotalBytes)}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>负载（1/5/15 分钟）</dt>
+                <dt>{t("负载（1/5/15 分钟）", "Load (1/5/15 min)")}</dt>
                 <dd>
                   {loadText(gw.load1m)} / {loadText(gw.load5m)} /{" "}
                   {loadText(gw.load15m)}
                 </dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>磁盘</dt>
+                <dt>{t("磁盘", "Disk")}</dt>
                 <dd>
                   {gw.diskUsagePercent === null
                     ? "—"
-                    : `${gw.diskUsagePercent.toFixed(0)}%（${bytesText(gw.diskAvailableBytes)} 可用 / ${bytesText(gw.diskTotalBytes)}）`}
+                    : t(
+                        "{percent}%（{available} 可用 / {total}）",
+                        "{percent}% ({available} available / {total})",
+                        {
+                          percent: gw.diskUsagePercent.toFixed(0),
+                          available: bytesText(gw.diskAvailableBytes),
+                          total: bytesText(gw.diskTotalBytes),
+                        },
+                      )}
                 </dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>存储大小</dt>
+                <dt>{t("存储大小", "Store size")}</dt>
                 <dd>{gw.storeBytes > 0 ? bytesText(gw.storeBytes) : "—"}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>数据面接收（累计）</dt>
+                <dt>{t("数据面接收（累计）", "Data plane ingest (cumulative)")}</dt>
                 <dd>
-                  收 {gw.ingestAcceptedTotal} / 拒 {gw.ingestRejectedTotal}
+                  {t(
+                    "收 {accepted} / 拒 {rejected}",
+                    "Accepted {accepted} / rejected {rejected}",
+                    {
+                      accepted: gw.ingestAcceptedTotal,
+                      rejected: gw.ingestRejectedTotal,
+                    },
+                  )}
                 </dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>最近接收事实</dt>
+                <dt>{t("最近接收事实", "Last ingested fact")}</dt>
                 <dd>{gw.lastIngestAt ? timeText(gw.lastIngestAt) : "—"}</dd>
               </div>
               <div className={styles.gridItem}>
-                <dt>采集时刻</dt>
+                <dt>{t("采集时刻", "Collected at")}</dt>
                 <dd>{timeText(gw.collectedAt)}</dd>
               </div>
             </dl>
@@ -278,16 +323,18 @@ export function SubsystemGatewayStatusPage() {
           >
             <span className={styles.statusDot} aria-hidden="true" />
             <div className={styles.statusBody}>
-              <div className={styles.statusEyebrow}>运行状态</div>
+              <div className={styles.statusEyebrow}>{t("运行状态", "Runtime status")}</div>
               <h3 className={styles.statusValue}>
                 {linkdView ? linkd.label : "—"}
               </h3>
               <p className={styles.statusHint}>
-                {linkdView ? linkd.detail : "正在读取…"}
+                {linkdView ? linkd.detail : t("正在读取…", "Loading…")}
               </p>
               {linkdView?.centerEndpoint ? (
                 <div className={styles.statusCenter}>
-                  <span className={styles.statusCenterLabel}>中心</span>
+                  <span className={styles.statusCenterLabel}>
+                    {t("中心", "Center")}
+                  </span>
                   <code className={styles.statusCenterValue}>
                     {linkdView.centerEndpoint}
                   </code>
@@ -304,8 +351,11 @@ export function SubsystemGatewayStatusPage() {
           {linkdQuery.isLoading || linkdQuery.isError ? (
             <div className={styles.notice} role="status">
               {linkdQuery.isLoading
-                ? "正在读取 gwlinkd 状态…"
-                : "读取失败：请检查本机网关与 Admin Token（顶栏「应用」）。"}
+                ? t("正在读取 gwlinkd 状态…", "Loading gwlinkd status…")
+                : t(
+                    "读取失败：请检查本机网关与 Admin Token（顶栏「应用」）。",
+                    "Load failed: check the local gateway and the Admin Token (Apply in the top bar).",
+                  )}
             </div>
           ) : null}
 
@@ -317,11 +367,14 @@ export function SubsystemGatewayStatusPage() {
 
           {linkdView && !linkdView.hasStatus ? (
             <div className={styles.noticeWarn} role="status">
-              未检测到 gwlinkd 心跳：宿主侧常驻可能未安装 / 未启动。首次接入请到
+              {t(
+                "未检测到 gwlinkd 心跳：宿主侧常驻可能未安装 / 未启动。首次接入请到",
+                "No gwlinkd heartbeat detected: the host-side daemon may not be installed or started. To enroll for the first time, go to the ",
+              )}
               <Link className={styles.inlineLink} to="/link-upstream">
-                链接上级
+                {t("链接上级", "Link upstream")}
               </Link>
-              页提交接入链接。
+              {t("页提交接入链接。", " page and submit an enrollment link.")}
             </div>
           ) : null}
 
@@ -329,36 +382,38 @@ export function SubsystemGatewayStatusPage() {
             <>
               <dl className={styles.grid}>
                 <div className={styles.gridItem}>
-                  <dt>版本</dt>
+                  <dt>{t("版本", "Version")}</dt>
                   <dd>{linkdView.version || "—"}</dd>
                 </div>
                 <div className={styles.gridItem}>
-                  <dt>实例</dt>
+                  <dt>{t("实例", "Instance")}</dt>
                   <dd>{linkdView.instanceId || "—"}</dd>
                 </div>
                 <div className={styles.gridItem}>
-                  <dt>最近心跳</dt>
+                  <dt>{t("最近心跳", "Last heartbeat")}</dt>
                   <dd>
-                    {linkdView.ageSeconds} 秒前
-                    {linkdView.stale ? "（已失联）" : ""}
+                    {t("{n} 秒前", "{n} s ago", { n: linkdView.ageSeconds })}
+                    {linkdView.stale ? t("（已失联）", " (stale)") : ""}
                   </dd>
                 </div>
                 <div className={styles.gridItem}>
-                  <dt>网关收讫</dt>
+                  <dt>{t("网关收讫", "Received by gateway")}</dt>
                   <dd>{timeText(linkdView.receivedAt)}</dd>
                 </div>
                 <div className={styles.gridItem}>
-                  <dt>客户端证书到期</dt>
+                  <dt>{t("客户端证书到期", "Client certificate expires")}</dt>
                   <dd>{timeText(linkdView.credentialExpiresAt)}</dd>
                 </div>
                 <div className={styles.gridItem}>
-                  <dt>最近上报中心</dt>
+                  <dt>{t("最近上报中心", "Last reported to center")}</dt>
                   <dd>{timeText(linkdView.lastCenterReportAt)}</dd>
                 </div>
               </dl>
               {linkdView.lastError ? (
                 <div className={styles.errorBanner} role="status">
-                  gwlinkd 最近一次失败：{linkdView.lastError}
+                  {t("gwlinkd 最近一次失败：{error}", "gwlinkd last failure: {error}", {
+                    error: linkdView.lastError,
+                  })}
                 </div>
               ) : null}
             </>
@@ -367,11 +422,17 @@ export function SubsystemGatewayStatusPage() {
         </div>
 
         <p className={styles.footNote}>
-          要重新接入或更换中心？到
+          {t(
+            "要重新接入或更换中心？到",
+            "Need to re-enroll or switch centers? Submit a new enrollment link on the ",
+          )}
           <Link className={styles.inlineLink} to="/link-upstream">
-            链接上级
+            {t("链接上级", "Link upstream")}
           </Link>
-          页提交新的接入链接（接入物先落在本机网关，再由 gwlinkd 拉取执行）。
+          {t(
+            "页提交新的接入链接（接入物先落在本机网关，再由 gwlinkd 拉取执行）。",
+            "page (the enrollment lands on this gateway first, then gwlinkd pulls and applies it).",
+          )}
         </p>
       </main>
     </div>

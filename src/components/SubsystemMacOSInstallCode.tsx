@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemMacOSInstallCode.module.css";
 import { ShellCode } from "./ShellCode";
 import { CopyButton } from "./CopyButton";
@@ -14,12 +15,13 @@ export function SubsystemMacOSInstallCode({
   command,
   token,
   loading,
-  label = "macOS 安装命令",
+  // 默认值在**调用期**（渲染期）求值，可以放 `t()`。
+  label = t("macOS 安装命令", "macOS install command"),
   children,
 }: SubsystemMacOSInstallCodeProps) {
   const displayCommand = loading
-    ? "安装代码加载中..."
-    : (command ?? "暂无安装代码");
+    ? t("安装代码加载中...", "Loading install code…")
+    : (command ?? t("暂无安装代码", "No install command available"));
   const fullCommand =
     command && token
       ? `export WARP_INSIGHT_ENROLLMENT_TOKEN=${token}\n${command}`
@@ -32,11 +34,11 @@ export function SubsystemMacOSInstallCode({
         <ShellCode code={displayCommand} />
       </code>
       <div className={styles.actions}>
-        <CopyButton text={command} label="复制命令" className={styles.copyButton} />
+        <CopyButton text={command} label={t("复制命令", "Copy command")} className={styles.copyButton} />
         <CopyButton
           text={fullCommand}
-          label="复制完整命令（含 Token）"
-          copiedLabel="已复制完整命令"
+          label={t("复制完整命令（含 Token）", "Copy full command (with token)")}
+          copiedLabel={t("已复制完整命令", "Full command copied")}
           className={styles.copyButton}
         />
       </div>

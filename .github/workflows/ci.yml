@@ -38,6 +38,10 @@ jobs:
       - name: Test (routes contract)
         run: npm run test:routes
 
+      # 双语取词的最小不变量：默认 zh、双向切换、占位符、与共享口径同源。
+      - name: Test (i18n contract)
+        run: npm run test:i18n
+
       # 上送目标 + 启用开关的契约（host/port/enabled 的收发与默认值）。
       - name: Test (agent uplink contract)
         run: npm run test:uplink
@@ -59,3 +63,11 @@ jobs:
       # 管理接口读取失败的文案（服务端正文必须透出来，通用话只能兜底）。
       - name: Test (admin api error messages)
         run: npm run test:admin-api-error
+
+      # 管理 token 的传输机制（存哪 / Bearer 注入 / 401 自动清 / 429 保留 + Retry-After）。
+      - name: Test (admin token mechanism)
+        run: npm run test:admin-token
+
+      # 「已托管包」表的纯派生：一行 = 一个版本、在用判定（按摘要对齐）、缺件平台。
+      - name: Test (agent package registry)
+        run: npm run test:agent-package-registry

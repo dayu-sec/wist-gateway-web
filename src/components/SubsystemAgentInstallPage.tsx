@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { t } from "../i18n";
 import styles from "./SubsystemAgentInstallPage.module.css";
 import { SubsystemBootstrapTokenCard } from "./SubsystemBootstrapTokenCard";
 import { SubsystemX86LinuxInstallCode } from "./SubsystemX86LinuxInstallCode";
@@ -26,14 +27,32 @@ export function SubsystemAgentInstallPage() {
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>安装 Agent</h1>
+        <h1 className={styles.pageTitle}>{t("安装 Agent", "Install agent")}</h1>
         <p className={styles.pageSummary}>
-          在目标主机上装一次采集 Agent，它就会把该主机的指标与日志持续上报到本网关。
+          {t(
+            "在目标主机上装一次采集 Agent，它就会把该主机的指标与日志持续上报到本网关。",
+            "Install the collection agent once on a target host, and it keeps reporting that host's metrics and logs to this gateway.",
+          )}
         </p>
         <ol className={styles.steps}>
-          <li>复制 Bootstrap Token（一次性注册凭证）</li>
-          <li>在目标主机上按架构执行对应安装命令</li>
-          <li>回到「主机指标」确认该主机已开始上报</li>
+          <li>
+            {t(
+              "复制 Bootstrap Token（一次性注册凭证）",
+              "Copy the Bootstrap Token (one-time enrollment credential)",
+            )}
+          </li>
+          <li>
+            {t(
+              "在目标主机上按架构执行对应安装命令",
+              "Run the matching install command for the architecture on the target host",
+            )}
+          </li>
+          <li>
+            {t(
+              "回到「主机指标」确认该主机已开始上报",
+              "Return to Host metrics to confirm the host has started reporting",
+            )}
+          </li>
         </ol>
       </header>
       {isError ? (
@@ -49,12 +68,12 @@ export function SubsystemAgentInstallPage() {
         <section className={styles.commandsSection}>
           <div className={styles.commandsHead}>
             <h2 className={styles.sectionTitle}>
-              按目标主机架构选择安装命令
+              {t("按目标主机架构选择安装命令", "Choose the install command for the target host architecture")}
             </h2>
             <div
               className={styles.archTabs}
               role="tablist"
-              aria-label="目标主机架构"
+              aria-label={t("目标主机架构", "Target host architecture")}
             >
               {ARCH_TABS.map((tab) => (
                 <button
@@ -81,7 +100,7 @@ export function SubsystemAgentInstallPage() {
                 command={data?.x86LinuxInstallCode}
                 token={token}
                 loading={isLoading}
-                label="安装命令"
+                label={t("安装命令", "Install command")}
               />
             ) : null}
             {activeArch === "arm" ? (
@@ -89,7 +108,7 @@ export function SubsystemAgentInstallPage() {
                 command={data?.armLinuxInstallCode}
                 token={token}
                 loading={isLoading}
-                label="安装命令"
+                label={t("安装命令", "Install command")}
               />
             ) : null}
             {activeArch === "macos" ? (
@@ -97,7 +116,7 @@ export function SubsystemAgentInstallPage() {
                 command={data?.macosInstallCode}
                 token={token}
                 loading={isLoading}
-                label="安装命令"
+                label={t("安装命令", "Install command")}
               />
             ) : null}
           </div>

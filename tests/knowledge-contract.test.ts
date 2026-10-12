@@ -7,7 +7,6 @@ import {
   normalizeKnowledge,
   normalizeKnowledgeLocks,
   normalizeKnowledgePackage,
-  parseKnowledgeErrorDetail,
   recordKnowledgePackage,
   setAdminApiToken,
   type KnowledgeView,
@@ -280,7 +279,10 @@ check(rejectedMissingFiles, "包缺 `files` 数组必须显式失败");
 // ── ④ 录入：`activate` 缺省 false，字段是 snake_case ─────────────────────────
 responder = () => json({ ...PKG, active: false });
 recorded = [];
-const recordedPkg = await recordKnowledgePackage({ source: "file.tar.gz", sha256: SHA });
+const recordedPkg = await recordKnowledgePackage({
+  source: "file.tar.gz",
+  sha256: SHA,
+});
 const recordCall = recorded[0];
 check(
   recordCall.url === "/api/v1/admin/knowledge/packages" &&
@@ -393,26 +395,40 @@ check(
   "生效目录版本未知时，所有分组都算「锁在旧版」",
 );
 
-// ── ⑦ 错误正文 `{code, message}` ───────────────────────────────────────────
+// ── ⑦ 错误信封 `{error:{code, message}}` → ApiError.code / .detail ───────────
+responder = () =>
+  new Response(
+    JSON.stringify({
+      error: { code: "package_signature_invalid", message: "签名验不过" },
+    }),
+    { status: 422, headers: { "content-type": "application/json" } },
+  );
+let envelopeError: ApiError | null = null;
+try {
+  await fetchKnowledge();
+} catch (error) {
+  envelopeError = error instanceof ApiError ? error : null;
+}
 check(
-  parseKnowledgeErrorDetail(
-    '{"code":"package_signature_invalid","message":"签名验不过"}',
-  )?.code === "package_signature_invalid",
-  "必须能从错误正文里解出 code",
+  envelopeError?.code === "package_signature_invalid",
+  "必须能从错误信封里解出 code",
 );
-check(
-  parseKnowledgeErrorDetail('{"code":"x","message":"y"}')?.message === "y",
-  "必须能从错误正文里解出 message",
-);
-check(
-  parseKnowledgeErrorDetail('{"code":"x"}') === null,
-  "没有 message 的正文不算结构化错误（回落原文）",
-);
-check(
-  parseKnowledgeErrorDetail("plain text") === null &&
-    parseKnowledgeErrorDetail(undefined) === null,
-  "非 JSON / 空正文必须回 null",
-);
+check(envelopeError?.detail === "签名验不过", "必须能从错误信封里解出 message");
+
+// 非信封正文（旧构建 / 纯文本）：回退成截断原文，`.code` 为空。
+responder = () =>
+  new Response("plain text failure", {
+    status: 500,
+    headers: { "content-type": "text/plain" },
+  });
+let plainError: ApiError | null = null;
+try {
+  await fetchKnowledge();
+} catch (error) {
+  plainError = error instanceof ApiError ? error : null;
+}
+check(plainError?.code === undefined, "非信封正文不应有 code");
+check(plainError?.detail === "plain text failure", "非信封正文应回退成原文");
 
 // ── ⑧ 显示口径（纯函数） ───────────────────────────────────────────────────
 const view: KnowledgeView = {
@@ -539,12 +555,10 @@ check(
   "「网关没应答」的提示要能指向 dev 代理这个最常见的坑",
 );
 const withBody = knowledgeLoadErrorMessage(
-  new ApiError(
-    500,
-    "/api/v1/admin/knowledge/locks",
-    undefined,
-    '{"code":"package_store_failed","message":"统计工作版本失败"}',
-  ),
+  new ApiError(500, "/api/v1/admin/knowledge/locks", {
+    detail: "统计工作版本失败",
+    code: "package_store_failed",
+  }),
 );
 check(
   withBody === "网关返回 HTTP 500：统计工作版本失败",
@@ -568,22 +582,17 @@ check(
 );
 
 const signed = knowledgeActionErrorMessage(
-  new ApiError(
-    422,
-    "/api/v1/admin/knowledge/packages",
-    undefined,
-    '{"code":"package_signature_invalid","message":"签名验不过"}',
-  ),
+  new ApiError(422, "/api/v1/admin/knowledge/packages", {
+    detail: "签名验不过",
+    code: "package_signature_invalid",
+  }),
   "录入",
 );
 check(
   signed.includes("package_signature_invalid") && signed.includes("签名验不过"),
   `动作失败要同时给出 code 与正文：${signed}`,
 );
-check(
-  signed.includes("包被动过"),
-  `可识别的 code 要顺带给处置建议：${signed}`,
-);
+check(signed.includes("包被动过"), `可识别的 code 要顺带给处置建议：${signed}`);
 check(
   knowledgeActionErrorMessage(new ApiError(500, "/x"), "切换").includes(
     "网关没有应答",

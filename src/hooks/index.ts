@@ -27,6 +27,7 @@ import {
   fetchAgentUplink,
   fetchAgentWork,
   fetchAllAgentsHostMetrics,
+  fetchBackendVersion,
   fetchContentCatalog,
   fetchInstallPackages,
   fetchKnowledge,
@@ -40,6 +41,7 @@ import {
   getAdminApiToken,
   grantOneShotWork,
   grantStandingWork,
+  grantStandingWorkAll,
   liftAgentRevocation,
   pauseWork,
   recordKnowledgePackage,
@@ -192,6 +194,21 @@ export function useAgentInstallCode() {
   return useQuery({
     queryKey: ["agent-install-code"],
     queryFn: fetchAgentInstallCode,
+  });
+}
+
+/**
+ * 网关（后端）版本（`GET /api/v1/version`）。
+ *
+ * 与别的查询不同，这条**不**等 admin token：端点是公开的，未登录时也要显示后端版本。
+ * 版本只在网关重启后才会变，`staleTime: Infinity` 让一次会话只取一次（切窗口不重拉）。
+ * 失败不刷新成示例值：拿不到就是未知，由版本块显示成 `—`。
+ */
+export function useBackendVersion() {
+  return useQuery({
+    queryKey: ["backend-version"],
+    queryFn: fetchBackendVersion,
+    staleTime: Infinity,
   });
 }
 
@@ -717,6 +734,18 @@ export function useGrantStandingWork(agentId: string) {
   return useMutation({
     mutationFn: (command: GrantStandingWorkCommand) =>
       grantStandingWork(agentId, command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
+    },
+  });
+}
+
+/** 一次授权多条常驻工作（「全部授权」）；成功后刷新工作视图（部分失败也刷新 —— 成功的那些已生效）。 */
+export function useGrantAllStandingWork(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (families: readonly string[]) =>
+      grantStandingWorkAll(agentId, families),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
     },

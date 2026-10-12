@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { t } from "../i18n";
 import styles from "./AgentTargetField.module.css";
 import { useAgentOverview } from "../hooks";
 
@@ -17,7 +18,7 @@ interface AgentTargetFieldProps {
 export function AgentTargetField({
   value,
   onChange,
-  label = "目标 Agent",
+  label = t("目标 Agent", "Target agent"),
   allowFreeInput = true,
 }: AgentTargetFieldProps) {
   const { data } = useAgentOverview();
@@ -47,8 +48,15 @@ export function AgentTargetField({
       </datalist>
       <span className={styles.hint}>
         {agents.length > 0
-          ? `可选 ${agents.length} 台已注册主机，输入时会自动补全；也可直接填写未上报的主机 ID。`
-          : "暂未读取到已注册主机，请直接填写主机 ID。"}
+          ? t(
+              "可选 {n} 台已注册主机，输入时会自动补全；也可直接填写未上报的主机 ID。",
+              "{n} enrolled hosts available; autocomplete is offered as you type. You can also enter the ID of a host that has not reported yet.",
+              { n: agents.length },
+            )
+          : t(
+              "暂未读取到已注册主机，请直接填写主机 ID。",
+              "No enrolled hosts read yet — enter the host ID directly.",
+            )}
       </span>
     </label>
   );

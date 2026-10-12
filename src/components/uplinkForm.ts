@@ -1,4 +1,5 @@
 import type { AgentUplink } from "../api";
+import { t } from "../i18n";
 
 /**
  * 「数据面上送地址与开关」表单的**纯决策**。
@@ -51,10 +52,15 @@ export function uplinkFormState(
     hostText !== setting.host ||
     portText !== String(setting.port) ||
     draft.enabled !== setting.enabled;
+  // 校验文案在**调用期**取词（本函数在组件渲染期调用）：只是把常量搬进 `t()`，
+  // 不放进模块顶层，切语言才有反应（见 `src/i18n/index.ts`）。
   const validationError = !hostOk
-    ? "主机不能为空。"
+    ? t("主机不能为空。", "Host must not be empty.")
     : portText.length > 0 && !portOk
-      ? `端口必须是 ${PORT_MIN}–${PORT_MAX} 的整数。`
+      ? t("端口必须是 {min}–{max} 的整数。", "Port must be an integer from {min} to {max}.", {
+          min: PORT_MIN,
+          max: PORT_MAX,
+        })
       : null;
   return {
     hostOk,

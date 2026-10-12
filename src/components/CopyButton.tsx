@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { t } from "../i18n";
 
 interface CopyButtonProps {
   text?: string;
@@ -37,8 +38,8 @@ export async function copyText(text: string): Promise<void> {
 export function CopyButton({
   text,
   label,
-  copiedLabel = "已复制",
-  failedLabel = "复制失败",
+  copiedLabel = t("已复制", "Copied"),
+  failedLabel = t("复制失败", "Copy failed"),
   className,
   disabled,
 }: CopyButtonProps) {

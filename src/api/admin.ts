@@ -34,6 +34,14 @@ import type {
   WorkResult,
   WorkSpec,
 } from "../types";
+import { t } from "../i18n";
+import {
+  AdminApiError as ApiError,
+  createAdminAuth,
+  isRateLimitedError,
+  isUnauthorizedError,
+  readAdminApiError,
+} from "@dayu-sec/wist-web-core/auth";
 
 /**
  * Agent **实际生效**的数据面上送状态（`GET /api/v1/admin/agents/{agent_id}/runtime-status`
@@ -398,44 +406,21 @@ export interface SetGatewayLinkRequestCommand {
 }
 
 export const ADMIN_AUTH_CHANGED_EVENT = "warpInsightAdminAuthChanged";
-const ADMIN_API_TOKEN_STORAGE_KEY = "warpInsightAdminApiToken";
 
-// Persist the admin token for the current browser session (survives page
-// reloads, but is cleared when the tab/session closes).
-let adminApiToken: string | null =
-  typeof window !== "undefined"
-    ? window.sessionStorage.getItem(ADMIN_API_TOKEN_STORAGE_KEY)
-    : null;
+// 管理 token 的**存取 / 变更通知**、统一错误类型与 401/429 归类、`{error:{code,message}}` 信封解析
+// 都收在共享包 `@dayu-sec/wist-web-core/auth`（与 wist-center-web 同一份实作，只有 key / 事件名不同）。
+// 请求本身的实作仍在本文件：不同服务、不同的超时 / 回落策略。
+const adminAuth = createAdminAuth({
+  storageKey: "warpInsightAdminApiToken",
+  authChangedEvent: ADMIN_AUTH_CHANGED_EVENT,
+});
 
-export class ApiError extends Error {
-  readonly status: number;
-  /** Seconds until the per-IP rate-limit block expires, when status is 429. */
-  readonly retryAfterSeconds?: number;
-  /**
-   * 后端返回的错误正文（若有，已截断）。
-   *
-   * 有些失败只有后端知道原因（例如「摘要与来源内容不符」「来源拉不到」），
-   * 只带状态码的话页面只能给出笼统提示，操作者无从下手。
-   */
-  readonly detail?: string;
+export const getAdminApiToken = adminAuth.getAdminApiToken;
+export const setAdminApiToken = adminAuth.setAdminApiToken;
+export const clearAdminApiToken = adminAuth.clearAdminApiToken;
 
-  constructor(
-    status: number,
-    path: string,
-    retryAfterSeconds?: number,
-    detail?: string,
-  ) {
-    super(`HTTP ${status} ${path}`);
-    this.name = "ApiError";
-    this.status = status;
-    this.retryAfterSeconds = retryAfterSeconds;
-    this.detail = detail;
-  }
-}
-
-export function isRateLimitedError(error: unknown): error is ApiError {
-  return error instanceof ApiError && error.status === 429;
-}
+// `ApiError` 在导入时就别名好了（实为共享包的 `AdminApiError`），各页面沿用原导出名。
+export { ApiError, isRateLimitedError, isUnauthorizedError };
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const adminToken = getAdminApiToken();
@@ -448,69 +433,28 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    const detail = await readErrorDetail(response);
+    const { detail, code } = await readAdminApiError(response);
+    // 网关**明确**说这把 token 不对（`invalid_admin_bearer_token`）时就地清掉：否则浏览器
+    // 会拿着坏 token 每 5s 轮询，把本机 IP 打到限流封禁（429）——“token 错”被伪装成“被限流”，
+    // 人越试越乱。清掉后不再发凭据（未认证请求不计入限流），用户重新粘一次即可。
+    if (response.status === 401 && code === "invalid_admin_bearer_token") {
+      clearAdminApiToken();
+    }
     if (response.status === 429) {
       const retryAfter = Number.parseInt(
         response.headers.get("Retry-After") ?? "",
         10,
       );
-      throw new ApiError(
-        response.status,
-        path,
-        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60,
+      throw new ApiError(response.status, path, {
+        code,
         detail,
-      );
+        retryAfterSeconds:
+          Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 60,
+      });
     }
-    throw new ApiError(response.status, path, undefined, detail);
+    throw new ApiError(response.status, path, { code, detail });
   }
   return (await response.json()) as T;
-}
-
-/** 读取错误响应正文（截断）；失败时不影响原始错误。 */
-async function readErrorDetail(response: Response): Promise<string | undefined> {
-  try {
-    const text = (await response.text()).trim();
-    if (!text) return undefined;
-    return text.length > 300 ? `${text.slice(0, 300)}…` : text;
-  } catch {
-    return undefined;
-  }
-}
-
-export function getAdminApiToken(): string | null {
-  return adminApiToken;
-}
-
-export function setAdminApiToken(token: string): void {
-  const trimmed = token.trim();
-  adminApiToken = trimmed || null;
-  if (typeof window !== "undefined") {
-    if (adminApiToken) {
-      window.sessionStorage.setItem(ADMIN_API_TOKEN_STORAGE_KEY, adminApiToken);
-    } else {
-      window.sessionStorage.removeItem(ADMIN_API_TOKEN_STORAGE_KEY);
-    }
-    window.dispatchEvent(new Event(ADMIN_AUTH_CHANGED_EVENT));
-  }
-}
-
-export function clearAdminApiToken(): void {
-  setAdminApiToken("");
-}
-
-/**
- * 仅 dev：把 vite 注入的开发态 admin token 种进当前会话，让管理查询**开箱即用**（免手填）。
- *
- * 背景：所有管理查询以 `getAdminApiToken()` 作为 `enabled`；浏览器没手填 token（sessionStorage
- * 关标签即清）时查询**压根不发** —— 页面看着「什么也没有」，而 dev 代理虽会自动补
- * `Authorization`，请求不发也白搭。所以在启动时把 token 种上。**已手填的优先**。
- *
- * 参数显式传入（而非直接读 `import.meta.env` / `__DEV_ADMIN_TOKEN__`）是为了可以单测；
- * 生产构建里 `devToken` 为空串、`isDev` 为 false，本函数是 no-op，token 不进前端包。
- */
-export function seedDevAdminToken(devToken: string, isDev: boolean): void {
-  if (!isDev || !devToken || getAdminApiToken()) return;
-  setAdminApiToken(devToken);
 }
 
 function requiredString(value: unknown, fieldName: string): string {
@@ -563,35 +507,36 @@ function normalizeAgentHealth(
   throw new Error("Invalid API response: invalid agent health");
 }
 
-export function normalizeAgentInstallPackage(payload: any): AgentInstallPackage {
+export function normalizeAgentInstallPackage(
+  payload: any,
+): AgentInstallPackage {
   const root = payload.install_package ?? payload.installPackage ?? payload;
   return {
-    packages: requiredArray(
-      root.packages,
-      "agentInstallPackage.packages",
-    ).map((item, index) => {
-      const at = `agentInstallPackage.packages[${index}]`;
-      const record = requiredRecord(item, at);
-      return {
-        platform: requiredString(record.platform, `${at}.platform`),
-        packageUrl: requiredString(
-          record.package_url ?? record.packageUrl,
-          `${at}.packageUrl`,
-        ),
-        packageSha256: nullableString(
-          record.package_sha256 ?? record.packageSha256 ?? null,
-          `${at}.packageSha256`,
-        ),
-        updatedBy: requiredString(
-          record.updated_by ?? record.updatedBy,
-          `${at}.updatedBy`,
-        ),
-        updatedAt: nullableString(
-          record.updated_at ?? record.updatedAt ?? null,
-          `${at}.updatedAt`,
-        ),
-      };
-    }),
+    packages: requiredArray(root.packages, "agentInstallPackage.packages").map(
+      (item, index) => {
+        const at = `agentInstallPackage.packages[${index}]`;
+        const record = requiredRecord(item, at);
+        return {
+          platform: requiredString(record.platform, `${at}.platform`),
+          packageUrl: requiredString(
+            record.package_url ?? record.packageUrl,
+            `${at}.packageUrl`,
+          ),
+          packageSha256: nullableString(
+            record.package_sha256 ?? record.packageSha256 ?? null,
+            `${at}.packageSha256`,
+          ),
+          updatedBy: requiredString(
+            record.updated_by ?? record.updatedBy,
+            `${at}.updatedBy`,
+          ),
+          updatedAt: nullableString(
+            record.updated_at ?? record.updatedAt ?? null,
+            `${at}.updatedAt`,
+          ),
+        };
+      },
+    ),
   };
 }
 
@@ -618,7 +563,10 @@ function normalizeInstallCode(payload: any): AgentInstallCode {
   };
 }
 
-function normalizeAgentListEntry(payload: any, index: number): AgentListEntryView {
+function normalizeAgentListEntry(
+  payload: any,
+  index: number,
+): AgentListEntryView {
   const at = `agents[${index}]`;
   return {
     agentId: requiredString(
@@ -630,7 +578,10 @@ function normalizeAgentListEntry(payload: any, index: number): AgentListEntryVie
       `${at}.instanceId`,
     ),
     hostname: requiredString(payload.hostname ?? "", `${at}.hostname`),
-    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", `${at}.nodeId`),
+    nodeId: requiredString(
+      payload.node_id ?? payload.nodeId ?? "",
+      `${at}.nodeId`,
+    ),
     // 旧网关没有这个键 —— 缺省当空数组，不是形状错误（与 hostname 同口径）。
     ipAddresses: requiredStringArray(
       payload.ip_addresses ?? payload.ipAddresses ?? [],
@@ -710,8 +661,14 @@ function normalizeAgentCertificateStatus(
 function normalizeAgentRevocation(payload: any): AgentRevocationView {
   const record = requiredRecord(payload, "agentRevocation");
   return {
-    entryId: requiredString(record.entry_id ?? record.entryId, "revocation.entryId"),
-    agentId: requiredString(record.agent_id ?? record.agentId, "revocation.agentId"),
+    entryId: requiredString(
+      record.entry_id ?? record.entryId,
+      "revocation.entryId",
+    ),
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "revocation.agentId",
+    ),
     reasonCode: requiredString(
       record.reason_code ?? record.reasonCode ?? "",
       "revocation.reasonCode",
@@ -744,7 +701,10 @@ function normalizeRuntimeStatus(payload: any): AgentRuntimeStatusView {
     version: requiredString(payload.version, "agent.version"),
     status: normalizeAgentStatus(payload.status),
     health: normalizeAgentHealth(payload.health),
-    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", "agent.nodeId"),
+    nodeId: requiredString(
+      payload.node_id ?? payload.nodeId ?? "",
+      "agent.nodeId",
+    ),
     hostname: requiredString(payload.hostname ?? "", "agent.hostname"),
     ipAddresses: requiredStringArray(
       payload.ip_addresses ?? payload.ipAddresses ?? [],
@@ -849,9 +809,15 @@ export function normalizeOverview(payload: any): AgentOverview {
 
 function normalizeHostMetrics(payload: any): AgentHostMetrics {
   return {
-    agentId: requiredString(payload.agent_id ?? payload.agentId, "host.agentId"),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "host.agentId",
+    ),
     // 旧网关没有这些键 —— 缺省当空串 / 空数组，不是形状错误（与 hostname 同口径）。
-    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", "host.nodeId"),
+    nodeId: requiredString(
+      payload.node_id ?? payload.nodeId ?? "",
+      "host.nodeId",
+    ),
     hostname: requiredString(payload.hostname ?? "", "host.hostname"),
     ipAddresses: requiredStringArray(
       payload.ip_addresses ?? payload.ipAddresses ?? [],
@@ -874,10 +840,18 @@ function normalizeHostMetrics(payload: any): AgentHostMetrics {
 
 function normalizeHostMetricsHistory(payload: any): AgentHostMetricsHistory {
   return {
-    loadAverage1m: normalizeSeries(payload.load_average_1m ?? payload.loadAverage1m),
-    loadAverage5m: normalizeSeries(payload.load_average_5m ?? payload.loadAverage5m),
-    loadAverage15m: normalizeSeries(payload.load_average_15m ?? payload.loadAverage15m),
-    memoryTotalKb: normalizeSeries(payload.memory_total_kb ?? payload.memoryTotalKb),
+    loadAverage1m: normalizeSeries(
+      payload.load_average_1m ?? payload.loadAverage1m,
+    ),
+    loadAverage5m: normalizeSeries(
+      payload.load_average_5m ?? payload.loadAverage5m,
+    ),
+    loadAverage15m: normalizeSeries(
+      payload.load_average_15m ?? payload.loadAverage15m,
+    ),
+    memoryTotalKb: normalizeSeries(
+      payload.memory_total_kb ?? payload.memoryTotalKb,
+    ),
     memoryAvailableKb: normalizeSeries(
       payload.memory_available_kb ?? payload.memoryAvailableKb,
     ),
@@ -898,15 +872,23 @@ function normalizeSeries(payload: any): [number, number][] {
   });
 }
 
-function normalizeHostMetricsSummaries(payload: any): AgentHostMetricsSummary[] {
+function normalizeHostMetricsSummaries(
+  payload: any,
+): AgentHostMetricsSummary[] {
   if (!Array.isArray(payload)) return [];
   return payload.map(normalizeHostMetricsSummary);
 }
 
 function normalizeHostMetricsSummary(payload: any): AgentHostMetricsSummary {
   return {
-    agentId: requiredString(payload.agent_id ?? payload.agentId, "host.agentId"),
-    nodeId: requiredString(payload.node_id ?? payload.nodeId ?? "", "host.nodeId"),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "host.agentId",
+    ),
+    nodeId: requiredString(
+      payload.node_id ?? payload.nodeId ?? "",
+      "host.nodeId",
+    ),
     hostname: requiredString(payload.hostname ?? "", "host.hostname"),
     ipAddresses: requiredStringArray(
       payload.ip_addresses ?? payload.ipAddresses ?? [],
@@ -1167,6 +1149,23 @@ export function normalizeAgentAdvertiseUrl(payload: any): AgentAdvertiseUrl {
 export async function fetchAgentInstallCode(): Promise<AgentInstallCode> {
   const payload = await requestJson<unknown>("/api/v1/agent/install-code");
   return normalizeInstallCode(payload);
+}
+
+/**
+ * 网关（后端）版本（`GET /api/v1/version`）。
+ *
+ * **公开端点**：未带 admin token 也能取（页面左下角在未登录时也要显示后端版本）。契约是扁平的
+ * `{ version }`；`version` 缺失 / 不是字符串即视为契约漂移 —— 抛错而不是静默成空串，让调用方
+ * （版本块）把未知一律显示成 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）。
+ */
+export function normalizeBackendVersion(payload: unknown): string {
+  const record = requiredRecord(payload, "version");
+  return requiredString(record.version, "version");
+}
+
+export async function fetchBackendVersion(): Promise<string> {
+  const payload = await requestJson<unknown>("/api/v1/version");
+  return normalizeBackendVersion(payload);
 }
 
 export async function fetchAgentInstallPackage(): Promise<AgentInstallPackage> {
@@ -1496,7 +1495,11 @@ export function normalizeGatewaySelfStateHistory(
           ["memory_bytes", "memoryBytes"],
           `${at}.memory_bytes`,
         ),
-        load1m: nullableNumberField(record, ["load_1m", "load1m"], `${at}.load_1m`),
+        load1m: nullableNumberField(
+          record,
+          ["load_1m", "load1m"],
+          `${at}.load_1m`,
+        ),
         onlineAgents: requiredNumber(
           record.online_agents ?? record.onlineAgents,
           `${at}.online_agents`,
@@ -1936,7 +1939,10 @@ function normalizeAgentFactSummary(payload: any): AgentFactSummary {
 
 function normalizePurposeSignal(payload: any): PurposeSignal {
   return {
-    ruleId: requiredString(payload.rule_id ?? payload.ruleId, "purposeSignal.ruleId"),
+    ruleId: requiredString(
+      payload.rule_id ?? payload.ruleId,
+      "purposeSignal.ruleId",
+    ),
     // kind 在模型里是开放字符串（process / process_path / ...），不校验枚举。
     kind: requiredString(payload.kind, "purposeSignal.kind"),
     value: requiredString(payload.value, "purposeSignal.value"),
@@ -1958,7 +1964,10 @@ function normalizePurposeSuggestion(payload: any): PurposeSuggestion {
       payload.suggested_class ?? payload.suggestedClass,
       "purposeSuggestion.suggestedClass",
     ),
-    confidence: requiredNumber(payload.confidence, "purposeSuggestion.confidence"),
+    confidence: requiredNumber(
+      payload.confidence,
+      "purposeSuggestion.confidence",
+    ),
     // method 也是开放字符串（rule | model），同样不校验枚举。
     method: requiredString(payload.method, "purposeSuggestion.method"),
     ruleSetId: nullableStringField(
@@ -2031,7 +2040,10 @@ export function normalizeAgentPurposeView(payload: any): AgentPurposeView {
     "agentPurpose.classification",
   );
   return {
-    agentId: requiredString(root.agent_id ?? root.agentId, "agentPurpose.agentId"),
+    agentId: requiredString(
+      root.agent_id ?? root.agentId,
+      "agentPurpose.agentId",
+    ),
     factSummary: factSummary ? normalizeAgentFactSummary(factSummary) : null,
     suggestion: suggestion ? normalizePurposeSuggestion(suggestion) : null,
     // 管理面还没实现判定的写入端点，服务端恒为 null；真出现时按模型如实解析。
@@ -2192,10 +2204,7 @@ export function normalizeAgentSoftwareInventory(
       presentField(root, ["entries"], "agentSoftwareInventory.entries"),
       "agentSoftwareInventory.entries",
     ).map((entry, index) =>
-      normalizeSoftwareEntry(
-        entry,
-        `agentSoftwareInventory.entries[${index}]`,
-      ),
+      normalizeSoftwareEntry(entry, `agentSoftwareInventory.entries[${index}]`),
     ),
   };
 }
@@ -2306,7 +2315,11 @@ export function parseWorkSpec(raw: string): WorkSpec {
     return {
       units: [],
       raw,
-      error: `工作参数不是合法 JSON：${(error as Error).message}`,
+      error: t(
+        "工作参数不是合法 JSON：{reason}",
+        "Work spec is not valid JSON: {reason}",
+        { reason: (error as Error).message },
+      ),
     };
   }
   try {
@@ -2332,31 +2345,36 @@ export function parseWorkSpec(raw: string): WorkSpec {
             unit.requires_privilege ?? unit.requiresPrivilege,
             `workSpec.units[${index}].requiresPrivilege`,
           ),
-          sources: presentField(
-            unit,
-            ["sources"],
-            `workSpec.units[${index}].sources`,
-          ) === undefined
-            ? []
-            : requiredArray(
-                presentField(unit, ["sources"], `workSpec.units[${index}].sources`),
-                `workSpec.units[${index}].sources`,
-              ).map((source, sourceIndex) => {
-                const entry = requiredRecord(
-                  source,
-                  `workSpec.units[${index}].sources[${sourceIndex}]`,
-                );
-                return {
-                  kind: requiredString(
-                    entry.kind,
-                    `workSpec.units[${index}].sources[${sourceIndex}].kind`,
+          sources:
+            presentField(
+              unit,
+              ["sources"],
+              `workSpec.units[${index}].sources`,
+            ) === undefined
+              ? []
+              : requiredArray(
+                  presentField(
+                    unit,
+                    ["sources"],
+                    `workSpec.units[${index}].sources`,
                   ),
-                  target: requiredString(
-                    entry.target,
-                    `workSpec.units[${index}].sources[${sourceIndex}].target`,
-                  ),
-                };
-              }),
+                  `workSpec.units[${index}].sources`,
+                ).map((source, sourceIndex) => {
+                  const entry = requiredRecord(
+                    source,
+                    `workSpec.units[${index}].sources[${sourceIndex}]`,
+                  );
+                  return {
+                    kind: requiredString(
+                      entry.kind,
+                      `workSpec.units[${index}].sources[${sourceIndex}].kind`,
+                    ),
+                    target: requiredString(
+                      entry.target,
+                      `workSpec.units[${index}].sources[${sourceIndex}].target`,
+                    ),
+                  };
+                }),
         };
       }),
       raw,
@@ -2373,7 +2391,10 @@ function normalizeWorkAck(payload: unknown): WorkAck | null {
   const record = requiredRecord(payload, "workAck");
   return {
     workId: requiredString(record.work_id ?? record.workId, "workAck.workId"),
-    agentId: requiredString(record.agent_id ?? record.agentId, "workAck.agentId"),
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "workAck.agentId",
+    ),
     workKind: requiredWorkKind(
       record.work_kind ?? record.workKind,
       "workAck.workKind",
@@ -2412,8 +2433,14 @@ function requiredStandingWorkStatus(
 
 function normalizeStandingWork(payload: any): StandingWork {
   return {
-    workId: requiredString(payload.work_id ?? payload.workId, "standingWork.workId"),
-    agentId: requiredString(payload.agent_id ?? payload.agentId, "standingWork.agentId"),
+    workId: requiredString(
+      payload.work_id ?? payload.workId,
+      "standingWork.workId",
+    ),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "standingWork.agentId",
+    ),
     family: requiredString(payload.family, "standingWork.family"),
     spec: parseWorkSpec(requiredString(payload.spec, "standingWork.spec")),
     catalogVersion: requiredNumber(
@@ -2434,8 +2461,14 @@ function normalizeStandingWork(payload: any): StandingWork {
       "standingWork.effectiveFrom",
     ),
     status: requiredStandingWorkStatus(payload.status, "standingWork.status"),
-    updatedBy: requiredString(payload.updated_by ?? payload.updatedBy, "standingWork.updatedBy"),
-    updatedAt: requiredString(payload.updated_at ?? payload.updatedAt, "standingWork.updatedAt"),
+    updatedBy: requiredString(
+      payload.updated_by ?? payload.updatedBy,
+      "standingWork.updatedBy",
+    ),
+    updatedAt: requiredString(
+      payload.updated_at ?? payload.updatedAt,
+      "standingWork.updatedAt",
+    ),
     ack: normalizeWorkAck(payload.ack),
   };
 }
@@ -2444,8 +2477,14 @@ function normalizeWorkResult(payload: unknown): WorkResult | null {
   if (payload === null || payload === undefined) return null;
   const record = requiredRecord(payload, "workResult");
   return {
-    workId: requiredString(record.work_id ?? record.workId, "workResult.workId"),
-    agentId: requiredString(record.agent_id ?? record.agentId, "workResult.agentId"),
+    workId: requiredString(
+      record.work_id ?? record.workId,
+      "workResult.workId",
+    ),
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "workResult.agentId",
+    ),
     status: requiredString(record.status, "workResult.status"),
     detail: requiredString(record.detail, "workResult.detail"),
     reportedAt: requiredString(
@@ -2457,8 +2496,14 @@ function normalizeWorkResult(payload: unknown): WorkResult | null {
 
 function normalizeOneShotWork(payload: any): OneShotWork {
   return {
-    workId: requiredString(payload.work_id ?? payload.workId, "oneShotWork.workId"),
-    agentId: requiredString(payload.agent_id ?? payload.agentId, "oneShotWork.agentId"),
+    workId: requiredString(
+      payload.work_id ?? payload.workId,
+      "oneShotWork.workId",
+    ),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "oneShotWork.agentId",
+    ),
     action: requiredString(payload.action, "oneShotWork.action"),
     spec: requiredString(payload.spec, "oneShotWork.spec"),
     scheduledAt: requiredString(
@@ -2473,16 +2518,29 @@ function normalizeOneShotWork(payload: any): OneShotWork {
       payload.timeout_seconds ?? payload.timeoutSeconds,
       "oneShotWork.timeoutSeconds",
     ),
-    interruptible: requiredBoolean(payload.interruptible, "oneShotWork.interruptible"),
+    interruptible: requiredBoolean(
+      payload.interruptible,
+      "oneShotWork.interruptible",
+    ),
     status: requiredString(payload.status, "oneShotWork.status"),
-    pausedAt: nullableStringField(payload, ["paused_at", "pausedAt"], "oneShotWork.pausedAt"),
+    pausedAt: nullableStringField(
+      payload,
+      ["paused_at", "pausedAt"],
+      "oneShotWork.pausedAt",
+    ),
     pausedTotalSeconds: requiredNumber(
       payload.paused_total_seconds ?? payload.pausedTotalSeconds,
       "oneShotWork.pausedTotalSeconds",
     ),
     attempt: requiredNumber(payload.attempt, "oneShotWork.attempt"),
-    issuedBy: requiredString(payload.issued_by ?? payload.issuedBy, "oneShotWork.issuedBy"),
-    issuedAt: requiredString(payload.issued_at ?? payload.issuedAt, "oneShotWork.issuedAt"),
+    issuedBy: requiredString(
+      payload.issued_by ?? payload.issuedBy,
+      "oneShotWork.issuedBy",
+    ),
+    issuedAt: requiredString(
+      payload.issued_at ?? payload.issuedAt,
+      "oneShotWork.issuedAt",
+    ),
     ack: normalizeWorkAck(payload.ack),
     result: normalizeWorkResult(payload.result),
   };
@@ -2503,7 +2561,9 @@ function normalizeAgentLocalTask(payload: any): AgentLocalTaskView {
   };
 }
 
-function normalizeAgentLocalStandingWork(payload: any): AgentLocalStandingWorkView {
+function normalizeAgentLocalStandingWork(
+  payload: any,
+): AgentLocalStandingWorkView {
   return {
     workId: requiredString(
       payload.work_id ?? payload.workId,
@@ -2530,7 +2590,9 @@ function normalizeAgentLocalStandingWork(payload: any): AgentLocalStandingWorkVi
   };
 }
 
-function normalizeAgentLocalOneShotWork(payload: any): AgentLocalOneShotWorkView {
+function normalizeAgentLocalOneShotWork(
+  payload: any,
+): AgentLocalOneShotWorkView {
   return {
     workId: requiredString(
       payload.work_id ?? payload.workId,
@@ -2538,7 +2600,10 @@ function normalizeAgentLocalOneShotWork(payload: any): AgentLocalOneShotWorkView
     ),
     action: requiredString(payload.action, "agentLocalOneShotWork.action"),
     status: requiredString(payload.status, "agentLocalOneShotWork.status"),
-    execution: requiredString(payload.execution, "agentLocalOneShotWork.execution"),
+    execution: requiredString(
+      payload.execution,
+      "agentLocalOneShotWork.execution",
+    ),
     scheduledAt: requiredString(
       payload.scheduled_at ?? payload.scheduledAt,
       "agentLocalOneShotWork.scheduledAt",
@@ -2608,14 +2673,18 @@ function normalizeAgentLocalWorkView(payload: any): AgentLocalWorkView {
 export function normalizeAgentWorkView(payload: any): AgentWorkView {
   const hasLocal = Object.prototype.hasOwnProperty.call(payload, "local");
   return {
-    agentId: requiredString(payload.agent_id ?? payload.agentId, "agentWork.agentId"),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "agentWork.agentId",
+    ),
     sequence: requiredNumber(payload.sequence, "agentWork.sequence"),
     standing: requiredArray(payload.standing ?? [], "agentWork.standing").map(
       normalizeStandingWork,
     ),
-    oneShot: requiredArray(payload.one_shot ?? payload.oneShot ?? [], "agentWork.oneShot").map(
-      normalizeOneShotWork,
-    ),
+    oneShot: requiredArray(
+      payload.one_shot ?? payload.oneShot ?? [],
+      "agentWork.oneShot",
+    ).map(normalizeOneShotWork),
     retiredStanding: requiredArray(
       payload.retired_standing ?? payload.retiredStanding ?? [],
       "agentWork.retiredStanding",
@@ -2639,15 +2708,27 @@ export function normalizeAgentWorkView(payload: any): AgentWorkView {
 /** 规范化 `WorkReceipt`。 */
 export function normalizeWorkReceipt(payload: any): WorkReceipt {
   return {
-    workId: requiredString(payload.work_id ?? payload.workId, "workReceipt.workId"),
-    agentId: requiredString(payload.agent_id ?? payload.agentId, "workReceipt.agentId"),
-    workKind: requiredWorkKind(payload.work_kind ?? payload.workKind, "workReceipt.workKind"),
+    workId: requiredString(
+      payload.work_id ?? payload.workId,
+      "workReceipt.workId",
+    ),
+    agentId: requiredString(
+      payload.agent_id ?? payload.agentId,
+      "workReceipt.agentId",
+    ),
+    workKind: requiredWorkKind(
+      payload.work_kind ?? payload.workKind,
+      "workReceipt.workKind",
+    ),
     status: requiredString(payload.status, "workReceipt.status"),
     planVersion: requiredNumber(
       payload.plan_version ?? payload.planVersion,
       "workReceipt.planVersion",
     ),
-    createdAt: requiredString(payload.created_at ?? payload.createdAt, "workReceipt.createdAt"),
+    createdAt: requiredString(
+      payload.created_at ?? payload.createdAt,
+      "workReceipt.createdAt",
+    ),
   };
 }
 
@@ -2684,6 +2765,67 @@ export async function grantStandingWork(
     },
   );
   return normalizeWorkReceipt(payload);
+}
+
+/** 批量授权里**成功**的一份：够页面说清「授权了哪份、期望版本几」。 */
+export interface GrantedStandingWork {
+  family: string;
+  workId: string;
+  planVersion: number;
+}
+
+/** 批量授权里**失败**的一份：面名 + 一句话原因。 */
+export interface FailedStandingGrant {
+  family: string;
+  message: string;
+}
+
+/** 批量授权的结果：成功与失败**都**带回来（单份失败不影响其余）。 */
+export interface GrantStandingWorkAllOutcome {
+  granted: GrantedStandingWork[];
+  failed: FailedStandingGrant[];
+}
+
+/**
+ * 一次授权多条常驻工作（工作页上的「全部授权」）。
+ *
+ * 网关只有**一份工作一个请求**的授权接口（没有批量端点），所以这里在前端**串行**提交：
+ * 串行不会让多份授权同时去推网关的授权序号，部分失败时的先后也是确定的。
+ * 单份失败**不中断**其余 —— 每一份的结果都带回来，页面据此说清哪一份没成（而不是
+ * 一个「批量失败」把已经成功的几份也说得像没成）。
+ */
+export async function grantStandingWorkAll(
+  agentId: string,
+  families: readonly string[],
+): Promise<GrantStandingWorkAllOutcome> {
+  const granted: GrantedStandingWork[] = [];
+  const failed: FailedStandingGrant[] = [];
+  for (const family of families) {
+    try {
+      const receipt = await grantStandingWork(agentId, { family });
+      granted.push({
+        family,
+        workId: receipt.workId,
+        planVersion: receipt.planVersion,
+      });
+    } catch (error) {
+      failed.push({ family, message: grantFailureMessage(error) });
+    }
+  }
+  return { granted, failed };
+}
+
+/** 批量授权里单份失败的一句话原因（带状态码与后端正文，页面直接列出来）。 */
+function grantFailureMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.detail
+      ? t("HTTP {status}：{detail}", "HTTP {status}: {detail}", {
+          status: error.status,
+          detail: error.detail,
+        })
+      : `HTTP ${error.status}`;
+  }
+  return t("响应不符合当前契约", "Response does not match the current contract");
 }
 
 /** 派一件一次性工作（有期限与终态；agentd 侧的执行尚未实现）。 */
@@ -2764,7 +2906,9 @@ export async function classifyAgentPurpose(
       method: "POST",
       body: JSON.stringify({
         machine_class: command.machineClass,
-        ...(command.suggestionId ? { suggestion_id: command.suggestionId } : {}),
+        ...(command.suggestionId
+          ? { suggestion_id: command.suggestionId }
+          : {}),
         ...(command.note ? { note: command.note } : {}),
       }),
     },
@@ -2800,7 +2944,10 @@ function normalizeFamilyReadiness(
     ready: requiredBoolean(payload.ready, "familyReadiness.ready"),
     // 解析就绪是**独立**的一轴（不参与闸门）：缺字段时不当 false 默认，
     // 否则服务端一漂移，页面就会把“不知道能不能归类”默默说成“不能归类”。
-    parseReady: requiredBoolean(payload.parse_ready, "familyReadiness.parseReady"),
+    parseReady: requiredBoolean(
+      payload.parse_ready,
+      "familyReadiness.parseReady",
+    ),
   };
 }
 
@@ -2842,24 +2989,29 @@ export function normalizeContentCatalog(payload: any): ContentCatalogView {
       if (value === null) return null;
       return requiredNumber(value, "contentCatalog.supersededBy");
     })(),
-    templates: requiredArray(payload.templates ?? [], "contentCatalog.templates").map(
-      normalizeContentTemplate,
-    ),
+    templates: requiredArray(
+      payload.templates ?? [],
+      "contentCatalog.templates",
+    ).map(normalizeContentTemplate),
     // 网关的 readiness 是**按平台分组**的（`[{platform, families:[…]}]`）；
     // 摊平成一条一面，因为页面的问题是「这个面能不能派」，而不是「有哪些平台」。
-    readiness: requiredArray(payload.readiness ?? [], "contentCatalog.readiness").flatMap(
-      (group, index) => {
-        const record = requiredRecord(group, `contentCatalog.readiness[${index}]`);
-        const platform = requiredString(
-          record.platform,
-          `contentCatalog.readiness[${index}].platform`,
-        );
-        return requiredArray(
-          record.families ?? [],
-          `contentCatalog.readiness[${index}].families`,
-        ).map((entry) => normalizeFamilyReadiness(platform, entry));
-      },
-    ),
+    readiness: requiredArray(
+      payload.readiness ?? [],
+      "contentCatalog.readiness",
+    ).flatMap((group, index) => {
+      const record = requiredRecord(
+        group,
+        `contentCatalog.readiness[${index}]`,
+      );
+      const platform = requiredString(
+        record.platform,
+        `contentCatalog.readiness[${index}].platform`,
+      );
+      return requiredArray(
+        record.families ?? [],
+        `contentCatalog.readiness[${index}].families`,
+      ).map((entry) => normalizeFamilyReadiness(platform, entry));
+    }),
   };
 }
 
@@ -3100,17 +3252,29 @@ function normalizeRolloutPhase(payload: unknown): RolloutPhaseView {
   const record = requiredRecord(payload, "rolloutPhase");
   return {
     phaseIndex: requiredNumber(
-      presentField(record, ["phase_index", "phaseIndex"], "rolloutPhase.phaseIndex"),
+      presentField(
+        record,
+        ["phase_index", "phaseIndex"],
+        "rolloutPhase.phaseIndex",
+      ),
       "rolloutPhase.phaseIndex",
     ),
     targetIds: requiredArray(
-      presentField(record, ["target_ids", "targetIds"], "rolloutPhase.targetIds"),
+      presentField(
+        record,
+        ["target_ids", "targetIds"],
+        "rolloutPhase.targetIds",
+      ),
       "rolloutPhase.targetIds",
     ).map((target, index) =>
       requiredString(target, `rolloutPhase.targetIds[${index}]`),
     ),
     advanceRule: requiredString(
-      presentField(record, ["advance_rule", "advanceRule"], "rolloutPhase.advanceRule"),
+      presentField(
+        record,
+        ["advance_rule", "advanceRule"],
+        "rolloutPhase.advanceRule",
+      ),
       "rolloutPhase.advanceRule",
     ),
     status: requiredString(record.status, "rolloutPhase.status"),
@@ -3128,29 +3292,55 @@ export function normalizeRolloutPlan(payload: unknown): RolloutPlanView {
     action: requiredString(record.action, "rolloutPlan.action"),
     spec: requiredString(record.spec, "rolloutPlan.spec"),
     deadlineAt: requiredString(
-      presentField(record, ["deadline_at", "deadlineAt"], "rolloutPlan.deadlineAt"),
+      presentField(
+        record,
+        ["deadline_at", "deadlineAt"],
+        "rolloutPlan.deadlineAt",
+      ),
       "rolloutPlan.deadlineAt",
     ),
     timeoutSeconds: requiredNumber(
-      presentField(record, ["timeout_seconds", "timeoutSeconds"], "rolloutPlan.timeoutSeconds"),
+      presentField(
+        record,
+        ["timeout_seconds", "timeoutSeconds"],
+        "rolloutPlan.timeoutSeconds",
+      ),
       "rolloutPlan.timeoutSeconds",
     ),
-    phases: requiredArray(record.phases, "rolloutPlan.phases").map(normalizeRolloutPhase),
+    phases: requiredArray(record.phases, "rolloutPlan.phases").map(
+      normalizeRolloutPhase,
+    ),
     batchSize: requiredNumber(
-      presentField(record, ["batch_size", "batchSize"], "rolloutPlan.batchSize"),
+      presentField(
+        record,
+        ["batch_size", "batchSize"],
+        "rolloutPlan.batchSize",
+      ),
       "rolloutPlan.batchSize",
     ),
     currentPhase: requiredNumber(
-      presentField(record, ["current_phase", "currentPhase"], "rolloutPlan.currentPhase"),
+      presentField(
+        record,
+        ["current_phase", "currentPhase"],
+        "rolloutPlan.currentPhase",
+      ),
       "rolloutPlan.currentPhase",
     ),
     status: requiredString(record.status, "rolloutPlan.status"),
     createdBy: requiredString(
-      presentField(record, ["created_by", "createdBy"], "rolloutPlan.createdBy"),
+      presentField(
+        record,
+        ["created_by", "createdBy"],
+        "rolloutPlan.createdBy",
+      ),
       "rolloutPlan.createdBy",
     ),
     createdAt: requiredString(
-      presentField(record, ["created_at", "createdAt"], "rolloutPlan.createdAt"),
+      presentField(
+        record,
+        ["created_at", "createdAt"],
+        "rolloutPlan.createdAt",
+      ),
       "rolloutPlan.createdAt",
     ),
     approvedBy: nullableStringField(
@@ -3173,18 +3363,28 @@ function normalizeRolloutPlanEntry(payload: unknown): RolloutPlanEntryView {
       presentField(record, ["target_id", "targetId"], "rolloutEntry.targetId"),
       "rolloutEntry.targetId",
     ),
-    workId: nullableStringField(record, ["work_id", "workId"], "rolloutEntry.workId"),
+    workId: nullableStringField(
+      record,
+      ["work_id", "workId"],
+      "rolloutEntry.workId",
+    ),
     status: requiredString(record.status, "rolloutEntry.status"),
     detail: requiredString(record.detail, "rolloutEntry.detail"),
     updatedAt: requiredString(
-      presentField(record, ["updated_at", "updatedAt"], "rolloutEntry.updatedAt"),
+      presentField(
+        record,
+        ["updated_at", "updatedAt"],
+        "rolloutEntry.updatedAt",
+      ),
       "rolloutEntry.updatedAt",
     ),
   };
 }
 
 /** 规范化一份计划详情（`GET /api/v1/admin/rollout-plans/{plan_id}`）。 */
-export function normalizeRolloutPlanDetail(payload: unknown): RolloutPlanDetailView {
+export function normalizeRolloutPlanDetail(
+  payload: unknown,
+): RolloutPlanDetailView {
   const record = requiredRecord(payload, "rolloutPlanDetail");
   return {
     plan: normalizeRolloutPlan(record.plan),
@@ -3230,7 +3430,9 @@ export async function createRolloutPlan(
 }
 
 /** 批准一份计划：进入第一阶段，为阶段内每个 target 生成一件一次性工作。 */
-export async function approveRolloutPlan(planId: string): Promise<RolloutPlanView> {
+export async function approveRolloutPlan(
+  planId: string,
+): Promise<RolloutPlanView> {
   const payload = await requestJson<unknown>(
     "/api/v1/admin/rollout-plans/approve",
     { method: "POST", body: JSON.stringify({ plan_id: planId }) },
@@ -3239,7 +3441,9 @@ export async function approveRolloutPlan(planId: string): Promise<RolloutPlanVie
 }
 
 /** 推进到下一阶段（`advance_rule = manual` 的阶段由人工确认后点这个）。 */
-export async function advanceRolloutPlan(planId: string): Promise<RolloutPlanView> {
+export async function advanceRolloutPlan(
+  planId: string,
+): Promise<RolloutPlanView> {
   const payload = await requestJson<unknown>(
     "/api/v1/admin/rollout-plans/advance",
     { method: "POST", body: JSON.stringify({ plan_id: planId }) },
@@ -3277,8 +3481,8 @@ export async function retryRolloutPlan(
 // 三件事在这里被钉住：
 //   1. **录入 ≠ 生效**：`POST …/packages` 只落盘登记，`POST …/packages/{id}/activate` 才切指针；
 //   2. **空载不是错误**：`GET …/knowledge` 回 `configured: false` + `hint`，页面据此给「怎么办」；
-//   3. **错误正文是 `{code, message}`**（`knowledge_ops::KnowledgeErrorBody`），页面靠 `code`
-//      分辨「包不对」与「网关换了库」，所以 `parseKnowledgeErrorDetail` 把它解出来。
+//   3. **错误正文是统一信封 `{error:{code, message}}`**（`api::error::ProtocolError`），`requestJson`
+//      统一解出 `code` / `message`（`ApiError.code` / `.detail`），页面靠 `code` 分辨「包不对」与「网关换了库」。
 
 /** 网关**当前生效**的知识库内容（`GET /api/v1/admin/knowledge`）。 */
 export interface KnowledgeView {
@@ -3658,30 +3862,6 @@ export function normalizeKnowledgeLocks(payload: unknown): KnowledgeLocksView {
       };
     }),
   };
-}
-
-/**
- * 网关知识库接口的错误正文是 `{code, message}`（不是自由文本），把它解出来。
- *
- * 为什么要 `code`：`package_not_found`（包没了）与 `unknown_credential` 一类**谁能修**完全不同，
- * 页面得照着给处置建议。解不出来（网关换了构建、正文被代理截断）就回 `null`，原文照常展示。
- */
-export function parseKnowledgeErrorDetail(
-  detail: string | undefined,
-): { code: string; message: string } | null {
-  if (!detail) return null;
-  try {
-    const parsed: unknown = JSON.parse(detail);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    const body = parsed as Record<string, unknown>;
-    if (typeof body.message !== "string") return null;
-    return {
-      code: typeof body.code === "string" ? body.code : "",
-      message: body.message,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /** 当前生效的知识库内容（空载时回 `configured: false`，**不是 503**）。 */

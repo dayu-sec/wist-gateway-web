@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemRecentOnlineRegisteredAgentCardGrid.module.css";
 import { SubsystemRecentOnlineRegisteredAgentCard } from "./SubsystemRecentOnlineRegisteredAgentCard";
 import type { RecentOnlineRegisteredAgent } from "../api";
@@ -13,11 +14,19 @@ export function SubsystemRecentOnlineRegisteredAgentCardGrid({
   loading,
 }: SubsystemRecentOnlineRegisteredAgentCardGridProps) {
   if (loading) {
-    return <div className={styles.empty}>正在加载最近上线注册 Agent</div>;
+    return (
+      <div className={styles.empty}>
+        {t("正在加载最近上线注册 Agent", "Loading recently online registered agents")}
+      </div>
+    );
   }
 
   if (items.length === 0) {
-    return <div className={styles.empty}>暂无最近上线注册 Agent</div>;
+    return (
+      <div className={styles.empty}>
+        {t("暂无最近上线注册 Agent", "No recently online registered agents")}
+      </div>
+    );
   }
 
   return (

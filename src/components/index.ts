@@ -18,7 +18,8 @@ export { SubsystemAbnormalAgentCardGrid } from "./SubsystemAbnormalAgentCardGrid
 export { SubsystemAdminTopNavigation } from "./SubsystemAdminTopNavigation";
 export { SubsystemAgentInstallPage } from "./SubsystemAgentInstallPage";
 export { SubsystemGatewayInfoPage } from "./SubsystemGatewayInfoPage";
-export { SubsystemAgentPackagePage } from "./SubsystemAgentPackagePage";
+export { SubsystemAgentPackageListPage } from "./SubsystemAgentPackageListPage";
+export { SubsystemAgentPackageAddPage } from "./SubsystemAgentPackageAddPage";
 export { SubsystemKnowledgePage } from "./SubsystemKnowledgePage";
 export { SubsystemShowAgentRuntimeStatusUsecaseCard } from "./SubsystemShowAgentRuntimeStatusUsecaseCard";
 export { SubsystemAgentRuntimeStatusResult } from "./SubsystemAgentRuntimeStatusResult";
@@ -63,3 +64,4 @@ export { SubsystemAgentFleetPage } from "./SubsystemAgentFleetPage";
 export { SubsystemAgentUpgradeDetailPage } from "./SubsystemAgentUpgradeDetailPage";
 export { AppLayout } from "./AppLayout";
 export { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPanel";
+export { SubsystemVersionFooter } from "./SubsystemVersionFooter";

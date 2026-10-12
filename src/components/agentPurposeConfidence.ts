@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 /**
  * 「网关用途建议」的结论强度分档。
  *
@@ -35,19 +37,55 @@ export function confidenceTone(
   return "strong";
 }
 
+/**
+ * 档位名。**用 getter 而非普通属性**：`t()` 必须在渲染期求值 —— 模块顶层只建一次这张表，
+ * 值在**读属性时**（渲染期）才算，切语言才会跟着变。
+ */
 export const CONFIDENCE_LABEL: Record<ConfidenceTone, string> = {
-  baseline: "无有效依据",
-  tie: "并列无区分度",
-  weak: "弱结论",
-  fair: "中等把握",
-  strong: "有把握",
+  get baseline() {
+    return t("无有效依据", "No effective signal");
+  },
+  get tie() {
+    return t("并列无区分度", "Tied, no separation");
+  },
+  get weak() {
+    return t("弱结论", "Weak conclusion");
+  },
+  get fair() {
+    return t("中等把握", "Moderate confidence");
+  },
+  get strong() {
+    return t("有把握", "Confident");
+  },
 };
 
+/** 档位说明。同 `CONFIDENCE_LABEL`：getter = 渲染期取词。 */
 export const CONFIDENCE_HINT: Record<ConfidenceTone, string> = {
-  baseline:
-    "没有任何有效规则命中，也没有逐条依据：网关按该平台规则册的基线类别兜底（macos → MacDaily，linux → LinuxHost）。它只说明「没有更具体的特点」，不代表网关认定这台机器就属于这一类。若该平台规则册没配基线，就不会产出建议（页面会另行说明）。",
-  tie: "有逐条命中依据，但得分没有拉开差距（最高分与次高分并列，或总分不为正）：无法据此区分类别，需要人工判定。",
-  weak: "弱结论：最高分只略微领先次高分，或总分低于规则册的 weak_score 被打过折。",
-  fair: "中等把握：最高分对次高分有优势，但仍可能有规则未覆盖的信号。",
-  strong: "有把握：最高分明显领先次高分。",
+  get baseline() {
+    return t(
+      "没有任何有效规则命中，也没有逐条依据：网关按该平台规则册的基线类别兜底（macos → MacDaily，linux → LinuxHost）。它只说明「没有更具体的特点」，不代表网关认定这台机器就属于这一类。若该平台规则册没配基线，就不会产出建议（页面会另行说明）。",
+      "No effective rule matched and there is no per-signal evidence: the gateway falls back to the baseline class of that platform's rule book (macos → MacDaily, linux → LinuxHost). It only means there is nothing more specific to go on; it does not mean the gateway considers this host to belong to that class. If that platform's rule book has no baseline configured, no suggestion is produced (the page says so separately).",
+    );
+  },
+  get tie() {
+    return t(
+      "有逐条命中依据，但得分没有拉开差距（最高分与次高分并列，或总分不为正）：无法据此区分类别，需要人工判定。",
+      "There is per-signal evidence, but the scores are not separated (top score tied with the runner-up, or the total is not positive): the class cannot be distinguished from it and needs a human call.",
+    );
+  },
+  get weak() {
+    return t(
+      "弱结论：最高分只略微领先次高分，或总分低于规则册的 weak_score 被打过折。",
+      "Weak conclusion: the top score only slightly leads the runner-up, or the total is below the rule book's weak_score and was halved.",
+    );
+  },
+  get fair() {
+    return t(
+      "中等把握：最高分对次高分有优势，但仍可能有规则未覆盖的信号。",
+      "Moderate confidence: the top score leads the runner-up, but there may still be signals that no rule covers.",
+    );
+  },
+  get strong() {
+    return t("有把握：最高分明显领先次高分。", "Confident: the top score clearly leads the runner-up.");
+  },
 };

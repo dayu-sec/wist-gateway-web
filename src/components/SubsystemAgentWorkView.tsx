@@ -38,6 +38,7 @@ import {
   unsupportedSourceCount,
   unsupportedSourceReason,
 } from "./agentWorkStatus";
+import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentWorkView.module.css";
 
 export interface WorkActionCommand {
@@ -56,17 +57,21 @@ interface SubsystemAgentWorkViewProps {
   machineClass: MachineClass | null;
   /** 有操作在提交（按钮禁用，避免重复点击）。 */
   pending: boolean;
+  /** 「全部授权」正在逐面提交（与 `pending` 分开：它只用来换按钮文案）。 */
+  grantAllPending: boolean;
   actionError: string | null;
   actionNotice: string | null;
   onAction: (command: WorkActionCommand) => void;
   onGrantStanding: (command: GrantStandingWorkCommand) => void;
+  /** 一次授权多份还没授权的常驻工作（面名列表）。 */
+  onGrantAll: (families: string[]) => void;
   onGrantOneShot: (command: GrantOneShotWorkCommand) => void;
 }
 
 function formatTimestamp(value: string): string {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return value;
-  return at.toLocaleString("zh-CN", { hour12: false });
+  return at.toLocaleString(dateLocale(), { hour12: false });
 }
 
 function toneClass(tone: string): string {
@@ -102,10 +107,12 @@ export function SubsystemAgentWorkView({
   catalogUnavailable,
   machineClass,
   pending,
+  grantAllPending,
   actionError,
   actionNotice,
   onAction,
   onGrantStanding,
+  onGrantAll,
   onGrantOneShot,
 }: SubsystemAgentWorkViewProps) {
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
@@ -134,32 +141,46 @@ export function SubsystemAgentWorkView({
 
   return (
     <div className={styles.view}>
-      <section className={styles.summary} aria-label="工作摘要">
+      <section className={styles.summary} aria-label={t("工作摘要", "Work summary")}>
         <div className={`${styles.summaryItem} ${lag > 0 ? styles.summaryWarn : ""}`}>
-          <span className={styles.summaryLabel}>授权序号</span>
+          <span className={styles.summaryLabel}>{t("授权序号", "Grant sequence")}</span>
           <span className={styles.summaryValue}>{agentWorkView.sequence}</span>
           <span className={styles.summaryHint}>
             {lag > 0
-              ? `本机上报时还停在 ${agentWorkView.sequence - lag}（落后 ${lag} 版）`
-              : "本机上报时已跟到这一版（它每 30 秒拉一次快照）"}
+              ? t(
+                  "本机上报时还停在 {at}（落后 {lag} 版）",
+                  "The agent was still on {at} at its last report ({lag} version(s) behind)",
+                  { at: agentWorkView.sequence - lag, lag },
+                )
+              : t(
+                  "本机上报时已跟到这一版（它每 30 秒拉一次快照）",
+                  "The agent had already caught up with this version at its last report (it pulls a snapshot every 30 seconds)",
+                )}
           </span>
         </div>
         <div className={styles.summaryItem}>
-          <span className={styles.summaryLabel}>生效中</span>
+          <span className={styles.summaryLabel}>{t("生效中", "Active")}</span>
           <span className={styles.summaryValue}>{agentWorkView.standing.length}</span>
-          <span className={styles.summaryHint}>个采集面在下发中</span>
+          <span className={styles.summaryHint}>
+            {t("个采集面在下发中", "collection families being delivered")}
+          </span>
         </div>
         <div className={styles.summaryItem}>
-          <span className={styles.summaryLabel}>未了结的一次性工作</span>
+          <span className={styles.summaryLabel}>
+            {t("未了结的一次性工作", "Unsettled one-shot work")}
+          </span>
           <span className={styles.summaryValue}>{agentWorkView.oneShot.length}</span>
         </div>
         <div
           className={`${styles.summaryItem} ${drift > 0 ? styles.summaryAlert : ""}`}
         >
-          <span className={styles.summaryLabel}>漂移</span>
+          <span className={styles.summaryLabel}>{t("漂移", "Drift")}</span>
           <span className={styles.summaryValue}>{drift}</span>
           <span className={styles.summaryHint}>
-            期望版本与 Agent 确认对不上的工作数
+            {t(
+              "期望版本与 Agent 确认对不上的工作数",
+              "Work items whose expected version does not match what the agent acknowledged",
+            )}
           </span>
         </div>
       </section>
@@ -180,16 +201,50 @@ export function SubsystemAgentWorkView({
       <section className={styles.section} aria-labelledby="agent-work-standing-title">
         <header className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle} id="agent-work-standing-title">
-            常驻工作
+            {t("常驻工作", "Standing work")}
           </h2>
           <span className={styles.sectionHint}>
-            一个采集面一份，可派的面直接在这张卡上授权。已授权的卡：头两行是网关<strong>期望</strong>的样子，下面那行「本机实际」是 agentd 自报的 —— 两者对不上才是要查的事。暂停是<strong>期望状态的一部分</strong>（Agent 没在做不算漂移），撤回才是停止；要改这份采什么，撤回后重新授权（同一份工作、版本 +1，按最新事实重新派生）
+            {t(
+              "一个采集面一份，可派的面直接在这张卡上授权。已授权的卡：头两行是网关",
+              "One card per collection family; a grantable family is granted right on its card. On a granted card the first two lines show what the gateway ",
+            )}
+            <strong>{t("期望", "expects")}</strong>
+            {t(
+              "的样子，下面那行「本机实际」是 agentd 自报的 —— 两者对不上才是要查的事。暂停是",
+              ". The “Local actual” line below is what agentd reports about itself — only a mismatch is worth looking into. Pausing is ",
+            )}
+            <strong>{t("期望状态的一部分", "part of the expected state")}</strong>
+            {t(
+              "（Agent 没在做不算漂移），撤回才是停止；要改这份采什么，撤回后重新授权（同一份工作、版本 +1，按最新事实重新派生）",
+              " (the agent not doing the work is not drift); only revocation stops it. To change what this work collects, revoke and grant again (same work, version +1, re-derived from the latest facts)",
+            )}
           </span>
+          {/* 多于一格待授权卡时才给「全部授权」：一格时卡上那个按钮就是全部。 */}
+          {ungranted.length > 1 ? (
+            <button
+              type="button"
+              className={`${styles.grantButton} ${styles.grantAllButton}`}
+              disabled={pending}
+              onClick={() => onGrantAll(ungranted.map((entry) => entry.family))}
+              title={t("逐面授权：{families}", "Grant per family: {families}", {
+                families: ungranted.map((entry) => entry.family).join(" / "),
+              })}
+            >
+              {grantAllPending
+                ? t("授权中…", "Granting…")
+                : t("全部授权（{n}）", "Grant all ({n})", { n: ungranted.length })}
+            </button>
+          ) : null}
         </header>
 
         {agentWorkView.standing.length === 0 && ungranted.length === 0 ? (
           <p className={styles.emptyNotice}>
-            这台机器当前<strong>没有</strong>生效中的常驻工作，也没有可派的采集面。
+            {t("这台机器当前", "This machine currently has ")}
+            <strong>{t("没有", "no")}</strong>
+            {t(
+              "生效中的常驻工作，也没有可派的采集面。",
+              " standing work in effect and no grantable collection families.",
+            )}
           </p>
         ) : (
           <ul className={styles.cardList}>
@@ -221,33 +276,64 @@ export function SubsystemAgentWorkView({
         {/* 派活的前置与摆不到卡上的面：卡里放不下的部分，在这里说清。 */}
         {!machineClass ? (
           <p className={styles.blockedNotice}>
-            派活的前置是<strong>用途判定</strong>：它决定取哪份模板、也就决定了能派哪些面。这台机器还没归档判定 ——
+            {t("派活的前置是", "Granting work requires ")}
+            <strong>{t("用途判定", "a purpose classification")}</strong>
+            {t(
+              "：它决定取哪份模板、也就决定了能派哪些面。这台机器还没归档判定 ——",
+              " first: it selects the template, which in turn decides which families can be granted. This machine has no archived classification yet — ",
+            )}
             <a className={styles.inlineLink} href="./purpose">
-              先去用途页归档
+              {t("先去用途页归档", "archive it on the purpose page")}
             </a>
-            （判定的依据是它上报的事实摘要；没上报过事实时网关会拒绝，不默认放行）。
+            {t(
+              "（判定的依据是它上报的事实摘要；没上报过事实时网关会拒绝，不默认放行）。",
+              " (the classification is based on the fact summary it reported; when no facts have been reported the gateway refuses instead of allowing by default).",
+            )}
           </p>
         ) : catalogUnavailable ? (
           <p className={styles.blockedNotice}>
-            采集内容目录未装载（网关未配置 <span className={styles.mono}>[content]</span> 三件套）：无法展开工作参数，也就无法派活。配好内容目录并重启网关后再来。
+            {t(
+              "采集内容目录未装载（网关未配置",
+              "The content catalog is not loaded (the gateway has no ",
+            )}
+            <span className={styles.mono}>[content]</span>
+            {t(
+              " 三件套）：无法展开工作参数，也就无法派活。配好内容目录并重启网关后再来。",
+              " triple configured): work parameters cannot be expanded, so work cannot be granted. Configure the content catalog, restart the gateway, then come back.",
+            )}
           </p>
         ) : !catalog ? (
           <p className={styles.blockedNotice}>
-            正在加载采集内容目录（可派的面来自它）。
+            {t(
+              "正在加载采集内容目录（可派的面来自它）。",
+              "Loading the content catalog (grantable families come from it).",
+            )}
           </p>
         ) : (
           <>
             {grantable.length === 0 ? (
               <p className={styles.blockedNotice}>
-                <strong>{machineClass}</strong>（{platformForMachineClass(machineClass)}
-                ）当前<strong>没有任何可采的采集面</strong>：所有面都还没有采集就绪的单元（没有{" "}
-                <span className={styles.mono}>status = active</span>），因此无可授权。
+                <strong>{machineClass}</strong>
+                {t("（{platform}）当前", " ({platform}) currently has ", {
+                  platform: platformForMachineClass(machineClass),
+                })}
+                <strong>{t("没有任何可采的采集面", "no grantable collection family")}</strong>
+                {t(
+                  "：所有面都还没有采集就绪的单元（没有 ",
+                  ": every family still has no collection-ready unit (no ",
+                )}
+                <span className={styles.mono}>status = active</span>
+                {t("），因此无可授权。", "), so nothing can be granted.")}
               </p>
             ) : null}
             {blocked.length > 0 ? (
               <details className={styles.blockedDetails}>
                 <summary className={styles.muted}>
-                  另有 {blocked.length} 个面还不能派（采集未就绪 / 平台不适用）
+                  {t(
+                    "另有 {n} 个面还不能派（采集未就绪 / 平台不适用）",
+                    "{n} more families cannot be granted yet (collection not ready / platform not applicable)",
+                    { n: blocked.length },
+                  )}
                 </summary>
                 <ul className={styles.blockedList}>
                   {blocked.map((entry) => (
@@ -272,19 +358,36 @@ export function SubsystemAgentWorkView({
       <section className={styles.section} aria-labelledby="agent-work-oneshot-title">
         <header className={styles.sectionHeader}>
           <h2 className={styles.sectionTitle} id="agent-work-oneshot-title">
-            一次性工作
+            {t("一次性工作", "One-shot work")}
           </h2>
           <span className={styles.sectionHint}>
-            有计划开始时间与绝对截止，有明确终态；暂停也照走截止。每张卡下面的「本机实际」是 agentd 自报的执行阶段
+            {t(
+              "有计划开始时间与绝对截止，有明确终态；暂停也照走截止。每张卡下面的「本机实际」是 agentd 自报的执行阶段",
+              "It has a planned start time, an absolute deadline, and a definite terminal state; the deadline keeps running while paused. The “Local actual” line under each card is the execution stage agentd reports about itself",
+            )}
           </span>
         </header>
 
         <p className={styles.gapNotice}>
-          当前 agentd 只执行 <span className={styles.mono}>upgrade</span> 这一种动作（其余动作派下去会停在「已派发」）；升级由分离进程 <span className={styles.mono}>wist-upgrader</span> 执行，进度与终态经 <span className={styles.mono}>work:result</span> 回报 —— 回滚在控制面上记为「失败」，说明里写清回到哪一版。
+          {t("当前 agentd 只执行 ", "Today agentd only executes ")}
+          <span className={styles.mono}>upgrade</span>
+          {t(
+            " 这一种动作（其余动作派下去会停在「已派发」）；升级由分离进程 ",
+            " (any other action stops at “dispatched”); upgrades are performed by the separate process ",
+          )}
+          <span className={styles.mono}>wist-upgrader</span>
+          {t(" 执行，进度与终态经 ", ", and progress and the terminal state are reported through ")}
+          <span className={styles.mono}>work:result</span>
+          {t(
+            " 回报 —— 回滚在控制面上记为「失败」，说明里写清回到哪一版。",
+            " — a rollback is recorded as “failed” on the control plane, with the version rolled back to stated in the detail.",
+          )}
         </p>
 
         {agentWorkView.oneShot.length === 0 ? (
-          <p className={styles.emptyNotice}>没有未了结的一次性工作。</p>
+          <p className={styles.emptyNotice}>
+            {t("没有未了结的一次性工作。", "No unsettled one-shot work.")}
+          </p>
         ) : (
           <ul className={styles.cardList}>
             {agentWorkView.oneShot.map((work) => (
@@ -308,10 +411,17 @@ export function SubsystemAgentWorkView({
           <details className={styles.history}>
             <summary className={styles.historySummary}>
               <span className={styles.sectionTitle} id="agent-work-history-title">
-                历史留痕
+                {t("历史留痕", "Audit history")}
               </span>
               <span className={styles.sectionHint}>
-                已撤回 / 已被取代的常驻工作 {agentWorkView.retiredStanding.length} 条，已了结的一次性工作 {agentWorkView.settledOneShot.length} 条
+                {t(
+                  "已撤回 / 已被取代的常驻工作 {standing} 条，已了结的一次性工作 {oneShot} 条",
+                  "{standing} revoked / superseded standing work items, {oneShot} settled one-shot work items",
+                  {
+                    standing: agentWorkView.retiredStanding.length,
+                    oneShot: agentWorkView.settledOneShot.length,
+                  },
+                )}
               </span>
             </summary>
             <ul className={styles.historyList}>
@@ -322,8 +432,10 @@ export function SubsystemAgentWorkView({
                     {STANDING_STATUS_LABEL[work.status]}
                   </span>
                   <span className={styles.historyMeta}>
-                    版本 {work.planVersion} · {work.updatedBy} ·{" "}
-                    {formatTimestamp(work.updatedAt)}
+                    {t("版本 {version}", "Version {version}", {
+                      version: work.planVersion,
+                    })}{" "}
+                    · {work.updatedBy} · {formatTimestamp(work.updatedAt)}
                   </span>
                 </li>
               ))}
@@ -362,7 +474,10 @@ function LocalReportStrip({ local }: { local: AgentLocalWorkView | null }) {
   if (!local) {
     return (
       <p className={styles.localStripEmpty}>
-        这台 Agent 还没上报本机视图（旧版本 agentd 不上报此字段）—— 下面每张工作卡的「本机实际」都看不到。
+        {t(
+          "这台 Agent 还没上报本机视图（旧版本 agentd 不上报此字段）—— 下面每张工作卡的「本机实际」都看不到。",
+          "This agent has not reported its local view yet (older agentd versions do not report this field) — the “Local actual” line on every work card below is unavailable.",
+        )}
       </p>
     );
   }
@@ -370,22 +485,31 @@ function LocalReportStrip({ local }: { local: AgentLocalWorkView | null }) {
   if (local.error) {
     return (
       <p className={styles.localStripError} role="alert">
-        本机工作上报无法解析（可能是网关与 agentd 版本不一致）：{local.error}
+        {t(
+          "本机工作上报无法解析（可能是网关与 agentd 版本不一致）：{detail}",
+          "The local work report cannot be parsed (possibly a gateway/agentd version mismatch): {detail}",
+          { detail: local.error },
+        )}
       </p>
     );
   }
 
   return (
-    <div className={styles.localStrip} aria-label="agentd 自报">
-      <span className={styles.localStripLabel}>agentd 自报</span>
+    <div
+      className={styles.localStrip}
+      aria-label={t("agentd 自报", "agentd self-report")}
+    >
+      <span className={styles.localStripLabel}>
+        {t("agentd 自报", "agentd self-report")}
+      </span>
       <span className={styles.localStripItem}>
-        上报于{" "}
+        {t("上报于", "Reported at")}{" "}
         <span className={styles.localStripValue}>
           {formatTimestamp(local.recordedAt)}
         </span>
       </span>
       <span className={styles.localStripItem}>
-        指标上送周期{" "}
+        {t("指标上送周期", "Metrics push interval")}{" "}
         <span className={styles.localStripValue}>
           {local.metricsIntervalSeconds === null
             ? "—"
@@ -417,17 +541,22 @@ function LocalOnlySection({
     <section className={styles.section} aria-labelledby="agent-work-localonly-title">
       <header className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle} id="agent-work-localonly-title">
-          本机多出来的
+          {t("本机多出来的", "Extra on this machine")}
         </h2>
         <span className={styles.sectionHint}>
-          本机在做、网关这边没有对应授权的东西：网关撤不回，也不在上面那些卡片里
+          {t(
+            "本机在做、网关这边没有对应授权的东西：网关撤不回，也不在上面那些卡片里",
+            "Things this machine is doing that have no matching grant on the gateway: the gateway cannot revoke them, and they are not in the cards above",
+          )}
         </span>
       </header>
 
       {orphanStanding.length > 0 ? (
         <div className={styles.localGroup}>
           <span className={styles.localGroupTitle}>
-            本机手上还有的工作（{orphanStanding.length}）
+            {t("本机手上还有的工作（{n}）", "Work the agent still holds ({n})", {
+              n: orphanStanding.length,
+            })}
           </span>
           <ul className={styles.localList}>
             {orphanStanding.map((work) => (
@@ -443,14 +572,23 @@ function LocalOnlySection({
                     work.status}
                 </span>
                 <span className={styles.localItemMeta}>
-                  v{work.planVersion} · {work.tasks.length} 个采集任务 · 生效自{" "}
-                  {formatTimestamp(work.effectiveFrom)}
+                  v{work.planVersion} ·{" "}
+                  {t("{n} 个采集任务", "{n} collection tasks", {
+                    n: work.tasks.length,
+                  })}{" "}
+                  ·{" "}
+                  {t("生效自 {at}", "effective from {at}", {
+                    at: formatTimestamp(work.effectiveFrom),
+                  })}
                 </span>
               </li>
             ))}
           </ul>
           <p className={styles.localNote}>
-            网关这边已经没有这些工作的授权了 —— 多半是刚撤回、本机还没拉到下一版快照；若它一直不退，就是本机残留，只能在本机处理。
+            {t(
+              "网关这边已经没有这些工作的授权了 —— 多半是刚撤回、本机还没拉到下一版快照；若它一直不退，就是本机残留，只能在本机处理。",
+              "The gateway no longer has grants for this work — usually a recent revocation that the machine has not pulled the next snapshot for yet; if it never goes away it is a local leftover and can only be handled on the machine itself.",
+            )}
           </p>
         </div>
       ) : null}
@@ -458,20 +596,27 @@ function LocalOnlySection({
       {manualInputs.length > 0 ? (
         <div className={styles.localGroup}>
           <span className={styles.localGroupTitle}>
-            本机手工加的输入（{manualInputs.length}）
+            {t("本机手工加的输入（{n}）", "Manually added inputs on this machine ({n})", {
+              n: manualInputs.length,
+            })}
           </span>
           <ul className={styles.localFileList}>
             {manualInputs.map((input) => (
               <li key={input.path} className={styles.localFileRow}>
                 <span className={styles.mono}>{input.path}</span>
                 <span className={`${styles.badge} ${styles.toneWarn}`}>
-                  本机手工加的
+                  {t("本机手工加的", "Manually added locally")}
                 </span>
               </li>
             ))}
           </ul>
           <p className={styles.localNote}>
-            它们来自本机配置（<span className={styles.mono}>[telemetry.logs] file_inputs</span>，运维逃生舱），不来自任何采集面：网关不知道、也不会撤回，该不该留只在本机判。
+            {t("它们来自本机配置（", "They come from the local configuration (")}
+            <span className={styles.mono}>[telemetry.logs] file_inputs</span>
+            {t(
+              "，运维逃生舱），不来自任何采集面：网关不知道、也不会撤回，该不该留只在本机判。",
+              ", the operations escape hatch), not from any collection family: the gateway neither knows about them nor revokes them, so whether to keep them is a local decision.",
+            )}
           </p>
         </div>
       ) : null}
@@ -538,10 +683,22 @@ function StandingWorkCard({
       // 审计信息（目录版本 / 谁改的 / 本机生效自 / 采集任务数）不常看，收进 tooltip，
       // 不占正文行 —— 正文只留「现在该知道的」。
       title={[
-        `目录 v${work.catalogVersion}（换版不追改）`,
-        `${work.updatedBy} 改于 ${formatTimestamp(work.updatedAt)}`,
+        t("目录 v{v}（换版不追改）", "Catalog v{v} (not retrofitted on version change)", {
+          v: work.catalogVersion,
+        }),
+        t("{by} 改于 {at}", "changed by {by} at {at}", {
+          by: work.updatedBy,
+          at: formatTimestamp(work.updatedAt),
+        }),
         localWork
-          ? `本机生效自 ${formatTimestamp(localWork.effectiveFrom)}，${localWork.tasks.length} 个采集任务`
+          ? t(
+              "本机生效自 {at}，{n} 个采集任务",
+              "effective locally from {at}, {n} collection tasks",
+              {
+                at: formatTimestamp(localWork.effectiveFrom),
+                n: localWork.tasks.length,
+              },
+            )
           : null,
       ]
         .filter(Boolean)
@@ -559,7 +716,9 @@ function StandingWorkCard({
 
       {work.spec.error ? (
         <span className={styles.critText}>
-          参数无法解析：{work.spec.error}
+          {t("参数无法解析：{detail}", "Parameters cannot be parsed: {detail}", {
+            detail: work.spec.error,
+          })}
         </span>
       ) : (
         <div className={styles.workMeta}>
@@ -568,13 +727,22 @@ function StandingWorkCard({
             {/* 已确认且版本一致时，「确认」这件事没什么可说 —— 对不上的时候才值得占一行。 */}
             {drift === "in-sync" ? null : (
               <span className={styles.mono}>
-                {work.ack ? `已确认 v${work.ack.planVersion}` : "从未确认"}
+                {work.ack
+                  ? t("已确认 v{v}", "Acknowledged v{v}", { v: work.ack.planVersion })
+                  : t("从未确认", "Never acknowledged")}
               </span>
             )}
             <span className={styles.mono}>
-              {counts.units} 单元 · {counts.sources} 来源
-              {unsupported > 0 ? ` · ${unsupported} 未接` : ""}
-              {interval === null ? "" : ` · 指标 ${interval}s`}
+              {t("{units} 单元 · {sources} 来源", "{units} units · {sources} sources", {
+                units: counts.units,
+                sources: counts.sources,
+              })}
+              {unsupported > 0
+                ? t(" · {n} 未接", " · {n} not supported", { n: unsupported })
+                : ""}
+              {interval === null
+                ? ""
+                : t(" · 指标 {seconds}s", " · metrics {seconds}s", { seconds: interval })}
             </span>
           </span>
         </div>
@@ -583,12 +751,15 @@ function StandingWorkCard({
       {/* 「本机实际」只在**对不上**时才出现：一致就是没话说，不必占一行。 */}
       {local && localWork === null ? (
         <div className={styles.localRow}>
-          <span className={styles.localRowLabel}>本机实际</span>
+          <span className={styles.localRowLabel}>{t("本机实际", "Local actual")}</span>
           <span className={`${styles.badge} ${styles.toneWarn}`}>
-            本机未报这份工作
+            {t("本机未报这份工作", "The machine has not reported this work")}
           </span>
           <span className={styles.muted}>
-            它还没拉到这一版授权（每 30 秒拉一次快照）
+            {t(
+              "它还没拉到这一版授权（每 30 秒拉一次快照）",
+              "It has not pulled this version of the grant yet (it pulls a snapshot every 30 seconds)",
+            )}
           </span>
         </div>
       ) : null}
@@ -597,24 +768,28 @@ function StandingWorkCard({
       localWork !== null &&
       (localWork.status !== work.status || staleLocalVersion || localAckBehind) ? (
         <div className={styles.localRow}>
-          <span className={styles.localRowLabel}>本机实际</span>
+          <span className={styles.localRowLabel}>{t("本机实际", "Local actual")}</span>
           <span className={styles.mono}>
             {STANDING_STATUS_LABEL[localWork.status as StandingWorkStatus] ??
               localWork.status}
           </span>
           {localWork.status !== work.status ? (
             <span className={`${styles.badge} ${styles.toneWarn}`}>
-              网关期望「{STANDING_STATUS_LABEL[work.status]}」
+              {t("网关期望「{status}」", "Gateway expects “{status}”", {
+                status: STANDING_STATUS_LABEL[work.status],
+              })}
             </span>
           ) : null}
           {staleLocalVersion ? (
             <span className={`${styles.badge} ${styles.toneWarn}`}>
-              手上还是 v{localWork.planVersion}
+              {t("手上还是 v{v}", "Still holds v{v}", { v: localWork.planVersion })}
             </span>
           ) : null}
           {localAckBehind ? (
             <span className={`${styles.badge} ${styles.toneWarn}`}>
-              只确认到 v{localWork.acknowledgedVersion}
+              {t("只确认到 v{v}", "Acknowledged only up to v{v}", {
+                v: localWork.acknowledgedVersion,
+              })}
             </span>
           ) : null}
         </div>
@@ -627,22 +802,35 @@ function StandingWorkCard({
           }`}
         >
           <span className={styles.collectedLabel}>
-            {work.status === "paused" ? "恢复后将采" : "在采"}（{files.length}）
+            {work.status === "paused"
+              ? t("恢复后将采（{n}）", "Will collect after resume ({n})", {
+                  n: files.length,
+                })
+              : t("在采（{n}）", "Collecting ({n})", { n: files.length })}
           </span>
           {localFiles !== null && filesMismatch ? (
             // 对不上就把两份清单各写各的：只报两个数字、清单却取自期望，
             // 读者会把「本机 1」看成在采期望那一个，正好把差异读反。
             <>
               <span className={styles.mono}>
-                期望 {files.length}（{files.join(" · ") || "—"}）
+                {t("期望 {n}（{list}）", "Expected {n} ({list})", {
+                  n: files.length,
+                  list: files.join(" · ") || "—",
+                })}
               </span>
               <span className={styles.mono}>
-                本机 {localFiles.length}（{localFiles.join(" · ") || "—"}）
+                {t("本机 {n}（{list}）", "Local {n} ({list})", {
+                  n: localFiles.length,
+                  list: localFiles.join(" · ") || "—",
+                })}
               </span>
             </>
           ) : files.length === 0 ? (
             <span className={styles.muted}>
-              —（这份授权里没有今天能采的日志文件）
+              {t(
+                "—（这份授权里没有今天能采的日志文件）",
+                "— (this grant has no log files collectable today)",
+              )}
             </span>
           ) : (
             // 一致时不重复「期望 1 / 本机 1」：一致就是没话说，只列文件。
@@ -650,7 +838,9 @@ function StandingWorkCard({
           )}
           {sharedFiles.length > 0 ? (
             <span className={`${styles.badge} ${styles.toneWarn}`}>
-              {sharedFiles.join(" · ")} 另有一份工作在采
+              {t("{files} 另有一份工作在采", "{files} is also collected by another work item", {
+                files: sharedFiles.join(" · "),
+              })}
             </span>
           ) : null}
         </div>
@@ -668,12 +858,16 @@ function StandingWorkCard({
                   {unit.capability}
                   {unit.ruleRef ? ` · ${unit.ruleRef}` : ""}
                   {unit.requiresPrivilege && unit.requiresPrivilege !== "none"
-                    ? ` · 需 ${unit.requiresPrivilege}`
+                    ? t(" · 需 {privilege}", " · requires {privilege}", {
+                        privilege: unit.requiresPrivilege,
+                      })
                     : ""}
                 </span>
               </span>
               {unit.sources.length === 0 ? (
-                <span className={styles.unitMeta}>无来源声明</span>
+                <span className={styles.unitMeta}>
+                  {t("无来源声明", "No source declared")}
+                </span>
               ) : (
                 <ul className={styles.sourceList}>
                   {unit.sources.map((source, index) => {
@@ -696,11 +890,20 @@ function StandingWorkCard({
                           // 完整解释放 hover：「未接」的含义一句话就能记住，不必每张卡重复一长句。
                           title={
                             reason === null
-                              ? "本地采集器今天能 tail 这个来源"
-                              : `${reason}：agentd 今天还采不到，已在授权里如实列出`
+                              ? t(
+                                  "本地采集器今天能 tail 这个来源",
+                                  "The local collector can tail this source today",
+                                )
+                              : t(
+                                  "{reason}：agentd 今天还采不到，已在授权里如实列出",
+                                  "{reason}: agentd cannot collect this yet; it is listed as-is in the grant",
+                                  { reason },
+                                )
                           }
                         >
-                          {reason === null ? "可采" : "未接"}
+                          {reason === null
+                            ? t("可采", "Collectable")
+                            : t("未接", "Not supported")}
                         </span>
                         {reason === null ? null : (
                           <span className={styles.muted}>{reason}</span>
@@ -723,7 +926,7 @@ function StandingWorkCard({
             disabled={pending}
             onClick={() => onAction({ kind: "pause", workId: work.workId })}
           >
-            暂停
+            {t("暂停", "Pause")}
           </button>
         ) : null}
         {work.status === "paused" ? (
@@ -733,7 +936,7 @@ function StandingWorkCard({
             disabled={pending}
             onClick={() => onAction({ kind: "resume", workId: work.workId })}
           >
-            恢复（沿用同一版本）
+            {t("恢复（沿用同一版本）", "Resume (same version)")}
           </button>
         ) : null}
         {work.status !== "revoked" ? (
@@ -745,7 +948,7 @@ function StandingWorkCard({
               setRevokeTarget(revokeTarget === work.workId ? null : work.workId)
             }
           >
-            撤回授权
+            {t("撤回授权", "Revoke grant")}
           </button>
         ) : null}
       </div>
@@ -753,11 +956,14 @@ function StandingWorkCard({
       {revokeTarget === work.workId ? (
         <div className={styles.revokeRow}>
           <label className={styles.fieldLabel}>
-            撤回原因（留痕）
+            {t("撤回原因（留痕）", "Revocation reason (audit trail)")}
             <input
               className={styles.input}
               value={revokeReason}
-              placeholder="例如：不再需要这类采集"
+              placeholder={t(
+                "例如：不再需要这类采集",
+                "For example: this kind of collection is no longer needed",
+              )}
               onChange={(event) => setRevokeReason(event.target.value)}
             />
           </label>
@@ -775,10 +981,13 @@ function StandingWorkCard({
               setRevokeReason("");
             }}
           >
-            确认撤回
+            {t("确认撤回", "Confirm revocation")}
           </button>
           <span className={styles.muted}>
-            撤回后 Agent 不再收到这份工作；要改这份采什么，就撤回后重新授权 —— 同一份工作（id 不变）、版本 +1，并按最新事实重新派生
+            {t(
+              "撤回后 Agent 不再收到这份工作；要改这份采什么，就撤回后重新授权 —— 同一份工作（id 不变）、版本 +1，并按最新事实重新派生",
+              "After revocation the agent no longer receives this work; to change what it collects, revoke and grant again — the same work (same id), version +1, re-derived from the latest facts",
+            )}
           </span>
         </div>
       ) : null}
@@ -807,35 +1016,37 @@ function OneShotWorkCard({ work, local, pending, onAction }: OneShotWorkCardProp
           {oneShotStatusLabel(work.status)}
         </span>
         <span className={`${styles.badge} ${toneClass(work.interruptible ? "ok" : "unknown")}`}>
-          {work.interruptible ? "可中断" : "不可中断（拒绝暂停）"}
+          {work.interruptible
+            ? t("可中断", "Interruptible")
+            : t("不可中断（拒绝暂停）", "Not interruptible (rejects pause)")}
         </span>
       </div>
       <dl className={styles.factGrid}>
         <div className={styles.factRow}>
-          <dt>参数</dt>
+          <dt>{t("参数", "Parameters")}</dt>
           <dd className={styles.mono}>{work.spec}</dd>
         </div>
         <div className={styles.factRow}>
-          <dt>计划开始 / 绝对截止</dt>
+          <dt>{t("计划开始 / 绝对截止", "Planned start / absolute deadline")}</dt>
           <dd>
             {formatTimestamp(work.scheduledAt)} → {formatTimestamp(work.deadlineAt)}
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>执行预算 / 累计暂停</dt>
+          <dt>{t("执行预算 / 累计暂停", "Execution budget / total paused")}</dt>
           <dd className={styles.mono}>
             {work.timeoutSeconds}s / {work.pausedTotalSeconds}s
           </dd>
         </div>
         <div className={styles.factRow}>
-          <dt>派发人</dt>
+          <dt>{t("派发人", "Dispatched by")}</dt>
           <dd>
             {work.issuedBy} · {formatTimestamp(work.issuedAt)}
           </dd>
         </div>
         {work.result ? (
           <div className={styles.factRow}>
-            <dt>执行结果</dt>
+            <dt>{t("执行结果", "Execution result")}</dt>
             <dd>
               <span
                 className={`${styles.badge} ${toneClass(oneShotStatusTone(work.result.status))}`}
@@ -849,11 +1060,11 @@ function OneShotWorkCard({ work, local, pending, onAction }: OneShotWorkCardProp
         ) : null}
         {local ? (
           <div className={styles.factRow}>
-            <dt>本机实际</dt>
+            <dt>{t("本机实际", "Local actual")}</dt>
             <dd>
               {localWork === null ? (
                 <span className={`${styles.badge} ${styles.toneWarn}`}>
-                  本机未报这件活
+                  {t("本机未报这件活", "The machine has not reported this work item")}
                 </span>
               ) : (
                 <>
@@ -865,7 +1076,9 @@ function OneShotWorkCard({ work, local, pending, onAction }: OneShotWorkCardProp
                     {oneShotStatusLabel(localWork.status)}
                   </span>{" "}
                   <span className={styles.mono}>
-                    执行阶段 {localExecutionLabel(localWork.execution)}
+                    {t("执行阶段 {stage}", "Execution stage {stage}", {
+                      stage: localExecutionLabel(localWork.execution),
+                    })}
                   </span>
                 </>
               )}
@@ -880,7 +1093,7 @@ function OneShotWorkCard({ work, local, pending, onAction }: OneShotWorkCardProp
           disabled={pending}
           onClick={() => onAction({ kind: "revoke", workId: work.workId })}
         >
-          取消这件活
+          {t("取消这件活", "Cancel this work item")}
         </button>
       </div>
     </li>
@@ -909,16 +1122,30 @@ function GrantCandidateCard({ entry, pending, onSubmit }: GrantCandidateCardProp
     <li className={styles.card}>
       <div className={styles.cardHeader}>
         <span className={styles.family}>{entry.family}</span>
-        <span className={`${styles.badge} ${styles.toneUnknown}`}>未授权</span>
-        {entry.parseReady ? null : <span className={styles.muted}>原文未归类</span>}
+        <span className={`${styles.badge} ${styles.toneUnknown}`}>
+          {t("未授权", "Not granted")}
+        </span>
+        {entry.parseReady ? null : (
+          <span className={styles.muted}>
+            {t("原文未归类", "Raw text not classified")}
+          </span>
+        )}
       </div>
 
       <div className={styles.workMeta}>
         <span className={styles.workMetaMain}>
           <span className={styles.mono}>
-            {entry.activeUnits}/{entry.totalUnits} 单元可采
+            {t("{active}/{total} 单元可采", "{active}/{total} units collectable", {
+              active: entry.activeUnits,
+              total: entry.totalUnits,
+            })}
           </span>
-          <span className={styles.muted}>—— 授权后由网关按这台机器的事实展开</span>
+          <span className={styles.muted}>
+            {t(
+              "—— 授权后由网关按这台机器的事实展开",
+              "— expanded by the gateway from this machine's facts after granting",
+            )}
+          </span>
         </span>
       </div>
 
@@ -929,7 +1156,7 @@ function GrantCandidateCard({ entry, pending, onSubmit }: GrantCandidateCardProp
           disabled={pending}
           onClick={() => onSubmit({ family: entry.family })}
         >
-          {pending ? "提交中…" : "授权这份工作"}
+          {pending ? t("提交中…", "Submitting…") : t("授权这份工作", "Grant this work")}
         </button>
       </div>
     </li>
@@ -959,7 +1186,7 @@ function GrantOneShotForm({ pending, onSubmit }: GrantOneShotFormProps) {
     <div className={styles.form}>
       <div className={styles.formRow}>
         <label className={styles.fieldLabel}>
-          动作
+          {t("动作", "Action")}
           <input
             className={styles.input}
             value={action}
@@ -967,16 +1194,16 @@ function GrantOneShotForm({ pending, onSubmit }: GrantOneShotFormProps) {
           />
         </label>
         <label className={styles.fieldLabel}>
-          参数
+          {t("参数", "Parameters")}
           <input
             className={styles.input}
             value={spec}
-            placeholder="例如目标版本 0.1.4"
+            placeholder={t("例如目标版本 0.1.4", "For example: target version 0.1.4")}
             onChange={(event) => setSpec(event.target.value)}
           />
         </label>
         <label className={styles.fieldLabel}>
-          绝对截止
+          {t("绝对截止", "Absolute deadline")}
           <input
             className={styles.input}
             type="datetime-local"
@@ -985,7 +1212,7 @@ function GrantOneShotForm({ pending, onSubmit }: GrantOneShotFormProps) {
           />
         </label>
         <label className={styles.fieldLabel}>
-          执行预算（秒）
+          {t("执行预算（秒）", "Execution budget (seconds)")}
           <input
             className={styles.input}
             value={timeoutSeconds}
@@ -1009,7 +1236,7 @@ function GrantOneShotForm({ pending, onSubmit }: GrantOneShotFormProps) {
             setSpec("");
           }}
         >
-          {pending ? "提交中…" : "派发这件活"}
+          {pending ? t("提交中…", "Submitting…") : t("派发这件活", "Dispatch this work item")}
         </button>
       </div>
     </div>

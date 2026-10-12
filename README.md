@@ -65,12 +65,29 @@ npm run preview  # 预览构建产物
 
 ```bash
 npm run test:bundle              # 校验 admin token 等敏感信息未泄漏进产物
+npm run test:i18n                # 校验双语取词：默认 zh、双向切换、占位符、与共享口径同源
 npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读那一项 + 可写那一项、旧路名有重定向）
 npm run test:gateway-initialize  # 校验网关初始化材料（initial-config）接口契约
 ```
 
 其余接口契约测试（`install-package` / `uplink` / `advertise-url` / `rollout` / `agent-logs` …）
 见 `package.json` 的 `test:*`；都是离线可跑的 mock fetch 脚本。
+
+## 中英双语（i18n）
+
+界面支持**中文 / English 切换**（**右上角**状态条里的「中文 / English」开关，选择记在 `localStorage`）。
+默认中文；切换**整棵树重挂载**，因此页面内的局部状态（筛选、展开的面板）会重置 —— 数据在
+React Query 缓存里，不会重新拉。
+
+- 取词：`import { t } from "../i18n"`，`t("中文原文", "English")`；
+  带变量用占位符 `t("已选 {n} 台", "{n} selected", { n })`。
+- **中文原文就是这段文案的身份**（第一个参数），不另立 key 表：文案一改不用同步两张表。
+- ⚠️ `t()` 必须在**渲染期**求值：模块顶层常量里不要写 `t(...)`（只求值一次，切语言不会变）；
+  这类表要写成函数（渲染期调用）或把文案挪进组件。
+- **共享口径**（计划 / 阶段 / 条目状态、推进闸门、筛选项文案…）的双语在
+  [`@dayu-sec/wist-web-core`](../wist-web-core) 的 `i18n` 里（`setLocale` / `pickLabel`），
+  本 app 只在 `src/i18n/index.ts` 调一次 `setLocale`；别在别处再映射一遍。
+- 全站唯一的语言状态与持久化都在 `src/i18n/index.ts`。
 
 ## 页面路由
 
@@ -80,7 +97,8 @@ npm run test:gateway-initialize  # 校验网关初始化材料（initial-config�
 | `/install` | 安装 Agent |
 | `/link-upstream` | 链接上级（接入上级控制中心） |
 | `/gateway-info` | Gateway 信息（网关对外地址，只读 / 数据面上送地址与开关，可改） |
-| `/install-package` | 安装包（取包来源 / 已录入的安装包） |
+| `/install-package` | 安装包管理（已托管包：组件 / 版本 / 平台 / 状态 / 录入时间） |
+| `/install-package/add` | 安装包录入（三平台一次录入 + GitHub Release 一键填充 + 最近录入） |
 | `/knowledge` | 知识库（策展内容：录入包 / 切换生效版本 / 锁旧版的工作） |
 | `/init` | 已改名 `/link-upstream`，保留重定向 |
 | `/gateway-init`、`/uplink`、`/agent-init` | 已改名 `/gateway-info`，保留重定向 |

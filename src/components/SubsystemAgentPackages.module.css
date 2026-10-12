@@ -532,3 +532,297 @@
     margin-right: 16px;
   }
 }
+
+/* ────────────────────────── 与中心「安装包管理」页对齐的部分 ──────────────────────────
+   拆成两页后（列表 / 录入），这张表就是列表页的主体：组件 / 版本 / 平台 / 状态 / 录入时间，
+   列与中心 `/packages` 的「已托管包」表一致；差别只在少了「操作」列 —— 网关侧没有改状态的动作
+   （设置接口是「一次覆盖三平台」的录入动作，不是状态开关）。 */
+
+.pageActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* 列表页的入口按钮靠右（与中心「安装包管理」页一致）；录入页的返回链接留在左边。 */
+.pageActionsEnd {
+  justify-content: flex-end;
+}
+
+/* 页头右上角的主入口（对齐中心：进「安装包录入」）。 */
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.actionLink:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.actionLink:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* 录入页左上角的返回链接。 */
+.backLink {
+  color: var(--text-3);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.backLink:hover {
+  color: var(--accent-strong);
+}
+
+.registry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.registryHeader,
+.registryRow {
+  display: grid;
+  grid-template-columns:
+    minmax(104px, 0.8fr) minmax(120px, 0.9fr) minmax(220px, 1.8fr)
+    minmax(92px, 0.6fr) minmax(124px, 0.8fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.registryHeader {
+  padding: 0 10px;
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.registryRow {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  font-size: 12px;
+}
+
+.registryComponent {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.registryVersion {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.registryPlatform {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 一个平台一个 chip；**在用**的那个加底色 —— 同一个版本可能部分平台在用、部分已归档。 */
+.platformChip {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.platformChipLive {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.registryStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusBadge {
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.statusBadgeLive {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.statusBadgePartial {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.statusBadgeArchived {
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-3);
+}
+
+.registryTime {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.registryNote {
+  margin-top: 10px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+
+.registryMissing {
+  color: var(--warn);
+  font-family: var(--font-mono);
+}
+
+/* 录入页的「最近录入」：一个版本一块，块内逐平台列出源与下载地址。 */
+.recent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recentItem {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.recentHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.recentVersion {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.recentMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.recentArtifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.recentArtifact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+}
+
+.artifactPlatform {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.artifactSource {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.artifactSource {
+  color: var(--info);
+  text-decoration: none;
+}
+
+a.artifactSource:hover {
+  text-decoration: underline;
+}
+
+.artifactNote {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+@media (max-width: 900px) {
+  .registryHeader {
+    display: none;
+  }
+
+  .registryRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .registryPlatform,
+  .registryComponent,
+  .registryVersion {
+    grid-column: 1;
+  }
+
+  .registryTime {
+    grid-column: 2;
+    grid-row: 1;
+    text-align: right;
+  }
+}

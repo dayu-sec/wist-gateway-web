@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+
 /**
  * 「期望摘要 sha256」的形态校验。
  *
@@ -18,9 +20,15 @@ export function isValidSha256(value: string): boolean {
 /** 不合法时给出可读原因；合法返回 `null`。表单提交前拦一道，省一次往返并能说清为什么。 */
 export function sha256Error(value: string): string | null {
   if (value.trim().length === 0) {
-    return "期望摘要必填：填发布侧 *.sha256 里那串 64 位十六进制（可带 sha256: 前缀）。";
+    return t(
+      "期望摘要必填：填发布侧 *.sha256 里那串 64 位十六进制（可带 sha256: 前缀）。",
+      "Expected digest is required: enter the 64-character hexadecimal string from the release-side *.sha256 (a sha256: prefix is allowed).",
+    );
   }
   return isValidSha256(value)
     ? null
-    : "期望摘要必须是 64 位十六进制（可带 sha256: 前缀）。";
+    : t(
+        "期望摘要必须是 64 位十六进制（可带 sha256: 前缀）。",
+        "The expected digest must be 64 hexadecimal characters (a sha256: prefix is allowed).",
+      );
 }

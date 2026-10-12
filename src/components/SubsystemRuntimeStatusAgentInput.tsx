@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemRuntimeStatusAgentInput.module.css";
 
 interface SubsystemRuntimeStatusAgentInputProps {
@@ -7,7 +8,9 @@ interface SubsystemRuntimeStatusAgentInputProps {
 export function SubsystemRuntimeStatusAgentInput({ children }: SubsystemRuntimeStatusAgentInputProps) {
   return (
     <div className={styles.container}>
-      <div className={styles.label}>运行状态 Agent 输入</div>
+      <div className={styles.label}>
+        {t("运行状态 Agent 输入", "Runtime status Agent input")}
+      </div>
       {children}
     </div>
   );

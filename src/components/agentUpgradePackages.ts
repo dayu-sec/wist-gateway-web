@@ -8,6 +8,7 @@
  */
 
 import type { InstallPackageView } from "../api/admin";
+import { t } from "../i18n";
 
 /** 一个已录入包在下拉 / 列表里的简短标识：`版本 · 架构`。 */
 export function packageLabel(pkg: InstallPackageView): string {
@@ -15,7 +16,7 @@ export function packageLabel(pkg: InstallPackageView): string {
   // `版本 · 架构`，界面上只剩一个孤零零的「 · 」，看着像渲染坏了 —— 明说未识别；
   // 只读出一半时只报读出的一半，不留悬空的分隔符。
   const parts = [pkg.version.trim(), pkg.arch.trim()].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : "未识别";
+  return parts.length > 0 ? parts.join(" · ") : t("未识别", "Unrecognized");
 }
 
 /**

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import type { AgentListEntryView } from "../api/admin";
 import { useDeleteAgent, useRegisteredAgents } from "../hooks";
+import { t } from "../i18n";
 import { summarizeAddresses } from "../lib/format";
 import styles from "./SubsystemAgentFleetPage.module.css";
 
@@ -10,36 +11,72 @@ import styles from "./SubsystemAgentFleetPage.module.css";
 function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
-      return "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。";
-    if (error.status === 429) return "认证失败次数过多，请稍后再试。";
+      return t(
+        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
+        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t("认证失败次数过多，请稍后再试。", "Too many failed authentication attempts. Try again later.");
     if (error.status === 404)
-      return "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。";
+      return t(
+        "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+        "The gateway has no such endpoint (HTTP 404): the running gateway is probably an old build. Rebuild and restart the gateway, then retry.",
+      );
     return error.detail
-      ? `网关返回 HTTP ${error.status}：${error.detail}`
-      : `网关返回 HTTP ${error.status}，请检查网关日志。`;
+      ? t("网关返回 HTTP {status}：{detail}", "The gateway returned HTTP {status}: {detail}", {
+          status: error.status,
+          detail: error.detail,
+        })
+      : t("网关返回 HTTP {status}，请检查网关日志。", "The gateway returned HTTP {status}; check the gateway logs.", {
+          status: error.status,
+        });
   }
-  return "读取失败：响应不符合当前契约，请检查网关与前端版本。";
+  return t(
+    "读取失败：响应不符合当前契约，请检查网关与前端版本。",
+    "Load failed: the response does not match the current contract. Check the gateway and front-end versions.",
+  );
 }
 
 /** 删除失败时的提示。409 不是一个「故障」，是「这台现在不能删」，要照实说。 */
 function deleteErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
-      return "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。";
-    if (error.status === 429) return "认证失败次数过多，请稍后再试。";
+      return t(
+        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
+        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t("认证失败次数过多，请稍后再试。", "Too many failed authentication attempts. Try again later.");
     if (error.status === 409)
-      return "这台 Agent 在线，不能删除；等它离线后再试。";
+      return t(
+        "这台 Agent 在线，不能删除；等它离线后再试。",
+        "This agent is online and cannot be deleted; wait until it goes offline and retry.",
+      );
     // 404 有两种来源，必须分开说：后端“agent 不存在”会带正文，路由根本没挂上时是空正文。
     // 混成一句会让人去查“机器是不是没了”，而真正原因是线上网关还是旧构建。
     if (error.status === 404)
       return error.detail
-        ? "没删成：网关找不到这台 Agent（可能刚被删掉）。刷新列表看看。"
-        : "没删成（HTTP 404）：网关没有这个删除接口 —— 线上的 gateway 很可能是旧构建，请重新构建并重启网关后重试。";
+        ? t(
+            "没删成：网关找不到这台 Agent（可能刚被删掉）。刷新列表看看。",
+            "Delete failed: the gateway cannot find this agent (it may have just been deleted). Refresh the list.",
+          )
+        : t(
+            "没删成（HTTP 404）：网关没有这个删除接口 —— 线上的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+            "Delete failed (HTTP 404): the gateway has no such delete endpoint — the running gateway is probably an old build. Rebuild and restart the gateway, then retry.",
+          );
     return error.detail
-      ? `删除失败（HTTP ${error.status}）：${error.detail}`
-      : `网关返回 HTTP ${error.status}，请检查网关日志。`;
+      ? t("删除失败（HTTP {status}）：{detail}", "Delete failed (HTTP {status}): {detail}", {
+          status: error.status,
+          detail: error.detail,
+        })
+      : t("网关返回 HTTP {status}，请检查网关日志。", "The gateway returned HTTP {status}; check the gateway logs.", {
+          status: error.status,
+        });
   }
-  return "删除失败：响应不符合当前契约，请检查网关与前端版本。";
+  return t(
+    "删除失败：响应不符合当前契约，请检查网关与前端版本。",
+    "Delete failed: the response does not match the current contract. Check the gateway and front-end versions.",
+  );
 }
 
 /**
@@ -83,9 +120,12 @@ export function SubsystemAgentFleetPage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>Agent 机队</h1>
+          <h1 className={styles.pageTitle}>{t("Agent 机队", "Agent fleet")}</h1>
           <p className={styles.pageSummary}>
-            网关在册的 Agent（含离线）。离线机器可以删除 —— 删除不可恢复，会连同它的实例、凭据与所有派生态数据一起清掉，所以要两次确认。
+            {t(
+              "网关在册的 Agent（含离线）。离线机器可以删除 —— 删除不可恢复，会连同它的实例、凭据与所有派生态数据一起清掉，所以要两次确认。",
+              "Agents enrolled with the gateway (including offline ones). Offline machines can be deleted — deletion is irreversible and clears the instance, credentials and all derived-state data along with it, hence the double confirmation.",
+            )}
           </p>
         </header>
 
@@ -93,7 +133,7 @@ export function SubsystemAgentFleetPage() {
           <div className={styles.notices}>
             {agents.isLoading ? (
               <div className={styles.notice} role="status">
-                正在读取机队…
+                {t("正在读取机队…", "Loading the fleet…")}
               </div>
             ) : null}
             {agents.isError ? (
@@ -106,9 +146,12 @@ export function SubsystemAgentFleetPage() {
 
         {!agents.isLoading && !agents.isError && rows.length === 0 ? (
           <div className={styles.empty}>
-            <strong>机队里还没有 Agent</strong>
+            <strong>{t("机队里还没有 Agent", "No agents in the fleet yet")}</strong>
             <span>
-              去「安装 Agent」页获取安装命令；装好并完成注册后就会出现在这里。
+              {t(
+                "去「安装 Agent」页获取安装命令；装好并完成注册后就会出现在这里。",
+                "Get an install command from the “Install agent” page; the machine shows up here once installed and enrolled.",
+              )}
             </span>
           </div>
         ) : null}
@@ -120,12 +163,12 @@ export function SubsystemAgentFleetPage() {
                 <thead>
                   <tr>
                     <th scope="col">Agent</th>
-                    <th scope="col">主机名</th>
+                    <th scope="col">{t("主机名", "Hostname")}</th>
                     <th scope="col">IP</th>
-                    <th scope="col">版本</th>
-                    <th scope="col">状态</th>
+                    <th scope="col">{t("版本", "Version")}</th>
+                    <th scope="col">{t("状态", "Status")}</th>
                     <th scope="col" className={styles.thAction}>
-                      <span className={styles.srOnly}>操作</span>
+                      <span className={styles.srOnly}>{t("操作", "Actions")}</span>
                     </th>
                   </tr>
                 </thead>
@@ -160,7 +203,7 @@ export function SubsystemAgentFleetPage() {
                                 : `${styles.badge} ${styles.badgeOffline}`
                             }
                           >
-                            {online ? "在线" : "离线"}
+                            {online ? t("在线", "Online") : t("离线", "Offline")}
                           </span>
                         </td>
                         <td className={styles.tdAction}>
@@ -170,12 +213,18 @@ export function SubsystemAgentFleetPage() {
                             disabled={online}
                             title={
                               online
-                                ? "在线 Agent 不能删除 —— 它还在上报，删了下一刻可能又注册回来"
-                                : "删除这台离线 Agent（不可恢复）"
+                                ? t(
+                                    "在线 Agent 不能删除 —— 它还在上报，删了下一刻可能又注册回来",
+                                    "An online agent cannot be deleted — it is still reporting, and would likely register again right after deletion",
+                                  )
+                                : t(
+                                    "删除这台离线 Agent（不可恢复）",
+                                    "Delete this offline agent (irreversible)",
+                                  )
                             }
                             onClick={() => openConfirm(row)}
                           >
-                            删除
+                            {t("删除", "Delete")}
                           </button>
                         </td>
                       </tr>
@@ -202,13 +251,22 @@ export function SubsystemAgentFleetPage() {
             onClick={(event) => event.stopPropagation()}
           >
             <h2 id="fleet-delete-title" className={styles.dialogTitle}>
-              确认删除这台 Agent？
+              {t("确认删除这台 Agent？", "Delete this agent?")}
             </h2>
             <p className={styles.dialogBody}>
-              将删除 <code className={styles.code}>{target.agentId}</code>
-              ，并连同它的实例、凭据与所有派生态数据一起清掉。
-              <strong className={styles.dialogWarn}>此操作不可恢复</strong>
-              ；那台机器要重新接入必须重装（会得到一个新的 Agent ID）。
+              {t("将删除 ", "This deletes ")}
+              <code className={styles.code}>{target.agentId}</code>
+              {t(
+                "，并连同它的实例、凭据与所有派生态数据一起清掉。",
+                ", clearing its instance, credentials and all derived-state data along with it. ",
+              )}
+              <strong className={styles.dialogWarn}>
+                {t("此操作不可恢复", "This cannot be undone")}
+              </strong>
+              {t(
+                "；那台机器要重新接入必须重装（会得到一个新的 Agent ID）。",
+                "; re-enrolling that machine requires a reinstall (it will get a new Agent ID).",
+              )}
             </p>
             {remove.isError ? (
               <div className={styles.errorBanner} role="alert">
@@ -222,7 +280,7 @@ export function SubsystemAgentFleetPage() {
                 onClick={closeConfirm}
                 disabled={remove.isPending}
               >
-                取消
+                {t("取消", "Cancel")}
               </button>
               <button
                 type="button"
@@ -230,7 +288,7 @@ export function SubsystemAgentFleetPage() {
                 onClick={confirmDelete}
                 disabled={remove.isPending}
               >
-                {remove.isPending ? "正在删除…" : "确认删除"}
+                {remove.isPending ? t("正在删除…", "Deleting…") : t("确认删除", "Confirm delete")}
               </button>
             </div>
           </div>

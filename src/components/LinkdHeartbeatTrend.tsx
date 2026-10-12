@@ -1,4 +1,5 @@
 import type { GatewayLinkdHistory } from "../api";
+import { t, dateLocale } from "../i18n";
 import { Sparkline } from "./Sparkline";
 import styles from "./LinkdHeartbeatTrend.module.css";
 
@@ -12,12 +13,22 @@ const MAX_BUCKETS = 120;
 
 type SegmentTone = "ok" | "warn" | "crit" | "gap";
 
-const SEGMENT_LABEL: Record<SegmentTone, string> = {
-  ok: "在线",
-  warn: "未接入 / 接入中",
-  crit: "降级",
-  gap: "无心跳",
-};
+/**
+ * 格子的说法。**必须是函数**：写成模块级常量的话 `t()` 只在导入时求值一次，切语言不会变
+ * —— 它只在渲染期被调用（状态条的 `title`）。
+ */
+function segmentLabel(tone: SegmentTone): string {
+  switch (tone) {
+    case "ok":
+      return t("在线", "Online");
+    case "warn":
+      return t("未接入 / 接入中", "Not linked / linking");
+    case "crit":
+      return t("降级", "Degraded");
+    default:
+      return t("无心跳", "No heartbeat");
+  }
+}
 
 /**
  * gwlinkd 自报状态 → 状态条色调。
@@ -40,7 +51,7 @@ function toneOf(state: string): SegmentTone {
 }
 
 function clockText(seconds: number): string {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(dateLocale(), {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(seconds * 1000));
@@ -48,9 +59,10 @@ function clockText(seconds: number): string {
 
 /** 秒 → 「N 秒 / N 分」。 */
 function intervalText(seconds: number): string {
-  if (seconds < 1) return "<1 秒";
-  if (seconds < 90) return `${Math.round(seconds)} 秒`;
-  return `${(seconds / 60).toFixed(1)} 分`;
+  if (seconds < 1) return t("<1 秒", "<1 s");
+  if (seconds < 90)
+    return t("{n} 秒", "{n} s", { n: Math.round(seconds) });
+  return t("{n} 分", "{n} min", { n: (seconds / 60).toFixed(1) });
 }
 
 /**
@@ -73,10 +85,17 @@ export function LinkdHeartbeatTrend({
     return (
       <div className={styles.state}>
         <strong>
-          {loading ? "正在读取心跳轨迹…" : "最近 1 小时无心跳记录"}
+          {loading
+            ? t("正在读取心跳轨迹…", "Loading heartbeat trend…")
+            : t("最近 1 小时无心跳记录", "No heartbeat in the last hour")}
         </strong>
         {loading ? null : (
-          <span>gwlinkd 一直没上报心跳（未安装 / 未启动？）。</span>
+          <span>
+            {t(
+              "gwlinkd 一直没上报心跳（未安装 / 未启动？）。",
+              "gwlinkd has never reported a heartbeat (not installed / not running?).",
+            )}
+          </span>
         )}
       </div>
     );
@@ -110,29 +129,36 @@ export function LinkdHeartbeatTrend({
     <div className={styles.panel}>
       <div className={styles.header}>
         <div>
-          <div className={styles.title}>最近 1 小时心跳</div>
+          <div className={styles.title}>
+            {t("最近 1 小时心跳", "Heartbeat over the last hour")}
+          </div>
           <div className={styles.timeRange}>
             {clockText(startSeconds)}–{clockText(endSeconds)}
           </div>
         </div>
         <div className={styles.meta}>
-          <span>覆盖 {coverage}%</span>
-          <span>{samples.length} 拍</span>
+          <span>{t("覆盖 {n}%", "Coverage {n}%", { n: coverage })}</span>
+          <span>{t("{n} 拍", "{n} samples", { n: samples.length })}</span>
         </div>
       </div>
 
-      <div className={styles.strip} aria-label="最近 1 小时心跳状态">
+      <div
+        className={styles.strip}
+        aria-label={t("最近 1 小时心跳状态", "Heartbeat status over the last hour")}
+      >
         {buckets.map((tone, index) => (
           <span
             key={index}
             className={`${styles.segment} ${styles[`seg_${tone}`]}`}
-            title={`${clockText(startSeconds + index * step)} ${SEGMENT_LABEL[tone]}`}
+            title={`${clockText(startSeconds + index * step)} ${segmentLabel(tone)}`}
           />
         ))}
       </div>
 
       <div className={styles.intervalRow}>
-        <span className={styles.intervalLabel}>心跳间隔</span>
+        <span className={styles.intervalLabel}>
+          {t("心跳间隔", "Heartbeat interval")}
+        </span>
         <Sparkline
           values={intervals}
           height={22}
@@ -140,7 +166,9 @@ export function LinkdHeartbeatTrend({
           color="var(--accent)"
         />
         <strong className={styles.intervalValue}>
-          {latestInterval === null ? "仅 1 拍" : intervalText(latestInterval)}
+          {latestInterval === null
+            ? t("仅 1 拍", "Only 1 sample")
+            : intervalText(latestInterval)}
         </strong>
       </div>
     </div>

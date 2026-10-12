@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import styles from "./SubsystemAgentHostMetricsPage.module.css";
 import { TrendChart } from "./TrendChart";
 import { useAgentHostMetrics, useAgentOverview } from "../hooks";
+import { t, dateLocale } from "../i18n";
 import {
   formatKiB,
   formatNumber,
@@ -39,13 +40,17 @@ function barClass(severity: Severity): string {
 
 /** 用真实点位跨度描述趋势时间窗，避免标题写死"近 1 小时"却只有 10 分钟数据。 */
 function describeSpan(points?: [number, number][]): string {
-  if (!points || points.length < 2) return "暂无历史";
+  if (!points || points.length < 2) return t("暂无历史", "No history yet");
   const span = points[points.length - 1][0] - points[0][0];
   const minutes = Math.round(span / 60_000);
-  if (minutes < 60) return `近 ${Math.max(minutes, 1)} 分钟`;
+  if (minutes < 60)
+    return t("近 {n} 分钟", "Last {n} min", { n: Math.max(minutes, 1) });
   const hours = minutes / 60;
-  if (hours < 24) return `近 ${hours.toFixed(hours < 10 ? 1 : 0)} 小时`;
-  return `近 ${(hours / 24).toFixed(1)} 天`;
+  if (hours < 24)
+    return t("近 {n} 小时", "Last {n} h", {
+      n: hours.toFixed(hours < 10 ? 1 : 0),
+    });
+  return t("近 {n} 天", "Last {n} d", { n: (hours / 24).toFixed(1) });
 }
 
 export function SubsystemAgentHostMetricsPage(
@@ -83,58 +88,67 @@ export function SubsystemAgentHostMetricsPage(
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span> 返回机队视图
+          <span aria-hidden="true">←</span> {t("返回机队视图", "Back to fleet view")}
         </Link>
         <div className={styles.titleRow}>
           <h1 className={styles.pageTitle}>
-            {data?.hostname || agentId || "未指定主机"}
+            {data?.hostname || agentId || t("未指定主机", "Unspecified host")}
           </h1>
           <span className={styles.liveBadge}>
             <span className={styles.liveDot} aria-hidden="true" />
-            5 秒自动刷新
+            {t("5 秒自动刷新", "Auto refresh every 5 s")}
           </span>
           <Link
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/purpose`}
           >
-            查看用途 <span aria-hidden="true">→</span>
+            {t("查看用途", "View purpose")}{" "}
+            <span aria-hidden="true">→</span>
           </Link>
         </div>
         <div className={styles.metaRow}>
           <span className={styles.metaItem}>
-            主机 <strong>{data?.hostname || "—"}</strong>
+            {t("主机", "Host")} <strong>{data?.hostname || "—"}</strong>
           </span>
           <span className={styles.metaItem}>
             IP{" "}
             <strong title={addresses.full || undefined}>
               {addresses.primary ?? "—"}
-              {addresses.others > 0 ? ` 等 ${addresses.others + 1} 个` : ""}
+              {addresses.others > 0
+                ? t(" 等 {n} 个", " ({n} total)", {
+                    n: addresses.others + 1,
+                  })
+                : ""}
             </strong>
           </span>
           {data?.nodeId ? (
             <span className={styles.metaItem}>
-              节点 <strong>{data.nodeId}</strong>
+              {t("节点", "Node")} <strong>{data.nodeId}</strong>
             </span>
           ) : null}
           {agent ? (
             <>
               <span className={styles.metaItem}>
-                版本 <strong>{agent.version}</strong>
+                {t("版本", "Version")} <strong>{agent.version}</strong>
               </span>
               <span className={styles.metaItem}>
-                实例 <strong>{agent.instanceId}</strong>
+                {t("实例", "Instance")} <strong>{agent.instanceId}</strong>
               </span>
               <span className={styles.metaItem}>
-                Agent 在线时长{" "}
+                {t("Agent 在线时长", "Agent uptime")}{" "}
                 <strong>{formatUptime(agent.onlineDurationSeconds)}</strong>
               </span>
               <span className={styles.metaItem}>
-                Admin 延迟 <strong>{formatNumber(agent.adminLatencyMs, 0)} ms</strong>
+                {t("Admin 延迟", "Admin latency")}{" "}
+                <strong>{formatNumber(agent.adminLatencyMs, 0)} ms</strong>
               </span>
             </>
           ) : (
             <span className={styles.metaItemMuted}>
-              该主机不在最近上线列表中，仅展示指标数据。
+              {t(
+                "该主机不在最近上线列表中，仅展示指标数据。",
+                "This host is not in the recent online list; showing metrics only.",
+              )}
             </span>
           )}
         </div>
@@ -142,7 +156,10 @@ export function SubsystemAgentHostMetricsPage(
 
       {isError ? (
         <div className={styles.errorBanner}>
-          无法加载主机指标，请确认该 Agent 已接入且数据面 VictoriaMetrics 可用。
+          {t(
+            "无法加载主机指标，请确认该 Agent 已接入且数据面 VictoriaMetrics 可用。",
+            "Cannot load host metrics. Make sure the agent is enrolled and the VictoriaMetrics data plane is available.",
+          )}
         </div>
       ) : null}
 
@@ -155,27 +172,29 @@ export function SubsystemAgentHostMetricsPage(
       ) : (
         <section className={styles.tiles}>
           <article className={styles.tile}>
-            <h2 className={styles.tileTitle}>CPU 负载</h2>
+            <h2 className={styles.tileTitle}>{t("CPU 负载", "CPU load")}</h2>
             <p className={`${styles.tileValue} ${severityClass(loadSeverity)}`}>
               {formatNumber(currentLoad)}
             </p>
             <span className={styles.tileCaption}>
-              当前分级：{SEVERITY_LABEL[loadSeverity]}（1 分钟）
+              {t("当前分级：{level}（1 分钟）", "Current level: {level} (1 min)", {
+                level: SEVERITY_LABEL[loadSeverity],
+              })}
             </span>
             <dl className={styles.subList}>
               <div className={styles.subRow}>
-                <dt>5 分钟</dt>
+                <dt>{t("5 分钟", "5 min")}</dt>
                 <dd>{formatNumber(data?.loadAverage5m)}</dd>
               </div>
               <div className={styles.subRow}>
-                <dt>15 分钟</dt>
+                <dt>{t("15 分钟", "15 min")}</dt>
                 <dd>{formatNumber(data?.loadAverage15m)}</dd>
               </div>
             </dl>
           </article>
 
           <article className={styles.tile}>
-            <h2 className={styles.tileTitle}>内存</h2>
+            <h2 className={styles.tileTitle}>{t("内存", "Memory")}</h2>
             <p className={`${styles.tileValue} ${severityClass(memorySeverity)}`}>
               {formatPercent(memoryUsagePercent)}
             </p>
@@ -192,23 +211,25 @@ export function SubsystemAgentHostMetricsPage(
             </div>
             <dl className={styles.subList}>
               <div className={styles.subRow}>
-                <dt>总量</dt>
+                <dt>{t("总量", "Total")}</dt>
                 <dd>{formatKiB(data?.memoryTotalKb)}</dd>
               </div>
               <div className={styles.subRow}>
-                <dt>可用</dt>
+                <dt>{t("可用", "Available")}</dt>
                 <dd>{formatKiB(data?.memoryAvailableKb)}</dd>
               </div>
             </dl>
           </article>
 
           <article className={styles.tile}>
-            <h2 className={styles.tileTitle}>磁盘</h2>
+            <h2 className={styles.tileTitle}>{t("磁盘", "Disk")}</h2>
             <p className={`${styles.tileValue} ${severityClass(diskSeverity)}`}>
               {formatPercent(data?.diskUsagePercent)}
             </p>
             <span className={styles.tileCaption}>
-              当前分级：{SEVERITY_LABEL[diskSeverity]}
+              {t("当前分级：{level}", "Current level: {level}", {
+                level: SEVERITY_LABEL[diskSeverity],
+              })}
             </span>
             <div className={styles.barTrack}>
               <div
@@ -220,30 +241,37 @@ export function SubsystemAgentHostMetricsPage(
             </div>
             <dl className={styles.subList}>
               <div className={styles.subRow}>
-                <dt>总量</dt>
+                <dt>{t("总量", "Total")}</dt>
                 <dd>{formatKiB(data?.diskTotalKb)}</dd>
               </div>
               <div className={styles.subRow}>
-                <dt>可用</dt>
+                <dt>{t("可用", "Available")}</dt>
                 <dd>{formatKiB(data?.diskAvailableKb)}</dd>
               </div>
             </dl>
           </article>
 
           <article className={styles.tile}>
-            <h2 className={styles.tileTitle}>主机开机时长</h2>
+            <h2 className={styles.tileTitle}>
+              {t("主机开机时长", "Host uptime")}
+            </h2>
             <p className={styles.tileValue}>{formatUptime(data?.uptimeSeconds)}</p>
-            <span className={styles.tileCaption}>操作系统开机至今，与 Agent 在线时长不同</span>
+            <span className={styles.tileCaption}>
+              {t(
+                "操作系统开机至今，与 Agent 在线时长不同",
+                "Since the OS booted, unlike agent uptime",
+              )}
+            </span>
             <dl className={styles.subList}>
               <div className={styles.subRow}>
-                <dt>指标采集窗口</dt>
+                <dt>{t("指标采集窗口", "Metric window")}</dt>
                 <dd>{span}</dd>
               </div>
               {agent ? (
                 <div className={styles.subRow}>
-                  <dt>注册时间</dt>
+                  <dt>{t("注册时间", "Registered at")}</dt>
                   <dd>
-                    {new Intl.DateTimeFormat("zh-CN", {
+                    {new Intl.DateTimeFormat(dateLocale(), {
                       month: "2-digit",
                       day: "2-digit",
                       hour: "2-digit",
@@ -261,28 +289,34 @@ export function SubsystemAgentHostMetricsPage(
       {data?.history ? (
         <section className={styles.trends}>
           <div className={styles.trendsHead}>
-            <h2 className={styles.trendsTitle}>指标趋势</h2>
+            <h2 className={styles.trendsTitle}>{t("指标趋势", "Metric trends")}</h2>
             <span className={styles.trendsHint}>
-              {span} · 悬停折线可查看任意时刻取值
+              {t(
+                "{span} · 悬停折线可查看任意时刻取值",
+                "{span} · Hover the line to see the value at any point",
+                { span },
+              )}
             </span>
           </div>
 
           <article className={styles.trendCard}>
-            <h3 className={styles.trendCardTitle}>CPU 负载</h3>
+            <h3 className={styles.trendCardTitle}>
+              {t("CPU 负载", "CPU load")}
+            </h3>
             <TrendChart
               series={[
                 {
-                  name: "1 分钟",
+                  name: t("1 分钟", "1 min"),
                   color: "var(--series-1)",
                   points: data.history.loadAverage1m,
                 },
                 {
-                  name: "5 分钟",
+                  name: t("5 分钟", "5 min"),
                   color: "var(--series-2)",
                   points: data.history.loadAverage5m,
                 },
                 {
-                  name: "15 分钟",
+                  name: t("15 分钟", "15 min"),
                   color: "var(--series-3)",
                   points: data.history.loadAverage15m,
                 },
@@ -293,12 +327,14 @@ export function SubsystemAgentHostMetricsPage(
 
           <div className={styles.trendGrid}>
             <article className={styles.trendCard}>
-              <h3 className={styles.trendCardTitle}>内存可用量</h3>
+              <h3 className={styles.trendCardTitle}>
+                {t("内存可用量", "Memory available")}
+              </h3>
               <TrendChart
                 height={168}
                 series={[
                   {
-                    name: "可用",
+                    name: t("可用", "Available"),
                     color: "var(--series-1)",
                     points: data.history.memoryAvailableKb,
                   },
@@ -308,12 +344,14 @@ export function SubsystemAgentHostMetricsPage(
             </article>
 
             <article className={styles.trendCard}>
-              <h3 className={styles.trendCardTitle}>磁盘使用率</h3>
+              <h3 className={styles.trendCardTitle}>
+                {t("磁盘使用率", "Disk usage")}
+              </h3>
               <TrendChart
                 height={168}
                 series={[
                   {
-                    name: "使用率",
+                    name: t("使用率", "Usage"),
                     color: "var(--series-5)",
                     points: data.history.diskUsagePercent,
                   },

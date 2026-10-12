@@ -5,6 +5,7 @@ import type { MachineClass } from "../types";
 import { useAgentPurpose, useClassifyAgentPurpose } from "../hooks";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
+import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentPurposePage.module.css";
 
 interface SubsystemAgentPurposePageProps {
@@ -31,22 +32,39 @@ function isUnknownAgentError(error: unknown): boolean {
 function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
-      return "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击「应用」。";
-    if (error.status === 429) return "认证失败次数过多，请稍后再试。";
+      return t(
+        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击「应用」。",
+        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t("认证失败次数过多，请稍后再试。", "Too many failed authentications; try again later.");
     // 走到这里说明 404 的正文对不上「未知 Agent」：更可能是网关没有这个路由。
     if (error.status === 404)
-      return "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。";
+      return t(
+        "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+        "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build; rebuild and restart the gateway, then try again.",
+      );
     return error.detail
-      ? `网关返回 HTTP ${error.status}：${error.detail}`
-      : `网关返回 HTTP ${error.status}，请检查网关日志。`;
+      ? t("网关返回 HTTP {status}：{detail}", "The gateway returned HTTP {status}: {detail}", {
+          status: error.status,
+          detail: error.detail,
+        })
+      : t(
+          "网关返回 HTTP {status}，请检查网关日志。",
+          "The gateway returned HTTP {status}; check the gateway logs.",
+          { status: error.status },
+        );
   }
-  return "读取失败：响应不符合当前契约，请检查网关与前端版本。";
+  return t(
+    "读取失败：响应不符合当前契约，请检查网关与前端版本。",
+    "Load failed: the response does not match the current contract; check the gateway and frontend versions.",
+  );
 }
 
 function formatTimestamp(value: string): string {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return value;
-  return at.toLocaleString("zh-CN", { hour12: false });
+  return at.toLocaleString(dateLocale(), { hour12: false });
 }
 
 /**
@@ -65,32 +83,40 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span> 返回机队视图
+          <span aria-hidden="true">←</span> {t("返回机队视图", "Back to fleet view")}
         </Link>
         <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>{agentId || "未指定主机"}</h1>
-          <span className={styles.scopeBadge}>用途：事实 / 推断 / 判定</span>
+          <h1 className={styles.pageTitle}>
+            {agentId || t("未指定主机", "No host specified")}
+          </h1>
+          <span className={styles.scopeBadge}>
+            {t("用途：事实 / 推断 / 判定", "Purpose: facts / inference / classification")}
+          </span>
           <Link
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/metrics`}
           >
-            主机指标 <span aria-hidden="true">→</span>
+            {t("主机指标", "Host metrics")} <span aria-hidden="true">→</span>
           </Link>
           <Link
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/work`}
           >
-            采集工作 <span aria-hidden="true">→</span>
+            {t("采集工作", "Collection work")} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <div className={styles.metaRow}>
           {data ? (
             <span className={styles.metaItem}>
-              视图生成 <strong>{formatTimestamp(data.generatedAt)}</strong>
+              {t("视图生成", "View generated")}{" "}
+              <strong>{formatTimestamp(data.generatedAt)}</strong>
             </span>
           ) : null}
           <span className={styles.metaItemMuted}>
-            不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 —— 需要重取用右上角「刷新」。
+            {t(
+              "不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 —— 需要重取用右上角「刷新」。",
+              "No automatic polling: facts are reported only when their content changes, and suggestions are recomputed only when the facts or the rule book change — refetch with “Refresh” in the top-right corner.",
+            )}
           </span>
         </div>
       </header>
@@ -98,16 +124,24 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
       {unknownAgent ? (
         // 「这台机器不存在」（404）与「它还没报过事实」（200 + 空视图）必须分开呈现。
         <section className={styles.unknownAgent} role="alert">
-          <h2 className={styles.unknownTitle}>未知 Agent</h2>
+          <h2 className={styles.unknownTitle}>{t("未知 Agent", "Unknown agent")}</h2>
           <p className={styles.unknownText}>
-            网关里没有 <strong>{agentId}</strong> 这台 Agent 的注册记录（HTTP 404）。这与「尚未上报事实」是两回事：后者是已知的 Agent 还没报过摘要，网关会返回空的事实与建议，而不是 404。
+            {t("网关里没有 ", "The gateway has no registration record for ")}
+            <strong>{agentId}</strong>
+            {t(
+              " 这台 Agent 的注册记录（HTTP 404）。这与「尚未上报事实」是两回事：后者是已知的 Agent 还没报过摘要，网关会返回空的事实与建议，而不是 404。",
+              " (HTTP 404). This is different from “facts not yet reported”: in that case the agent is known but has not reported a summary, and the gateway returns empty facts and suggestions instead of a 404.",
+            )}
           </p>
           <p className={styles.unknownHint}>
-            请确认 agent_id 拼写是否正确；已注册的主机可以在
+            {t(
+              "请确认 agent_id 拼写是否正确；已注册的主机可以在",
+              "Check that the agent_id is spelled correctly; registered hosts can be verified on the",
+            )}
             <Link className={styles.unknownLink} to="/hosts">
-              主机指标
+              {t("主机指标", "Host metrics")}
             </Link>
-            页核对。
+            {t("页核对。", " page.")}
           </p>
         </section>
       ) : null}
@@ -134,8 +168,14 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
       {!isLoading && !isError && !data ? (
         <div className={styles.idleNotice} role="status">
           {getAdminApiToken()
-            ? "尚未取到用途数据，用右上角「刷新」重试。"
-            : "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。"}
+            ? t(
+                "尚未取到用途数据，用右上角「刷新」重试。",
+                "No purpose data yet; retry with “Refresh” in the top-right corner.",
+              )
+            : t(
+                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: the admin plane is only queried once it is entered on the left, so no data is shown here.",
+              )}
         </div>
       ) : null}
 
@@ -206,21 +246,34 @@ function ClassifyPanel({
     <section className={styles.classifyPanel} aria-labelledby="agent-purpose-classify">
       <header className={styles.classifyHeader}>
         <h2 className={styles.classifyTitle} id="agent-purpose-classify">
-          归档用途判定
+          {t("归档用途判定", "Archive purpose classification")}
         </h2>
         <span className={styles.classifyHint}>
-          判定是<strong>授权工作模板的前置</strong>（它决定取哪份模板、能派哪些采集面）；改判就是改采集范围，所以留判的人与时间
+          {t("判定是", "Classification is ")}
+          <strong>{t("授权工作模板的前置", "a prerequisite for granting work templates")}</strong>
+          {t(
+            "（它决定取哪份模板、能派哪些采集面）；改判就是改采集范围，所以留判的人与时间",
+            " (it selects the template and thus which collection families can be granted); reclassifying changes the collection scope, so who classified and when is recorded",
+          )}
         </span>
       </header>
 
       {!hasFacts ? (
         <p className={styles.classifyBlocked}>
-          这台机器还没上报过事实摘要：网关无法确认它的平台，因此<strong>拒绝</strong>归档判定（不默认放行）。等它上报后再来。
+          {t(
+            "这台机器还没上报过事实摘要：网关无法确认它的平台，因此",
+            "This machine has not reported a fact summary yet: the gateway cannot confirm its platform, so it ",
+          )}
+          <strong>{t("拒绝", "refuses")}</strong>
+          {t(
+            "归档判定（不默认放行）。等它上报后再来。",
+            " to archive a classification (it does not allow by default). Come back after it reports.",
+          )}
         </p>
       ) : (
         <div className={styles.classifyForm}>
           <label className={styles.classifyField}>
-            机器类别
+            {t("机器类别", "Machine class")}
             <select
               className={styles.classifyInput}
               value={value}
@@ -231,18 +284,25 @@ function ClassifyPanel({
               {MACHINE_CLASS_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
-                  {option === suggestedClass ? "（网关建议）" : ""}
-                  {option === currentClass ? "（当前判定）" : ""}
+                  {option === suggestedClass
+                    ? t("（网关建议）", " (gateway suggestion)")
+                    : ""}
+                  {option === currentClass
+                    ? t("（当前判定）", " (current classification)")
+                    : ""}
                 </option>
               ))}
             </select>
           </label>
           <label className={styles.classifyField}>
-            备注（可留空）
+            {t("备注（可留空）", "Note (optional)")}
             <input
               className={styles.classifyInput}
               value={note}
-              placeholder="例如：这台是开发机，采纳网关建议"
+              placeholder={t(
+                "例如：这台是开发机，采纳网关建议",
+                "For example: this is a development machine, take the gateway suggestion",
+              )}
               onChange={(event) => setNote(event.target.value)}
             />
           </label>
@@ -259,7 +319,9 @@ function ClassifyPanel({
               })
             }
           >
-            {mutation.isPending ? "提交中…" : "归档判定"}
+            {mutation.isPending
+              ? t("提交中…", "Submitting…")
+              : t("归档判定", "Archive classification")}
           </button>
           {mutation.isError ? (
             <span className={styles.classifyError} role="alert">
@@ -268,7 +330,9 @@ function ClassifyPanel({
           ) : null}
           {mutation.isSuccess ? (
             <span className={styles.classifyOk} role="status">
-              已归档：{mutation.data.machineClass}
+              {t("已归档：{machineClass}", "Archived: {machineClass}", {
+                machineClass: mutation.data.machineClass,
+              })}
             </span>
           ) : null}
         </div>
@@ -280,9 +344,24 @@ function ClassifyPanel({
 function classifyErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     // 400 的两种原因（没事实 / 分类与平台不符）网关都写在正文里，原样透出。
-    if (error.status === 400) return error.detail ?? "请求不成立（HTTP 400）。";
-    if (error.status === 404) return "未知 Agent（HTTP 404）。";
-    return `归档失败（HTTP ${error.status}）：${error.detail ?? "请检查网关日志。"}`;
+    if (error.status === 400)
+      return (
+        error.detail ??
+        t("请求不成立（HTTP 400）。", "The request is not valid (HTTP 400).")
+      );
+    if (error.status === 404)
+      return t("未知 Agent（HTTP 404）。", "Unknown agent (HTTP 404).");
+    return t(
+      "归档失败（HTTP {status}）：{detail}",
+      "Archiving failed (HTTP {status}): {detail}",
+      {
+        status: error.status,
+        detail: error.detail ?? t("请检查网关日志。", "Check the gateway logs."),
+      },
+    );
   }
-  return "归档失败：响应不符合当前契约。";
+  return t(
+    "归档失败：响应不符合当前契约。",
+    "Archiving failed: the response does not match the current contract.",
+  );
 }

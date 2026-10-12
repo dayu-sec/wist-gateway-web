@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { t, dateLocale } from "../i18n";
 import styles from "./TrendChart.module.css";
 
 export interface TrendChartSeries {
@@ -31,7 +32,7 @@ const AXIS_TOP = 10;
 const AXIS_BOTTOM = 24;
 
 function formatTime(ts: number, withDate: boolean): string {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(dateLocale(), {
     ...(withDate ? { month: "2-digit", day: "2-digit" } : {}),
     hour: "2-digit",
     minute: "2-digit",
@@ -244,7 +245,7 @@ export function TrendChart({
   if (!model) {
     return (
       <div className={styles.chart} ref={wrapRef}>
-        <div className={styles.empty}>暂无趋势数据</div>
+        <div className={styles.empty}>{t("暂无趋势数据", "No trend data")}</div>
       </div>
     );
   }
@@ -264,7 +265,7 @@ export function TrendChart({
           height={height}
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="指标趋势"
+          aria-label={t("指标趋势", "Metric trend")}
         >
           <defs>
             <linearGradient id={gradientId.current} x1="0" y1="0" x2="0" y2="1">

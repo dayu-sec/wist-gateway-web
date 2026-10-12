@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemDispatchId.module.css";
 
 interface SubsystemDispatchIdProps {
@@ -7,7 +8,7 @@ interface SubsystemDispatchIdProps {
 export function SubsystemDispatchId({ children }: SubsystemDispatchIdProps) {
   return (
     <div className={styles.container}>
-      <div className={styles.label}>派发 ID</div>
+      <div className={styles.label}>{t("派发 ID", "Dispatch ID")}</div>
       {children}
     </div>
   );

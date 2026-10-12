@@ -4,6 +4,7 @@ import {
   fetchContentCatalog,
   grantOneShotWork,
   grantStandingWork,
+  grantStandingWorkAll,
   normalizeAgentWorkView,
   normalizeContentCatalog,
   normalizeWorkReceipt,
@@ -673,6 +674,70 @@ const explicitBody = JSON.parse(recorded[0].body);
 assert(explicitBody.spec === "mac-host-metrics", "手写 spec 要原样发出");
 assert(explicitBody.plan_version === 4, "指定版本要发过去");
 
+// 全部授权：网关只有「一份工作一个请求」的接口，所以前端**串行逐面** POST；
+// 单份失败**不中断**其余 —— 成功与失败都要带回来，页面才说得清哪一份没成。
+recorded = [];
+let bulkCall = 0;
+responder = () => {
+  bulkCall += 1;
+  // 第二面（NetworkFirewall）失败：模板不含此面，网关回 409。
+  if (bulkCall === 2) {
+    return new Response("template does not contain NetworkFirewall", {
+      status: 409,
+    });
+  }
+  return Response.json({
+    work_id: `work-agent-001-${bulkCall}`,
+    agent_id: "agent-001",
+    work_kind: "Standing",
+    status: "accepted",
+    plan_version: 2 + bulkCall,
+    created_at: "2026-09-23T00:00:03Z",
+  });
+};
+const bulk = await grantStandingWorkAll("agent-001", [
+  "HostMetrics",
+  "NetworkFirewall",
+  "RebootPower",
+]);
+assert(
+  recorded.length === 3,
+  `三面都要提交（失败那面之后必须继续），实际 ${recorded.length}`,
+);
+assert(
+  recorded.every(
+    (entry) =>
+      entry.method === "POST" &&
+      entry.url === "/api/v1/admin/agents/agent-001/work",
+  ),
+  "全部授权走的还是逐面 POST /work（没有批量端点）",
+);
+assert(
+  recorded
+    .map((entry) => JSON.parse(entry.body).family)
+    .join(",") === "HostMetrics,NetworkFirewall,RebootPower",
+  "按传入顺序串行提交",
+);
+assert(
+  recorded.every((entry) => JSON.parse(entry.body).work_kind === "Standing"),
+  "每一面都要声明 work_kind",
+);
+assert(bulk.granted.length === 2, `成功两份，实际 ${bulk.granted.length}`);
+assert(
+  bulk.granted[0].workId === "work-agent-001-1" &&
+    bulk.granted[0].planVersion === 3,
+  "成功项要带回 work id 与期望版本（页面据此说话）",
+);
+assert(
+  bulk.failed.length === 1 && bulk.failed[0].family === "NetworkFirewall",
+  `失败的是 NetworkFirewall：${JSON.stringify(bulk.failed)}`,
+);
+assert(
+  bulk.failed[0].message.includes("409") &&
+    bulk.failed[0].message.includes("does not contain"),
+  `失败原因要带状态码与后端正文：${bulk.failed[0].message}`,
+);
+
 recorded = [];
 await grantOneShotWork("agent-001", {
   action: "upgrade",
@@ -882,5 +947,5 @@ assert(localExecutionLabel("executed") === "已执行", "本机执行阶段要�
 assert(localExecutionLabel("wat") === "wat", "认不出的阶段原样露出，不编造");
 
 console.log(
-  "agent work contract ok: request shapes + spec parsing (fail loud) + drift三态 + grant gate + closed sets + 503/409 + 本机工作 local",
+  "agent work contract ok: request shapes + spec parsing (fail loud) + drift三态 + grant gate + 全部授权串行/部分失败 + closed sets + 503/409 + 本机工作 local",
 );

@@ -10,16 +10,27 @@
  */
 
 import { ApiError, type AgentOverview } from "../api";
+import { t } from "../i18n";
 import type {
   AgentSoftwareEntry,
   SoftwareHolder,
   SoftwareKind,
 } from "../types";
 
-/** 条目类别的展示名（模型里是闭合 variant：app / binary）。 */
+/**
+ * 条目类别的展示名（模型里是闭合 variant：app / binary）。
+ *
+ * 值写成 **getter**：这张表是导出给页面当表用的常量（`SOFTWARE_KIND_LABEL[kind]`），
+ * 取词必须发生在**读取时**（即页面渲染期）—— 写成 `app: t("app 包", …)` 的话 `t()` 只在
+ * 模块导入时求值一次，切语言不会变（见 `src/i18n/index.ts`）。
+ */
 export const SOFTWARE_KIND_LABEL: Record<SoftwareKind, string> = {
-  app: "app 包",
-  binary: "可执行",
+  get app() {
+    return t("app 包", "app bundle");
+  },
+  get binary() {
+    return t("可执行", "executable");
+  },
 };
 
 /** 「按机器看软件」里一个 `software_key` 折叠出的一组条目。 */
@@ -110,10 +121,11 @@ export function truncationNotice(options: {
   limit: number;
 }): string | null {
   if (!options.truncated) return null;
-  return (
-    `已截断：清单里还有更多软件键没显示 —— 这里只是前 ${options.returned} 条` +
-    `（当前上限 ${options.limit} 条，后端最多接受 500）。这不是全量清单，` +
-    `请按上面的键判断，不要当成「机队里只有这些软件」。`
+  // 与上表同理：调用方在渲染期调用本函数，取词放这里；条数走占位符（语序不同，不拼串）。
+  return t(
+    "已截断：清单里还有更多软件键没显示 —— 这里只是前 {returned} 条（当前上限 {limit} 条，后端最多接受 500）。这不是全量清单，请按上面的键判断，不要当成「机队里只有这些软件」。",
+    "Truncated: more software keys exist but are not listed — these are only the first {returned} entries (current limit {limit}; the backend accepts at most 500). This is not the full inventory, so judge by the keys above rather than assuming the fleet has only this software.",
+    { returned: options.returned, limit: options.limit },
   );
 }
 
@@ -125,12 +137,23 @@ export type AgentLedgerStatus =
   | "example"
   | "unknown";
 
+/** Agent 台账（`AgentOverview`）里一台机器的状态；值同 [`SOFTWARE_KIND_LABEL`]，按读取期取词。 */
 export const AGENT_LEDGER_STATUS_LABEL: Record<AgentLedgerStatus, string> = {
-  online: "在线",
-  abnormal: "异常",
-  offline: "离线",
-  example: "示例数据",
-  unknown: "不在当前台账",
+  get online() {
+    return t("在线", "Online");
+  },
+  get abnormal() {
+    return t("异常", "Abnormal");
+  },
+  get offline() {
+    return t("离线", "Offline");
+  },
+  get example() {
+    return t("示例数据", "Sample data");
+  },
+  get unknown() {
+    return t("不在当前台账", "Not in current ledger");
+  },
 };
 
 export interface AgentLedgerEntry {

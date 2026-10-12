@@ -1,4 +1,5 @@
 import { MetricTile } from "./MetricTile";
+import { t } from "../i18n";
 
 interface SubsystemUnhealthyAgentMetricProps {
   value: number;
@@ -18,9 +19,15 @@ export function SubsystemUnhealthyAgentMetric({
 }: SubsystemUnhealthyAgentMetricProps) {
   return (
     <MetricTile
-      label="异常 Agent 数"
+      label={t("异常 Agent 数", "Unhealthy agents")}
       value={String(value)}
-      hint={hint ?? "由网关侧异常判定规则统计，当前规则尚未启用"}
+      hint={
+        hint ??
+        t(
+          "由网关侧异常判定规则统计，当前规则尚未启用",
+          "Counted by gateway-side health rules; those rules are not enabled yet",
+        )
+      }
       tone={value > 0 ? "crit" : "unknown"}
       loading={loading}
     />

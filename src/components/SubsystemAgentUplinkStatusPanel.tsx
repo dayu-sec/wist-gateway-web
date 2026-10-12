@@ -1,4 +1,5 @@
 import type { AgentUplinkStateView } from "../api";
+import { t } from "../i18n";
 import styles from "./SubsystemAgentUplinkStatusPanel.module.css";
 
 interface SubsystemAgentUplinkStatusPanelProps {
@@ -25,15 +26,22 @@ interface Headline {
  *   * 待命（grant）—— 控制面明确没启用（没设地址 / 没派活），**正常**；
  *   * 待命（local）—— 没拿到控制面授权，按本机配置待命（网关旧或拉取失败）；
  *   * 已启用但出口失败（`enabled` + `tcp` + `outputWriteFailing`）—— **这才是故障**。
+ *
+ * 文案在调用那一刻取（`t()`）：本函数在渲染期被调用，切语言会重新求值。
  */
 function describe(state: AgentUplinkStateView | null): Headline {
   if (!state) {
     return {
       tone: "unknown",
-      pill: "未上报",
-      title: "这台 Agent 还没上报生效状态",
-      detail:
+      pill: t("未上报", "Not reported"),
+      title: t(
+        "这台 Agent 还没上报生效状态",
+        "This agent has not reported its effective status yet",
+      ),
+      detail: t(
         "agentd 是旧版本（不发这个字段），或它还没成功上报过。先确认它在机队视图里「在线」。",
+        "Either agentd is an old build (it does not send this field) or it has never reported successfully. First check that it is online in the fleet view.",
+      ),
     };
   }
 
@@ -41,31 +49,48 @@ function describe(state: AgentUplinkStateView | null): Headline {
     if (state.outputWriteFailing) {
       return {
         tone: "crit",
-        pill: "已启用 · 出口失败",
-        title: `已启用上送，但出口写失败尚未恢复（目标 ${
-          state.target ?? "本机配置"
-        }）`,
-        detail:
+        pill: t("已启用 · 出口失败", "Enabled · output failing"),
+        title: t(
+          "已启用上送，但出口写失败尚未恢复（目标 {target}）",
+          "Uplink is enabled, but the output write failure has not recovered (target {target})",
+          { target: state.target ?? t("本机配置", "local config") },
+        ),
+        detail: t(
           "去这台机器的 agentd 日志看 `telemetry output write failed` 行的 magnitude/cause（含目标地址与原因）。",
+          "Check this machine's agentd log for the magnitude/cause on the `telemetry output write failed` line (it carries the target address and the reason).",
+        ),
       };
     }
     return {
       tone: "ok",
-      pill: "已上送",
+      pill: t("已上送", "Reporting"),
       title: state.target
-        ? `已启用：日志经 tcp 送往 ${state.target}`
-        : "已启用：按本机配置上送",
-      detail: "有生效工作且目标可达时，采集日志会出现在「采集日志」页。",
+        ? t(
+            "已启用：日志经 tcp 送往 {target}",
+            "Enabled: logs are sent over tcp to {target}",
+            { target: state.target },
+          )
+        : t("已启用：按本机配置上送", "Enabled: sending per local config"),
+      detail: t(
+        "有生效工作且目标可达时，采集日志会出现在「采集日志」页。",
+        "When effective work exists and the target is reachable, collection logs show up on the Collection logs page.",
+      ),
     };
   }
 
   if (state.enabled && state.kind !== "tcp") {
     return {
       tone: "standby",
-      pill: `已启用 · ${state.kind}`,
-      title: `生效输出是 ${state.kind}，不是数据面 —— 数据不会到网关`,
-      detail:
+      pill: t("已启用 · {kind}", "Enabled · {kind}", { kind: state.kind }),
+      title: t(
+        "生效输出是 {kind}，不是数据面 —— 数据不会到网关",
+        "The effective output is {kind}, not the data plane — data will not reach the gateway",
+        { kind: state.kind },
+      ),
+      detail: t(
         "这是本机配置的结果（控制面没给出目标去覆盖它）。派活后控制面会下发目标并切到 tcp —— 目标是部署配置派生的，不需要人工录地址。",
+        "This is the result of local config (the control plane has not issued a target to override it). Once work is assigned, the control plane sends a target and switches to tcp — the target is derived from the deployment config, so no address has to be entered by hand.",
+      ),
     };
   }
 
@@ -75,26 +100,43 @@ function describe(state: AgentUplinkStateView | null): Headline {
     if (state.target) {
       return {
         tone: "standby",
-        pill: "待命",
-        title: "控制面没启用上送（正常待命）",
-        detail: `上送目标这边看起来是有的（Agent 侧记着 ${state.target}）。两个条件里缺的多半是「生效工作」—— 到本页下方的「能派什么」派一份常驻工作即可；若确实已派过活，再回 Gateway 信息页看「数据面上送地址」一眼。`,
+        pill: t("待命", "Standby"),
+        title: t(
+          "控制面没启用上送（正常待命）",
+          "Uplink is not enabled by the control plane (normal standby)",
+        ),
+        detail: t(
+          "上送目标这边看起来是有的（Agent 侧记着 {target}）。两个条件里缺的多半是「生效工作」—— 到本页下方的「能派什么」派一份常驻工作即可；若确实已派过活，再回 Gateway 信息页看「数据面上送地址」一眼。",
+          "The uplink target appears to be in place (the agent has {target} on record). What is most likely missing is effective work — assign a piece of standing work from “What can be assigned” below. If work really has been assigned, take another look at “Data plane uplink address” on the Gateway info page.",
+          { target: state.target },
+        ),
       };
     }
     return {
       tone: "standby",
-      pill: "待命",
-      title: "控制面没启用上送（正常待命）",
-      detail:
+      pill: t("待命", "Standby"),
+      title: t(
+        "控制面没启用上送（正常待命）",
+        "Uplink is not enabled by the control plane (normal standby)",
+      ),
+      detail: t(
         "Agent 侧还没记下上送目标 —— 网关没能给出目标（对外基址里取不出主机名，或本机拿的配置被改过）。到 Gateway 信息页看「数据面上送地址」一眼；派活后 ≤30 秒自动开，无需改配置或重装。",
+        "The agent has no uplink target on record — the gateway could not provide one (no host name can be derived from the external base URL, or the config it received has been changed). Take a look at “Data plane uplink address” on the Gateway info page; after work is assigned it turns on within 30 seconds, with no config change or reinstall.",
+      ),
     };
   }
 
   return {
     tone: "standby",
-    pill: "待命（本机）",
-    title: "没拿到控制面授权，按本机配置待命",
-    detail:
+    pill: t("待命（本机）", "Standby (local)"),
+    title: t(
+      "没拿到控制面授权，按本机配置待命",
+      "No control-plane grant; standing by on local config",
+    ),
+    detail: t(
       "网关旧（`uplink:poll` 回 404）或拉取一直失败。升级 / 修好网关后，这里会变成「由控制面决定」。",
+      "Either the gateway is old (`uplink:poll` returns 404) or the poll keeps failing. After the gateway is upgraded or fixed, this becomes “decided by the control plane”.",
+    ),
   };
 }
 
@@ -115,17 +157,17 @@ export function SubsystemAgentUplinkStatusPanel({
   return (
     <section
       className={`${styles.container} ${styles[headline.tone]}`}
-      aria-label="数据面上送状态"
+      aria-label={t("数据面上送状态", "Data plane uplink status")}
     >
       <div className={styles.header}>
-        <h2 className={styles.title}>数据面上送</h2>
+        <h2 className={styles.title}>{t("数据面上送", "Data plane uplink")}</h2>
         <span className={styles.pill}>{headline.pill}</span>
       </div>
 
       {loadError ? (
         <p className={styles.error}>{loadError}</p>
       ) : loading ? (
-        <p className={styles.muted}>正在读取…</p>
+        <p className={styles.muted}>{t("正在读取…", "Loading…")}</p>
       ) : (
         <>
           <p className={styles.headline}>{headline.title}</p>
@@ -133,23 +175,31 @@ export function SubsystemAgentUplinkStatusPanel({
           {uplinkState ? (
             <dl className={styles.facts}>
               <div className={styles.fact}>
-                <dt>开关</dt>
-                <dd>{uplinkState.enabled ? "启用" : "待命"}</dd>
+                <dt>{t("开关", "Switch")}</dt>
+                <dd>
+                  {uplinkState.enabled
+                    ? t("启用", "Enabled")
+                    : t("待命", "Standby")}
+                </dd>
               </div>
               <div className={styles.fact}>
-                <dt>输出</dt>
+                <dt>{t("输出", "Output")}</dt>
                 <dd>
                   {uplinkState.kind}
                   {uplinkState.target ? ` → ${uplinkState.target}` : ""}
                 </dd>
               </div>
               <div className={styles.fact}>
-                <dt>来源</dt>
+                <dt>{t("来源", "Source")}</dt>
                 <dd>{sourceLabel(uplinkState.source)}</dd>
               </div>
               <div className={styles.fact}>
-                <dt>出口写失败</dt>
-                <dd>{uplinkState.outputWriteFailing ? "尚未恢复" : "无"}</dd>
+                <dt>{t("出口写失败", "Output write failure")}</dt>
+                <dd>
+                  {uplinkState.outputWriteFailing
+                    ? t("尚未恢复", "Not recovered")
+                    : t("无", "None")}
+                </dd>
               </div>
             </dl>
           ) : null}
@@ -162,9 +212,9 @@ export function SubsystemAgentUplinkStatusPanel({
 function sourceLabel(source: string): string {
   switch (source) {
     case "grant":
-      return "控制面下发";
+      return t("控制面下发", "From control plane");
     case "local":
-      return "本机配置";
+      return t("本机配置", "Local config");
     default:
       return source;
   }

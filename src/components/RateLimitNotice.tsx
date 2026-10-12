@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { isRateLimitedError } from "../api";
+import { t } from "../i18n";
 import styles from "./RateLimitNotice.module.css";
 
 interface RateLimitNoticeProps {
@@ -31,7 +32,11 @@ export function RateLimitNotice({ error }: RateLimitNoticeProps) {
 
   return (
     <div className={styles.banner} role="alert">
-      认证失败次数过多，当前 IP 已被临时封禁，请等待 {Math.max(remaining, 0)} 秒后重试。
+      {t(
+        "认证失败次数过多，当前 IP 已被临时封禁，请等待 {seconds} 秒后重试。",
+        "Too many failed authentication attempts: this IP is temporarily blocked. Retry in {seconds}s.",
+        { seconds: Math.max(remaining, 0) },
+      )}
     </div>
   );
 }

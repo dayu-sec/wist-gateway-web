@@ -1,5 +1,6 @@
 import type { GatewaySelfStateHistory, GatewaySelfStateSample } from "../api";
 import { TrendChart, type TrendChartSeries } from "./TrendChart";
+import { t } from "../i18n";
 import styles from "./GatewayMetricTrends.module.css";
 
 interface GatewayMetricTrendsProps {
@@ -48,8 +49,13 @@ export function GatewayMetricTrends({ history }: GatewayMetricTrendsProps) {
   if (samples.length === 0) {
     return (
       <div className={styles.empty}>
-        <strong>最近 1 小时暂无轨迹</strong>
-        <span>网关每 30 秒自采一次；刚启动或刚清空数据时会短暂为空。</span>
+        <strong>{t("最近 1 小时暂无轨迹", "No trajectory in the last hour")}</strong>
+        <span>
+          {t(
+            "网关每 30 秒自采一次；刚启动或刚清空数据时会短暂为空。",
+            "The gateway samples itself every 30 s; right after a start or a data reset it is briefly empty.",
+          )}
+        </span>
       </div>
     );
   }
@@ -62,17 +68,27 @@ export function GatewayMetricTrends({ history }: GatewayMetricTrendsProps) {
   // CPU 与磁盘都是百分比，可以同轴比；内存是字节、Agent 是台数，各自一张，免得量纲互压。
   const resource: TrendChartSeries[] = [];
   if (cpu.length > 0) {
-    resource.push({ name: "CPU（单核口径）", color: "var(--series-1)", points: cpu });
+    resource.push({
+      name: t("CPU（单核口径）", "CPU (per core)"),
+      color: "var(--series-1)",
+      points: cpu,
+    });
   }
   if (disk.length > 0) {
-    resource.push({ name: "磁盘使用率", color: "var(--series-2)", points: disk });
+    resource.push({
+      name: t("磁盘使用率", "Disk usage"),
+      color: "var(--series-2)",
+      points: disk,
+    });
   }
 
   return (
     <div className={styles.wrap}>
       {resource.length > 0 ? (
         <section className={styles.card}>
-          <h3 className={styles.cardTitle}>资源占用（最近 1 小时）</h3>
+          <h3 className={styles.cardTitle}>
+            {t("资源占用（最近 1 小时）", "Resource usage (last 1 h)")}
+          </h3>
           <TrendChart
             series={resource}
             height={170}
@@ -84,11 +100,13 @@ export function GatewayMetricTrends({ history }: GatewayMetricTrendsProps) {
 
       {memory.length > 0 ? (
         <section className={styles.card}>
-          <h3 className={styles.cardTitle}>内存（RSS，最近 1 小时）</h3>
+          <h3 className={styles.cardTitle}>
+            {t("内存（RSS，最近 1 小时）", "Memory (RSS, last 1 h)")}
+          </h3>
           <TrendChart
             series={[
               {
-                name: "内存（RSS）",
+                name: t("内存（RSS）", "Memory (RSS)"),
                 color: "var(--series-3)",
                 points: memory,
               },
@@ -104,18 +122,22 @@ export function GatewayMetricTrends({ history }: GatewayMetricTrendsProps) {
 
       {online.length > 0 ? (
         <section className={styles.card}>
-          <h3 className={styles.cardTitle}>Agent 在线（最近 1 小时）</h3>
+          <h3 className={styles.cardTitle}>
+            {t("Agent 在线（最近 1 小时）", "Agents online (last 1 h)")}
+          </h3>
           <TrendChart
             series={[
               {
-                name: "Agent 在线",
+                name: t("Agent 在线", "Agents online"),
                 color: "var(--series-4)",
                 points: online,
               },
             ]}
             height={140}
             filled
-            valueFormatter={(value) => `${Math.round(value)} 台`}
+            valueFormatter={(value) =>
+              t("{n} 台", "{n} agents", { n: Math.round(value) })
+            }
             axisFormatter={(value) => String(Math.round(value))}
             axisWidth={34}
           />

@@ -17,12 +17,10 @@ function check(ok: boolean, message: string): void {
 
 // ① 服务端给了正文 → 必须原样透出（这是本模块存在的理由）
 const withText = adminApiErrorMessage(
-  new ApiError(
-    500,
-    "/api/v1/agent/install-code",
-    undefined,
-    "failed to issue install code: 没有可用的 agent 安装包：管理面未录入来源，或录入的副本已不在",
-  ),
+  new ApiError(500, "/api/v1/agent/install-code", {
+    detail:
+      "failed to issue install code: 没有可用的 agent 安装包：管理面未录入来源，或录入的副本已不在",
+  }),
 );
 check(
   withText.includes("没有可用的 agent 安装包"),
@@ -39,12 +37,9 @@ check(
 
 // ② 正文是管理面的 {code,message} JSON → 只取 message，别把 JSON 摊到页面上
 const withJson = adminApiErrorMessage(
-  new ApiError(
-    422,
-    "/x",
-    undefined,
-    '{"code":"package_source_unavailable","message":"来源拉不到"}',
-  ),
+  new ApiError(422, "/x", {
+    detail: '{"code":"package_source_unavailable","message":"来源拉不到"}',
+  }),
 );
 check(
   withJson.includes("来源拉不到") && !withJson.includes("{"),
@@ -53,7 +48,7 @@ check(
 
 // ③ 截断的 JSON（ApiError.detail 只留 300 字符）→ 当纯文本用，不能因此丢掉内容
 const truncatedJson = adminApiErrorMessage(
-  new ApiError(500, "/x", undefined, '{"code":"boom","message":"前半段被截'),
+  new ApiError(500, "/x", { detail: '{"code":"boom","message":"前半段被截' }),
 );
 check(
   truncatedJson.includes("boom") || truncatedJson.includes("前半段被截"),
@@ -88,7 +83,7 @@ check(
 
 // ⑦ 空 detail（undefined / 空白）等同于"没有正文"
 check(
-  adminApiErrorMessage(new ApiError(500, "/x", undefined, "   ")).includes("网关没有应答"),
+  adminApiErrorMessage(new ApiError(500, "/x", { detail: "   " })).includes("网关没有应答"),
   "空白正文要按「没有正文」处理",
 );
 

@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemAgentVersionText.module.css";
 
 interface SubsystemAgentVersionTextProps {
@@ -7,7 +8,7 @@ interface SubsystemAgentVersionTextProps {
 export function SubsystemAgentVersionText({ children }: SubsystemAgentVersionTextProps) {
   return (
     <div className={styles.container}>
-      <div className={styles.label}>Agent 版本</div>
+      <div className={styles.label}>{t("Agent 版本", "Agent version")}</div>
       {children}
     </div>
   );

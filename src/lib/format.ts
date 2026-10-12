@@ -4,7 +4,15 @@
  * 约定：
  * - 缺失值统一渲染为 "—"，绝不用 0 或空白冒充实测数据；
  * - 未知量纲的数值一律不做猜测性换算。
+ *
+ * 文案：这里是**纯函数**，但返回值会直接进界面（时长单位、分级说法、万/亿量级），
+ * 所以文案在函数体内取（`t()` 在调用那一刻求值）——调用点都在渲染期，切语言会重新求值。
+ * 量级缩写（万/亿 ↔ K/M）两边的**阈值都不同**，不只是换后缀，故这类分支用
+ * 共享包的 `isEnglish()`（见 `@dayu-sec/wist-web-core/i18n` 的说明）。
  */
+
+import { isEnglish } from "@dayu-sec/wist-web-core/i18n";
+import { t, dateLocale } from "../i18n";
 
 export const EMPTY = "—";
 
@@ -52,10 +60,11 @@ export function formatUptime(seconds?: number | null): string {
   const days = Math.floor(total / 86400);
   const hours = Math.floor((total % 86400) / 3600);
   const minutes = Math.floor((total % 3600) / 60);
-  if (days > 0) return `${days} 天 ${hours} 小时`;
-  if (hours > 0) return `${hours} 小时 ${minutes} 分钟`;
-  if (minutes > 0) return `${minutes} 分钟`;
-  return `${total} 秒`;
+  if (days > 0) return t("{d} 天 {h} 小时", "{d}d {h}h", { d: days, h: hours });
+  if (hours > 0)
+    return t("{h} 小时 {m} 分钟", "{h}h {m}m", { h: hours, m: minutes });
+  if (minutes > 0) return t("{m} 分钟", "{m}m", { m: minutes });
+  return t("{s} 秒", "{s}s", { s: total });
 }
 
 /**
@@ -70,16 +79,32 @@ export function formatRelativeSeconds(seconds?: number | null): {
     return { text: EMPTY, seconds: null };
   }
   const s = Math.max(0, Math.floor(seconds));
-  if (s < 60) return { text: `${s} 秒`, seconds: s };
-  if (s < 3600) return { text: `${Math.floor(s / 60)} 分钟`, seconds: s };
+  if (s < 60) return { text: t("{s} 秒", "{s}s", { s }), seconds: s };
+  if (s < 3600)
+    return {
+      text: t("{m} 分钟", "{m}m", { m: Math.floor(s / 60) }),
+      seconds: s,
+    };
   if (s < 86400) {
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
-    return { text: m > 0 ? `${h} 小时 ${m} 分` : `${h} 小时`, seconds: s };
+    return {
+      text:
+        m > 0
+          ? t("{h} 小时 {m} 分", "{h}h {m}m", { h, m })
+          : t("{h} 小时", "{h}h", { h }),
+      seconds: s,
+    };
   }
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
-  return { text: h > 0 ? `${d} 天 ${h} 小时` : `${d} 天`, seconds: s };
+  return {
+    text:
+      h > 0
+        ? t("{d} 天 {h} 小时", "{d}d {h}h", { d, h })
+        : t("{d} 天", "{d}d", { d }),
+    seconds: s,
+  };
 }
 
 export type Severity = "ok" | "warn" | "crit" | "unknown";
@@ -105,12 +130,41 @@ export function severityForLoad(load?: number | null, cores = 8): Severity {
   return "ok";
 }
 
+/**
+ * 分级说法表。
+ *
+ * 本仓约定：`t()` 必须**渲染期**求值，模块顶层常量里不能直接写 `t(...)`（只求值一次，切语言不变）。
+ * 故这里做成**取值器**表：每次属性访问（`SEVERITY_LABEL[row.severity]`，调用方都在渲染期）才求值，
+ * 切语言重新渲染读到的就是新语言；文案本体在下面的 `severityLabel()`（函数形态，新代码直接用）。
+ */
 export const SEVERITY_LABEL: Record<Severity, string> = {
-  ok: "正常",
-  warn: "偏高",
-  crit: "危急",
-  unknown: "无数据",
+  get ok() {
+    return severityLabel("ok");
+  },
+  get warn() {
+    return severityLabel("warn");
+  },
+  get crit() {
+    return severityLabel("crit");
+  },
+  get unknown() {
+    return severityLabel("unknown");
+  },
 };
+
+/** 分级说法（函数形态；渲染期调用）。 */
+export function severityLabel(severity: Severity): string {
+  switch (severity) {
+    case "ok":
+      return t("正常", "Normal");
+    case "warn":
+      return t("偏高", "Elevated");
+    case "crit":
+      return t("危急", "Critical");
+    default:
+      return t("无数据", "No data");
+  }
+}
 
 /** 序列最后一点的取值，用于卡片上展示"当前值"。 */
 export function lastValue(
@@ -128,7 +182,7 @@ export function formatRate(value?: number | null): string {
   if (value === 0) return "0 e/s";
   if (Math.abs(value) < 10) return value.toFixed(2) + " e/s";
   if (Math.abs(value) < 10_000) {
-    return value.toLocaleString("zh-CN", { maximumFractionDigits: 1 }) + " e/s";
+    return value.toLocaleString(dateLocale(), { maximumFractionDigits: 1 }) + " e/s";
   }
   return (value / 1000).toFixed(1) + "K e/s";
 }
@@ -136,6 +190,9 @@ export function formatRate(value?: number | null): string {
 /**
  * 累计计数：按中文习惯用「万 / 亿」分级，而不是 K/M。
  * 运维界面上 12.7 万 比 127.2K 更容易一眼读出量级。
+ *
+ * 英文没有「万 / 亿」这两个量级，**换的不只是后缀**（阈值也得跟着换），故按语言分叉：
+ * 英文走 K / M / B。
  */
 export function formatCount(value?: number | null): string {
   if (value === undefined || value === null || !Number.isFinite(value)) {
@@ -143,7 +200,12 @@ export function formatCount(value?: number | null): string {
   }
   const abs = Math.abs(value);
   if (abs < 10_000) {
-    return value.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+    return value.toLocaleString(dateLocale(), { maximumFractionDigits: 0 });
+  }
+  if (isEnglish()) {
+    if (abs < 1_000_000) return (value / 1_000).toFixed(1) + "K";
+    if (abs < 1_000_000_000) return (value / 1_000_000).toFixed(2) + "M";
+    return (value / 1_000_000_000).toFixed(2) + "B";
   }
   if (abs < 100_000_000) return (value / 10_000).toFixed(1) + " 万";
   return (value / 100_000_000).toFixed(2) + " 亿";
@@ -162,10 +224,19 @@ export function formatShare(part: number, whole: number): string {
 /**
  * 坐标轴标签专用的紧凑数值：不带单位、按量级缩写。
  * 轴宽有限，带千分位和 "e/s" 的长标签会被画布左边缘裁掉。
+ *
+ * 与 `formatCount` 同理：中文按「万 / 亿」，英文按 K / M / B（阈值不同，不只是后缀）。
  */
 export function formatAxis(value: number): string {
   const abs = Math.abs(value);
   if (abs === 0) return "0";
+  if (isEnglish()) {
+    if (abs >= 1_000_000_000) return (value / 1_000_000_000).toFixed(1) + "B";
+    if (abs >= 1_000_000) return (value / 1_000_000).toFixed(1) + "M";
+    if (abs >= 1000) return (value / 1000).toFixed(1) + "k";
+    if (abs < 10) return value.toFixed(2);
+    return value.toFixed(0);
+  }
   if (abs >= 100_000_000) return (value / 100_000_000).toFixed(1) + "亿";
   if (abs >= 10_000) {
     // 三位数以上的「万」不再留小数 —— "1000.0万" 读起来很别扭。
@@ -182,7 +253,7 @@ export function formatClock(seconds?: number | null): string {
   if (seconds === undefined || seconds === null || !Number.isFinite(seconds)) {
     return EMPTY;
   }
-  return new Date(seconds * 1000).toLocaleTimeString("zh-CN", {
+  return new Date(seconds * 1000).toLocaleTimeString(dateLocale(), {
     hour12: false,
     hour: "2-digit",
     minute: "2-digit",

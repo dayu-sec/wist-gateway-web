@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import styles from "./SubsystemStatus.module.css";
 
 interface SubsystemStatusProps {
@@ -7,7 +8,7 @@ interface SubsystemStatusProps {
 export function SubsystemStatus({ children }: SubsystemStatusProps) {
   return (
     <div className={styles.container}>
-      <div className={styles.label}>状态</div>
+      <div className={styles.label}>{t("状态", "Status")}</div>
       {children}
     </div>
   );

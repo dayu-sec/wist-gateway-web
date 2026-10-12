@@ -1,4 +1,5 @@
 import { MetricTile } from "./MetricTile";
+import { t } from "../i18n";
 
 interface SubsystemTotalAgentMetricProps {
   value: number;
@@ -18,9 +19,15 @@ export function SubsystemTotalAgentMetric({
 }: SubsystemTotalAgentMetricProps) {
   return (
     <MetricTile
-      label="已接入 Agent"
+      label={t("已接入 Agent", "Enrolled agents")}
       value={String(value)}
-      hint={hint ?? "网关最近上线列表中的 Agent 数量（网关侧上限 6 条）"}
+      hint={
+        hint ??
+        t(
+          "网关最近上线列表中的 Agent 数量（网关侧上限 6 条）",
+          "Number of agents in the gateway's recent online list (the gateway caps it at 6)",
+        )
+      }
       tone="accent"
       loading={loading}
     />
