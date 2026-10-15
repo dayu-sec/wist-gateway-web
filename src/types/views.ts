@@ -228,7 +228,7 @@ export type StandingWorkStatus = "active" | "paused" | "superseded" | "revoked";
 /**
  * Agent 对某份工作的确认回执（网关侧留痕）。
  *
- * `null` = **从没确认过**：期望版本发了、Agent 一直没回 —— 这就是漂移，
+ * `null` = **还没确认过**：期望版本已下发、Agent 还没回报 —— 刚授权后的宽限期内是「等待首次确认」，
  * 页面上必须与「已确认但版本旧了」分开呈现。
  */
 export interface WorkAck {

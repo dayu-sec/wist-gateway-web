@@ -16,10 +16,14 @@ import {
   setAdminApiToken,
 } from "../src/api/admin";
 import {
+  ACK_STATE_LABEL,
+  ACK_STATE_TONE,
   DRIFT_LABEL,
+  FIRST_ACK_GRACE_SECONDS,
   blockedFamilies,
   collectedLogFiles,
   driftingCount,
+  driftingCountAt,
   duplicatedCollectedPaths,
   grantableFamilies,
   isExecutableSource,
@@ -30,6 +34,7 @@ import {
   parseIntervalSeconds,
   platformForMachineClass,
   specCounts,
+  standingAckState,
   standingDrift,
   ungrantedFamilies,
   unsupportedSourceCount,
@@ -364,7 +369,7 @@ assert(emptyUnits.error === null, "空单元清单本身是合法的");
 // --- 4. 漂移三态 ------------------------------------------------------------
 assert(
   standingDrift(view.standing[0]) === "never-acked",
-  "没有 ack 就是「从未确认」",
+  "没有 ack 就是「尚未确认」",
 );
 assert(
   standingDrift(acked.standing[0]) === "in-sync",
@@ -388,11 +393,116 @@ const stale = normalizeAgentWorkView(
 );
 assert(standingDrift(stale.standing[0]) === "stale-ack", "确认旧版本要单独成一态");
 assert(
-  DRIFT_LABEL["never-acked"].includes("从未确认"),
+  DRIFT_LABEL["never-acked"].includes("尚未确认"),
   "漂移文案要能让人看懂是什么状态",
 );
 assert(driftingCount(view.standing) === 1, "漂移计数按「未同步」算");
 assert(driftingCount(acked.standing) === 0, "已同步的不算漂移");
+
+
+// --- 4b. 首次确认宽限期：刚授权不该被当成「尚未确认」（红） --------------------------------
+//
+// 现场反馈：点完「授权」立刻看到红色「从未确认：Agent 一直没回」，像刚把机器弄坏了。
+// 实际是 Agent 每 30 秒才拉一次快照，授权后的几十秒内 ack 必然是 null —— 宽限期内应当中性。
+const grantedNow = Date.parse("2026-09-23T00:00:00Z");
+const freshGrant = normalizeAgentWorkView(
+  workViewPayload({
+    standing: [
+      standingPayload({
+        effective_from: "2026-09-23T00:00:00Z",
+        updated_at: "2026-09-23T00:00:00Z",
+      }),
+    ],
+  }),
+).standing[0];
+
+assert(
+  standingAckState(freshGrant, grantedNow + 5_000) === "awaiting-ack",
+  "刚授权 5 秒（还没到 Agent 的 30 秒拉取周期）→ 等待首次确认",
+);
+assert(
+  standingAckState(freshGrant, grantedNow + FIRST_ACK_GRACE_SECONDS * 1000) ===
+    "awaiting-ack",
+  "宽限期内都是等待首次确认",
+);
+assert(
+  standingAckState(freshGrant, grantedNow + (FIRST_ACK_GRACE_SECONDS + 1) * 1000) ===
+    "never-acked",
+  "超过宽限期还没回 → 才按真漂移处理",
+);
+assert(
+  ACK_STATE_TONE["awaiting-ack"] === "unknown",
+  "等待首次确认是中性色，不是红的",
+);
+assert(
+  !ACK_STATE_LABEL["awaiting-ack"].includes("尚未确认"),
+  "等待首次确认的文案不能说成「尚未确认」",
+);
+assert(
+  ACK_STATE_LABEL["awaiting-ack"].includes("30 秒"),
+  "文案要说清为什么现在还没有确认（它每 30 秒拉一次）",
+);
+assert(
+  ACK_STATE_LABEL["never-acked"] === DRIFT_LABEL["never-acked"],
+  "真漂移的文案仍是原来那句",
+);
+
+// 已有 ack 的两种状态不受时间影响
+assert(
+  standingAckState(acked.standing[0], grantedNow) === "in-sync",
+  "版本一致 → 已同步（与时间无关）",
+);
+const staleWork = normalizeAgentWorkView(
+  workViewPayload({
+    standing: [
+      standingPayload({
+        plan_version: 5,
+        ack: {
+          work_id: WORK_ID,
+          agent_id: "agent-001",
+          work_kind: "Standing",
+          plan_version: 4,
+          acknowledged_at: "2026-09-23T00:00:02Z",
+        },
+      }),
+    ],
+  }),
+).standing[0];
+assert(
+  standingAckState(staleWork, grantedNow) === "stale-ack",
+  "确认了旧版本 → 陈旧确认（与时间无关）",
+);
+
+// 摘要在宽限期内不报漂移
+const withFreshGrant = normalizeAgentWorkView(
+  workViewPayload({
+    standing: [
+      standingPayload(),
+      standingPayload({
+        plan_version: 5,
+        ack: {
+          work_id: WORK_ID,
+          agent_id: "agent-001",
+          work_kind: "Standing",
+          plan_version: 4,
+          acknowledged_at: "2026-09-23T00:00:02Z",
+        },
+      }),
+    ],
+  }),
+).standing;
+assert(
+  driftingCount(withFreshGrant) === 2,
+  "不带时间的老口径：两条都算漂移（Live 脚本仍在用）",
+);
+assert(
+  driftingCountAt(withFreshGrant, grantedNow + 5_000) === 1,
+  "带时间的新口径：刚授权那条不算，只有陈旧确认算漂移",
+);
+assert(
+  driftingCountAt(withFreshGrant, grantedNow + (FIRST_ACK_GRACE_SECONDS + 1) * 1000) === 2,
+  "宽限期过后两条都算",
+);
 
 // --- 5. 派活闸门：模板覆盖 ∩ 面就绪 ----------------------------------------
 // 载荷形状照**网关实际返回的**：就绪度按平台分组（曾经在这里写成扁平的 mock，

@@ -40,6 +40,7 @@ export function SubsystemAdminHomePage({}: SubsystemAdminHomePageProps) {
       />
       <SubsystemRecentOnlineRegisteredAgentPanel
         agents={data?.recentOnlineAgents ?? []}
+        total={data?.metrics.totalAgents}
         loading={isLoading}
       />
       <SubsystemAbnormalAgentPanel

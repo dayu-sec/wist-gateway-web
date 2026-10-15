@@ -121,8 +121,8 @@ export function standingDrift(work: StandingWork): DriftKind {
 export const DRIFT_LABEL: Record<DriftKind, string> = {
   get "never-acked"() {
     return t(
-      "从未确认：期望版本发下去了，Agent 一直没回（它每 30 秒拉一次快照）",
-      "Never acknowledged: the expected version was dispatched, but the Agent never reported back (it polls a snapshot every 30 seconds)",
+      "尚未确认：期望版本已下发，Agent 还没回报（它每 30 秒拉一次快照）",
+      "Not acknowledged yet: the expected version was dispatched, but the Agent has not reported back (it polls a snapshot every 30 seconds)",
     );
   },
   get "stale-ack"() {
@@ -142,6 +142,72 @@ export function driftLabel(kind: DriftKind): string {
 }
 
 export const DRIFT_TONE: Record<DriftKind, WorkTone> = {
+  "never-acked": "crit",
+  "stale-ack": "warn",
+  "in-sync": "ok",
+};
+
+/**
+ * 「尚未确认」（原本写作「从未确认」）的**宽限期**（秒）。
+ *
+ * 授权刚下发时 Agent 还没来得及拉快照 —— 它每 30 秒拉一次，所以刚点完「授权」的几十秒内
+ * `ack` 必然是 null。这时候把它标成红色「尚未确认：Agent 还没回报」是**冤枉它**（现场反馈
+ * 「开授权时提示的信息过于危险」）。给 3 个拉取周期（90 秒）的余地，超过才按真的没回处理。
+ */
+export const FIRST_ACK_GRACE_SECONDS = 90;
+
+/** 确认状态：比漂移三态多一个「刚授权，还在等 Agent 第一次快照」。 */
+export type StandingAckState = DriftKind | "awaiting-ack";
+
+/** 授权（或暂停/恢复等改动）距今多少秒；时间戳读不出来时返回 null（那就按老口径算漂移）。 */
+function secondsSinceGrant(work: StandingWork, nowMs: number): number | null {
+  const stamps = [work.effectiveFrom, work.updatedAt]
+    .map((value) => Date.parse(value))
+    .filter((value) => !Number.isNaN(value));
+  if (stamps.length === 0) return null;
+  return (nowMs - Math.max(...stamps)) / 1000;
+}
+
+/**
+ * 带上**时间**的确认状态：刚授权（`FIRST_ACK_GRACE_SECONDS` 内）还没回确认 → `awaiting-ack`
+ * （中性，不算漂移）；超过宽限期还没回 → `never-acked`（真漂移）。
+ *
+ * `nowMs` 由调用方在渲染期传进来 —— 这里是纯函数，便于单测；页面每次轮询重渲染时会重算，
+ * 所以宽限期一到，徽标会在一个轮询周期内（≤5s）自己转成「尚未确认」并转红。
+ */
+export function standingAckState(
+  work: StandingWork,
+  nowMs: number,
+): StandingAckState {
+  const drift = standingDrift(work);
+  if (drift !== "never-acked") return drift;
+  const age = secondsSinceGrant(work, nowMs);
+  if (age !== null && age <= FIRST_ACK_GRACE_SECONDS) return "awaiting-ack";
+  return "never-acked";
+}
+
+/** 确认状态的可读写法；逐项 getter 的理由同 [`DRIFT_LABEL`]。 */
+export const ACK_STATE_LABEL: Record<StandingAckState, string> = {
+  get "awaiting-ack"() {
+    return t(
+      "等待首次确认：授权刚下发，Agent 每 30 秒拉一次快照，拉到后会回报",
+      "Awaiting first acknowledgement: the authorization was just dispatched; the Agent polls a snapshot every 30 seconds and reports back afterwards",
+    );
+  },
+  get "never-acked"() {
+    return DRIFT_LABEL["never-acked"];
+  },
+  get "stale-ack"() {
+    return DRIFT_LABEL["stale-ack"];
+  },
+  get "in-sync"() {
+    return DRIFT_LABEL["in-sync"];
+  },
+};
+
+/** 确认状态的色：等首次确认是**中性**（不是故障），真漂移才红/黄。 */
+export const ACK_STATE_TONE: Record<StandingAckState, WorkTone> = {
+  "awaiting-ack": "unknown",
   "never-acked": "crit",
   "stale-ack": "warn",
   "in-sync": "ok",
@@ -498,7 +564,18 @@ export function specCounts(spec: WorkSpec): { units: number; sources: number } {
   };
 }
 
-/** 漂移的工作数（期望版本与确认版本不一致，或从来没确认过）。 */
+/** 漂移的工作数（期望版本与确认版本不一致，或从来没确认过）。不含宽限期内的「等待首次确认」。 */
 export function driftingCount(works: StandingWork[]): number {
   return works.filter((work) => standingDrift(work) !== "in-sync").length;
+}
+
+/**
+ * 带时间的漂移计数：**刚授权、还在等首次确认**的那些不算漂移 —— 否则刚点完授权，摘要就跳成
+ * 「漂移 6」，看着像自己刚把六台机器弄坏了。`nowMs` 由调用方在渲染期传入。
+ */
+export function driftingCountAt(works: StandingWork[], nowMs: number): number {
+  return works.filter((work) => {
+    const state = standingAckState(work, nowMs);
+    return state !== "in-sync" && state !== "awaiting-ack";
+  }).length;
 }

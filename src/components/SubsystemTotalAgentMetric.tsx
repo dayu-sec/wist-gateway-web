@@ -8,9 +8,12 @@ interface SubsystemTotalAgentMetricProps {
 }
 
 /**
- * 注意：网关返回的 totalAgents 取自最近上线列表并截断到 6 条
- * （见 crates/wist-gateway/src/api/overview.rs:97 truncate(6)），
- * 因此它不是集群真实主机总数——文案按实际口径描述。
+ * 指标口径：网关的 `totalAgents` 是对**全部**已登记 Agent 统计的（含离线），
+ * 与下方卡片列表的条数无关 —— 卡片列表另有上限（`OVERVIEW_RECENT_AGENT_LIMIT`，见
+ * `wist-gateway/src/api/overview.rs`），到上限时由卡片面板自己说明。
+ *
+ * 这里以前写的是「取自最近上线列表并截断到 6 条」：那是旧实现的说法，指标改成对全集统计后
+ * 文案没跟着改，于是 7 台的网关会在「已接入 7」底下说「上限 6 条」，自相矛盾。
  */
 export function SubsystemTotalAgentMetric({
   value,
@@ -24,8 +27,8 @@ export function SubsystemTotalAgentMetric({
       hint={
         hint ??
         t(
-          "网关最近上线列表中的 Agent 数量（网关侧上限 6 条）",
-          "Number of agents in the gateway's recent online list (the gateway caps it at 6)",
+          "网关已登记的 Agent 总数（含离线；卡片列表另有上限）",
+          "Total agents registered with the gateway (including offline; the card list has its own limit)",
         )
       }
       tone="accent"

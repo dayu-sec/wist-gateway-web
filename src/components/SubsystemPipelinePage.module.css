@@ -134,22 +134,34 @@
 .board {
   display: grid;
   gap: 14px;
-  /* 同一行内的列拉平为同一高度：长的那列在列内滚动，
-     短的那列不会在下方留出一片空洞。 */
-  align-items: stretch;
+  /* 列**各自**自适应高度：以前是 stretch（拉平成同一高度），本意是「短的那列下方不留空洞」，
+     但实际效果是空洞跑进了卡片里 —— 来源层只有 2 条时，左卡被右卡撑成一整块空白（现场反馈
+     「高度占用太大」）。现在短的就短的，空洞回到页面背景上，反而不显眼。 */
+  align-items: start;
 }
 
+/* 来源层与输出层**上下叠**，各自满宽：
+   左右并排时两列内容量差太多（2 条来源 vs 9 个输出分组），等高就留一大块空白，
+   不等高又显得右边孤零零挂着 —— 两种都难看（现场两次反馈）。叠起来之后，输出层的 9 个分组
+   在卡片内部按宽度自动分栏，高度随列数摊薄，也没有「洞」需要填。 */
 .boardPair {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .boardSingle {
   grid-template-columns: minmax(0, 1fr);
 }
 
-/* 接入与输出两列都不长：压低上限，把高度让给下面的解析规则与曲线。 */
+/* 接入与输出：条目在卡片内**自动分栏**（用宽度换高度），不再限高 + 列内滚动 ——
+   列内滚动会把分组从中间截断（现场反馈「反而不好」），而分栏后 9 个分组只占 2~3 行。
+   `align-items: start` 让展开的分组不被同行最高的那个拉高。 */
 .boardPair .columnBody {
-  max-height: 26vh;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  align-content: start;
+  align-items: start;
+  max-height: none;
+  overflow-y: visible;
 }
 
 /* 解析规则铺满宽度：规则卡片按可用宽度自动分栏，
@@ -162,12 +174,9 @@
   max-height: 42vh;
 }
 
-/* 满宽那一节里别把分段控件拉满整行 —— 两个选项撑到 1100px 宽不成比例。 */
-.boardSingle .activityTabs {
-  align-self: start;
-  width: 100%;
-  max-width: 320px;
-}
+/* 满宽那一节里别把分段控件拉满整行 —— 两个选项撑到 1100px 宽不成比例。
+   （接入与输出两节现在也是满宽的单列，同样适用。） */
+/* 分段控件现在在标题行里（见 .activityTabs），不再需要「别拉满整行」那条单独修正。 */
 
 .column {
   --column-accent: var(--unknown);
@@ -197,6 +206,8 @@
 .columnHead {
   display: flex;
   align-items: center;
+  /* 分段控件与标题同行；窄屏放不下时允许换行（整行仍然只有一行高）。 */
+  flex-wrap: wrap;
   gap: 8px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--border);
@@ -219,7 +230,7 @@
 .columnCount {
   padding: 0 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--overlay);
   color: var(--text-3);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -229,6 +240,7 @@
 .columnActions {
   display: flex;
   gap: 4px;
+  /* 推到最右：分段控件贴在标题侧，展开/收起这类动作归角落。 */
   margin-left: auto;
 }
 
@@ -287,16 +299,18 @@
 /* ---------- 活跃 / 静默 切换（tab） ---------- */
 
 /* 放在列头与列表之间，不随列表滚动 —— 切换控件跟着列表滚走会很难用。 */
+/* 活跃 / 静默：跟在标题与计数后面（同一行），再往右是「全部展开 / 全部收起」。 */
 .activityTabs {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   gap: 2px;
-  margin: 0 9px 8px;
+  margin-left: 4px;
   padding: 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+
 
 .activityTab,
 .activityTabActive {
@@ -315,7 +329,7 @@
 }
 
 .activityTab:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-soft);
   color: var(--text);
 }
 
@@ -334,7 +348,7 @@
 .activityTabCount {
   padding: 0 5px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--overlay);
   color: inherit;
   font-size: 10.5px;
   font-variant-numeric: tabular-nums;
@@ -368,12 +382,15 @@
 /* ---------- 节点卡片 ---------- */
 
 .group {
-  display: flex;
+  /* 一行放下「名称 + 统计」：名称在左（可省略），统计在右，子项另起一行铺满。
+     以前名称一行、统计一行，9 个分组光行高就吃掉 200px+（现场反馈「高度占用太大」）。 */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   /* 关键：.columnBody 是限高 + overflow 的纵向 flex，而本卡片带 overflow:hidden，
      其自动最小尺寸会退化成 0 —— 于是卡片被「压扁」、内容被横切，而不是让列滚动。
      明确不允许收缩，超出的部分交给列的滚动条。 */
   flex: 0 0 auto;
-  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
@@ -391,12 +408,17 @@
   background: color-mix(in srgb, var(--crit) 7%, var(--bg-elevated));
 }
 
+/* 真在丢数据的分组：速率转红（本层主色在这里要让位给危险语义）。 */
+.groupLossActive .rate {
+  color: var(--crit);
+}
+
 .groupHead {
   display: flex;
   align-items: center;
   gap: 7px;
-  width: 100%;
-  padding: 9px 10px 6px;
+  min-width: 0;
+  padding: 8px 4px 8px 10px;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -404,7 +426,7 @@
 }
 
 .groupHead:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--overlay-soft);
 }
 
 .caret,
@@ -456,14 +478,17 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 10px 9px;
+  /* 左边留一段：分组窄的时候「名称」与第一个数字会贴在一起读成一串。 */
+  padding: 0 10px 0 14px;
 }
 
 .children {
+  /* 子项铺满整行（父级是 grid：名称/统计那一行之下） */
+  grid-column: 1 / -1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 8px 8px 16px;
+  gap: 3px;
+  padding: 0 8px 6px 16px;
   border-left: 1px solid var(--border);
   margin-left: 14px;
 }
@@ -500,7 +525,7 @@
 }
 
 .nodeBody:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-soft);
 }
 
 .nodeName {
@@ -525,7 +550,9 @@
 .rate {
   /* 不用等宽字体：数值里带「万 / 亿」单位，等宽字体缺 CJK 字形会掉回
      另一套字体、字号明显偏小。正文 + 表格数字同样能保证列对齐。 */
-  color: var(--text);
+  /* 速率用**本层的主色**（来源=蓝、输出=绿、解析=紫，就是列头那个圆点与曲线同色）：
+     三层叠在一起时，颜色本身告诉你正在读哪一层的数字。累计量保持灰阶，层级不抢。 */
+  color: var(--column-accent, var(--text));
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;

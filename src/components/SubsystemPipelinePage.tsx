@@ -438,6 +438,9 @@ function LayerColumn({
         <span className={styles.columnDot} aria-hidden="true" />
         <h2 className={styles.columnTitle}>{title}</h2>
         <span className={styles.columnCount}>{count}</span>
+        {/* 活跃 / 静默分段控件与标题**同一行**：它以前独占一行（标题行下、列表上），
+            两个选项白占 40px 行高 —— 现场反馈「放到一层」。 */}
+        {tabs}
         {canCollapse ? (
           <div className={styles.columnActions}>
             <button type="button" className={styles.linkButton} onClick={onExpandAll}>
@@ -449,7 +452,6 @@ function LayerColumn({
           </div>
         ) : null}
       </div>
-      {tabs}
       <div className={styles.columnBody}>{children}</div>
     </div>
   );

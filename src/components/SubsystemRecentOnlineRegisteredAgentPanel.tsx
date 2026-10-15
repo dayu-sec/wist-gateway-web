@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { t } from "../i18n";
 import styles from "./SubsystemRecentOnlineRegisteredAgentPanel.module.css";
 import { SubsystemRecentOnlineRegisteredAgentCardGrid } from "./SubsystemRecentOnlineRegisteredAgentCardGrid";
@@ -5,14 +6,20 @@ import type { RecentOnlineRegisteredAgent } from "../api";
 
 interface SubsystemRecentOnlineRegisteredAgentPanelProps {
   agents?: RecentOnlineRegisteredAgent[];
+  /** 网关登记的 Agent 总数：小于列表长度说明这里被上限截断了，页面要**说出来**。 */
+  total?: number;
   loading?: boolean;
   children?: React.ReactNode;
 }
 
 export function SubsystemRecentOnlineRegisteredAgentPanel({
   agents = [],
+  total,
   loading,
 }: SubsystemRecentOnlineRegisteredAgentPanelProps) {
+  // 只列出一部分时必须说清楚（以前截断到 6 张且一声不响，7 台的网关看起来就像少了一台）。
+  const truncated = typeof total === "number" && total > agents.length;
+
   return (
     <section className={styles.container}>
       <div className={styles.header}>
@@ -30,6 +37,18 @@ export function SubsystemRecentOnlineRegisteredAgentPanel({
         </span>
       </div>
       <SubsystemRecentOnlineRegisteredAgentCardGrid items={agents} loading={loading} />
+      {!loading && truncated ? (
+        <p className={styles.truncatedNote}>
+          {t(
+            "这里只列最近上线的 {shown} 台（共 {total} 台）：",
+            "Showing the {shown} most recently online (of {total}):",
+            { shown: agents.length, total },
+          )}{" "}
+          <Link className={styles.truncatedLink} to="/fleet">
+            {t("去「Agent 机队」看全部", "see all under Agent fleet")}
+          </Link>
+        </p>
+      ) : null}
     </section>
   );
 }

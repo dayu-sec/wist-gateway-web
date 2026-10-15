@@ -17,13 +17,14 @@ import type {
   GrantStandingWorkCommand,
 } from "../api/admin";
 import {
-  DRIFT_LABEL,
-  DRIFT_TONE,
   STANDING_STATUS_LABEL,
   STANDING_STATUS_TONE,
   blockedFamilies,
   collectedLogFiles,
-  driftingCount,
+  ACK_STATE_LABEL,
+  ACK_STATE_TONE,
+  driftingCountAt,
+  standingAckState,
   duplicatedCollectedPaths,
   grantableFamilies,
   localExecutionLabel,
@@ -33,7 +34,6 @@ import {
   platformForMachineClass,
   sourceText,
   specCounts,
-  standingDrift,
   ungrantedFamilies,
   unsupportedSourceCount,
   unsupportedSourceReason,
@@ -117,7 +117,9 @@ export function SubsystemAgentWorkView({
 }: SubsystemAgentWorkViewProps) {
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
-  const drift = driftingCount(agentWorkView.standing);
+  // 带时间的漂移计数：「等待首次确认」（刚授权 90 秒内）不算漂移，免得刚授权就报「漂移 N」。
+  // 页面每 5 秒轮询重渲染一次，所以宽限期一到，徽标/计数会自己转过来。
+  const drift = driftingCountAt(agentWorkView.standing, Date.now());
   const grantable =
     catalog && machineClass ? grantableFamilies(catalog, machineClass) : [];
   // 能派但还没授权的面：它们也占一格卡（授权按钮就在卡上），不再另开一节挑面。
@@ -649,7 +651,7 @@ function StandingWorkCard({
   setRevokeTarget,
   setRevokeReason,
 }: StandingWorkCardProps) {
-  const drift = standingDrift(work);
+  const ackState = standingAckState(work, Date.now());
   const counts = specCounts(work.spec);
   const interval = metricIntervalSeconds(work.spec);
   // 「今天真会去 tail 的文件」：与 agentd `state/work.json` 的 tasks 同口径。
@@ -709,8 +711,8 @@ function StandingWorkCard({
         <span className={`${styles.badge} ${toneClass(STANDING_STATUS_TONE[work.status])}`}>
           {STANDING_STATUS_LABEL[work.status]}
         </span>
-        <span className={`${styles.badge} ${toneClass(DRIFT_TONE[drift])}`}>
-          {DRIFT_LABEL[drift]}
+        <span className={`${styles.badge} ${toneClass(ACK_STATE_TONE[ackState])}`}>
+          {ACK_STATE_LABEL[ackState]}
         </span>
       </div>
 
@@ -725,11 +727,13 @@ function StandingWorkCard({
           <span className={styles.workMetaMain}>
             <span className={styles.mono}>v{work.planVersion}</span>
             {/* 已确认且版本一致时，「确认」这件事没什么可说 —— 对不上的时候才值得占一行。 */}
-            {drift === "in-sync" ? null : (
+            {ackState === "in-sync" ? null : (
               <span className={styles.mono}>
                 {work.ack
                   ? t("已确认 v{v}", "Acknowledged v{v}", { v: work.ack.planVersion })
-                  : t("从未确认", "Never acknowledged")}
+                  : ackState === "awaiting-ack"
+                    ? t("等 Agent 首次快照", "Awaiting the Agent's first snapshot")
+                    : t("尚未确认", "Not acknowledged yet")}
               </span>
             )}
             <span className={styles.mono}>

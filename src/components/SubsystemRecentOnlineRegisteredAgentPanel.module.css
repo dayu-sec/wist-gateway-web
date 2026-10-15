@@ -45,3 +45,19 @@
     flex-direction: column;
   }
 }
+
+/* 卡片被上限截断时的说明行：别让「少了几台」变成需要运维自己去猜的事。 */
+.truncatedNote {
+  margin: 10px 2px 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.truncatedLink {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.truncatedLink:hover {
+  text-decoration: underline;
+}
