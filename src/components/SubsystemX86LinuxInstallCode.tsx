@@ -1,6 +1,7 @@
 import styles from "./SubsystemX86LinuxInstallCode.module.css";
 import { ShellCode } from "./ShellCode";
 import { CopyButton } from "./CopyButton";
+import { copyableInstallCommand, displayInstallCommand } from "./installCommand";
 import { t } from "../i18n";
 
 interface SubsystemX86LinuxInstallCodeProps {
@@ -8,6 +9,8 @@ interface SubsystemX86LinuxInstallCodeProps {
   token?: string;
   loading?: boolean;
   label?: string;
+  /** 重装模式：命令前多一行 `WIST_AGENTD_REINSTALL=1`，让 install.sh 替换本机客户端证书。 */
+  reinstall?: boolean;
   children?: React.ReactNode;
 }
 
@@ -16,15 +19,13 @@ export function SubsystemX86LinuxInstallCode({
   token,
   loading,
   label = t("X86 Linux 安装命令", "X86 Linux install command"),
+  reinstall = false,
   children,
 }: SubsystemX86LinuxInstallCodeProps) {
   const displayCommand = loading
     ? t("安装代码加载中...", "Loading install code...")
-    : (command ?? t("暂无安装代码", "No install code"));
-  const fullCommand =
-    command && token
-      ? `export WARP_INSIGHT_ENROLLMENT_TOKEN=${token}\n${command}`
-      : command;
+    : (displayInstallCommand(command, reinstall) ?? t("暂无安装代码", "No install code"));
+  const fullCommand = copyableInstallCommand(command, token, reinstall);
 
   return (
     <div className={styles.container}>

@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, type AgentCertificateStatusView } from "../api";
 import { useLiftAgentRevocation, useRevokeAgent } from "../hooks";
 import { t, dateLocale } from "../i18n";
+import { REINSTALL_PAGE_PATH } from "./installMode";
 import styles from "./SubsystemAgentIdentityPanel.module.css";
 
 interface SubsystemAgentIdentityPanelProps {
@@ -75,8 +77,8 @@ function describe(
           "Client certificate expired — reinstall with a token",
         ),
         detail: t(
-          "过期由 agent 本地读 notAfter 判定（服务端在握手期就拒，给不出 401）。无宽限：到这台机器上带一次注册 token 重装即可，agent_id 不变。",
-          "Expiry is decided locally by the agent reading notAfter (the server rejects during the handshake and cannot return a 401). No grace period: reinstall on this machine once with an enrollment token; agent_id stays the same.",
+          "过期由 agent 本地读 notAfter 判定（服务端在握手期就拒，给不出 401）。无宽限：需要在那台机器上用一次性 token 重装一次 —— 会替换本机证书，agent_id 不变。",
+          "Expiry is decided locally by the agent reading notAfter (the server rejects during the handshake and cannot return a 401). No grace period: reinstall once on that machine with a one-time token — it replaces the local certificate and keeps agent_id.",
         ),
       };
     case "renew_due":
@@ -159,6 +161,12 @@ export function SubsystemAgentIdentityPanel({
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const [reason, setReason] = useState("");
 
+  // 「需重装」的两种表现：证书已过期（agent 本地自检得出），或 agentd 上次续签就报了
+  // `needs_reinstall`。被吊销时不给这个入口 —— 那张证书再换也没用，得先在网关解除吊销（§5.6）。
+  const needsReinstall =
+    certificateStatus?.state === "expired" ||
+    certificateStatus?.lastRenewal?.outcome === "needs_reinstall";
+
   const pending = revoke.isPending || lift.isPending;
   const actionError = revoke.error ?? lift.error ?? null;
 
@@ -220,6 +228,11 @@ export function SubsystemAgentIdentityPanel({
           ) : null}
 
           <div className={styles.actions}>
+            {needsReinstall && !revoked ? (
+              <Link className={styles.reinstallLink} to={REINSTALL_PAGE_PATH}>
+                {t("打开重装命令", "Open the reinstall command")}
+              </Link>
+            ) : null}
             {revoked ? (
               <button
                 type="button"

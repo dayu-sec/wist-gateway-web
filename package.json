@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test:bundle": "node tests/admin-token-bundle.test.mjs",
+    "test:install-command": "tsx tests/install-command.test.ts",
     "test:i18n": "tsx tests/i18n-contract.test.ts",
     "test:version": "tsx tests/version-contract.test.ts",
     "test:routes": "node tests/routes-contract.test.mjs",

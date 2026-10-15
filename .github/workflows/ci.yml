@@ -71,3 +71,8 @@ jobs:
       # 「已托管包」表的纯派生：一行 = 一个版本、在用判定（按摘要对齐）、缺件平台。
       - name: Test (agent package registry)
         run: npm run test:agent-package-registry
+
+      # 安装 / 重装命令的拼装：重装标记（WIST_AGENTD_REINSTALL=1）必须进两份产物，
+      # 否则粘过去的命令会静默降级成普通安装（证书根本不会换）。
+      - name: Test (install command contract)
+        run: npm run test:install-command

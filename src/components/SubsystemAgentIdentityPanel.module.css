@@ -153,6 +153,30 @@
   color: var(--text);
 }
 
+/* 证书过期 / 需重装时，把运维直接送到安装页的「重装（替换证书）」模式。 */
+.reinstallLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--accent-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.reinstallLink:hover {
+  background: var(--accent-soft);
+}
+
+.reinstallLink:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
 .dangerButton:disabled,
 .primaryButton:disabled,
 .ghostButton:disabled {

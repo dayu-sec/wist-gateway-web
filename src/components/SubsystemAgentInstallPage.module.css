@@ -158,3 +158,62 @@
   flex-direction: column;
   gap: 16px;
 }
+
+/* 用途分段控件（首次安装 / 重装）：形状与架构 tab 一致，语义是两种用途而非架构。 */
+.modeSwitch {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.modeTab {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.modeTab:hover {
+  color: var(--text);
+}
+
+.modeTabActive,
+.modeTabActive:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.modeTab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 重装提示：说明它会替换证书、只说清影响面（不做成红色错误条）。 */
+.modeNotice {
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+}
