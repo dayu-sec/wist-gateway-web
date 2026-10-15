@@ -50,8 +50,8 @@ function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击「应用」。",
-        "Admin Token is missing or invalid: enter the correct Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击「应用」。",
+        "Admin Token is missing or invalid: click the key button in the top bar, paste the correct Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t(
@@ -303,8 +303,8 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
                 "No work data yet; use “Refresh” at the top right to retry.",
               )
             : t(
-                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
-                "Admin Token is not set: nothing is requested from the admin side until you enter it on the left, so no data appears here.",
+                "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
+                "Admin Token is not set: nothing is requested from the admin side until you enter it via the key button in the top bar, so no data appears here.",
               )}
         </div>
       ) : null}

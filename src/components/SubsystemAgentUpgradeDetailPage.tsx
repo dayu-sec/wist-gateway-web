@@ -35,8 +35,8 @@ function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
-        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击“应用”。",
+        "Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t("认证失败次数过多，请稍后再试。", "Too many failed authentications; try again later.");
@@ -204,8 +204,8 @@ export function SubsystemAgentUpgradeDetailPage() {
                 "No plan data yet; retry with “Refresh” in the top-right corner.",
               )
             : t(
-                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
-                "No Admin Token set: the admin plane is only queried once it is entered on the left, so no data is shown here.",
+                "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: the admin plane is only queried once it is entered via the key button in the top bar, so no data is shown here.",
               )}
         </div>
       ) : null}

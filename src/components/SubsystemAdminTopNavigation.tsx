@@ -1,12 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
-import {
-  ADMIN_AUTH_CHANGED_EVENT,
-  clearAdminApiToken,
-  getAdminApiToken,
-  setAdminApiToken,
-} from "../api";
 import { t } from "../i18n";
 import { SubsystemVersionFooter } from "./SubsystemVersionFooter";
 import styles from "./SubsystemAdminTopNavigation.module.css";
@@ -302,70 +294,6 @@ function navGroups(): { label: string; items: NavItem[] }[] {
 export function SubsystemAdminTopNavigation({
   children,
 }: SubsystemAdminTopNavigationProps) {
-  const queryClient = useQueryClient();
-  // 输入框**不预填已存 token**：曾经它预填旧值（还是密码框），粘新 token 容易拼成「旧+新」，
-  // 结果「明明输了新 token 却一直 401（继而触发限流 429）」。现在空框起步，粘贴即整体替换。
-  const [token, setToken] = useState("");
-  // 「已设置」以**实际存储**为准（经变更事件刷新），不再拿输入框内容当判据 —— 输入框现在空框起步。
-  const [hasStoredToken, setHasStoredToken] = useState(() =>
-    Boolean(getAdminApiToken()),
-  );
-  const [applied, setApplied] = useState(false);
-  // 已设置时表单折叠成一行状态条，点「更换」才展开 —— 凭证是低频操作，
-  // 不该常驻占据侧边栏底部一整块。
-  const [editing, setEditing] = useState(false);
-  const appliedTimer = useRef<number | undefined>(undefined);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => () => window.clearTimeout(appliedTimer.current), []);
-
-  useEffect(() => {
-    function onAuthChanged() {
-      const hasToken = Boolean(getAdminApiToken());
-      setHasStoredToken(hasToken);
-      // token 变了：设了 → 重新取；清了 → **丢弃**缓存（含上一条 401/429）。
-      // 不丢的话，清完页面上还挂着旧错误横幅，看起来就像「点了清除没生效」。
-      if (hasToken) {
-        void queryClient.invalidateQueries();
-      } else {
-        queryClient.removeQueries();
-      }
-    }
-
-    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
-    return () => {
-      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
-    };
-  }, [queryClient]);
-
-  const collapsed = hasStoredToken && !editing;
-
-  // 展开输入：清空 + 聚焦全选 —— 让任何来源的内容（含浏览器密码管理器自动填充）被下一次粘贴整体替换。
-  function openEditor() {
-    setToken("");
-    setEditing(true);
-    window.setTimeout(() => inputRef.current?.select(), 0);
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAdminApiToken(token);
-    setToken(""); // 不把密钥留在输入框
-    setApplied(true);
-    window.clearTimeout(appliedTimer.current);
-    // 「已应用」反馈展示完顺手收回表单，回到一行状态条。
-    appliedTimer.current = window.setTimeout(() => {
-      setApplied(false);
-      setEditing(false);
-    }, 1600);
-    // 查询的刷新交给上面监听 `ADMIN_AUTH_CHANGED_EVENT` 的 onAuthChanged（设/清走同一处）。
-  }
-
-  function handleClear() {
-    clearAdminApiToken();
-    setToken("");
-  }
-
   return (
     <aside className={styles.container}>
       {children ?? (
@@ -409,99 +337,6 @@ export function SubsystemAdminTopNavigation({
               </div>
             ))}
           </nav>
-
-          {collapsed ? (
-            <div className={styles.authCollapsed}>
-              <span
-                className={`${styles.authLabel} ${styles.authCollapsedLabel}`}
-              >
-                Admin Token
-              </span>
-              <span className={`${styles.authState} ${styles.authStateOn}`}>
-                {t("已设置", "Set")}
-              </span>
-              <button
-                type="button"
-                className={styles.authChange}
-                onClick={openEditor}
-              >
-                {t("更换", "Change")}
-              </button>
-              <button
-                type="button"
-                className={styles.authChange}
-                onClick={handleClear}
-              >
-                {t("清除", "Clear")}
-              </button>
-            </div>
-          ) : (
-            <form className={styles.authForm} onSubmit={handleSubmit}>
-              <div className={styles.authHead}>
-                <label
-                  className={styles.authLabel}
-                  htmlFor="warp-insight-admin-token"
-                >
-                  Admin Token
-                </label>
-                <span
-                  className={
-                    hasStoredToken
-                      ? `${styles.authState} ${styles.authStateOn}`
-                      : styles.authState
-                  }
-                >
-                  {hasStoredToken ? t("已设置", "Set") : t("未设置", "Not set")}
-                </span>
-              </div>
-              <input
-                id="warp-insight-admin-token"
-                ref={inputRef}
-                className={styles.authInput}
-                type="password"
-                autoComplete="off"
-                placeholder={t("粘贴管理令牌", "Paste admin token")}
-                value={token}
-                onChange={(event) => setToken(event.target.value)}
-                onFocus={(event) => event.currentTarget.select()}
-              />
-              <p className={styles.authHint}>
-                {t(
-                  "仅存于本会话标签页，用于调用 Gateway 管理接口。",
-                  "Kept in this browser tab only; used to call the Gateway admin API.",
-                )}
-              </p>
-              <div className={styles.authActions}>
-                <button
-                  className={`${styles.authButton} ${styles.authPrimary}`}
-                  type="submit"
-                  disabled={!token}
-                >
-                  {applied ? t("已应用", "Applied") : t("应用", "Apply")}
-                </button>
-                <button
-                  className={styles.authButton}
-                  type="button"
-                  onClick={handleClear}
-                  disabled={!hasStoredToken}
-                >
-                  {t("清除", "Clear")}
-                </button>
-                {hasStoredToken ? (
-                  <button
-                    className={`${styles.authButton} ${styles.authGhost}`}
-                    type="button"
-                    onClick={() => {
-                      setToken("");
-                      setEditing(false);
-                    }}
-                  >
-                    {t("收起", "Collapse")}
-                  </button>
-                ) : null}
-              </div>
-            </form>
-          )}
 
           <SubsystemVersionFooter />
         </>

@@ -53,8 +53,8 @@ function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
-        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击“应用”。",
+        "Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t("认证失败次数过多，请稍后再试。", "Too many failed authentication attempts. Try again later.");
@@ -85,8 +85,8 @@ function createErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
-        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击“应用”。",
+        "Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t("认证失败次数过多，请稍后再试。", "Too many failed authentication attempts. Try again later.");
@@ -451,8 +451,8 @@ export function SubsystemAgentUpgradePage() {
             <span className={styles.emptyText}>
               {noToken
                 ? t(
-                    "未设置 Admin Token：在左侧填入后才向管理面请求。",
-                    "No Admin Token set: fill it in on the left to query the admin API.",
+                    "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求。",
+                    "No Admin Token set: fill it in in the top bar to query the admin API.",
                   )
                 : t(
                     "在下方创建第一份升级计划。",

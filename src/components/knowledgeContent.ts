@@ -270,8 +270,8 @@ export function knowledgeLoadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
-        "Admin Token is missing or invalid: enter the correct Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击“应用”。",
+        "Admin Token is missing or invalid: click the key button in the top bar, paste the correct Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t(
@@ -311,8 +311,8 @@ export function knowledgeActionErrorMessage(
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击“应用”。",
-        "Admin Token is missing or invalid: enter the correct Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击“应用”。",
+        "Admin Token is missing or invalid: click the key button in the top bar, paste the correct Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t(

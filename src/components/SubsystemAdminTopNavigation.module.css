@@ -32,7 +32,7 @@
   /* 靛蓝→青：与中心（靛蓝→紫）**同色系**，起点同为界面主色 #6366f1，见 public/favicon.svg。 */
   background: linear-gradient(140deg, #6366f1, #3b82f6 55%, #06b6d4);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px var(--overlay-border),
     0 6px 16px rgba(59, 130, 246, 0.35);
 }
 
@@ -142,153 +142,40 @@
 }
 
 /* 已设置时的折叠态：一行状态条，点「更换」展开完整表单。 */
-.authCollapsed {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 11px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.032);
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authCollapsedLabel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authChange {
-  flex: 0 0 auto;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--sidebar-text-active);
-  font-size: 11.5px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authChange:hover {
-  background: rgba(255, 255, 255, 0.13);
-}
 
-.authChange:focus-visible {
-  border-color: var(--accent-border);
-  box-shadow: var(--ring);
-  outline: none;
-}
 
-.authForm {
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 11px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.032);
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authLabel {
-  color: var(--sidebar-text-active);
-  font-size: 12px;
-  font-weight: 700;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authState {
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--unknown-soft);
-  color: var(--text-3);
-  font-size: 10px;
-  font-weight: 700;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authStateOn {
-  background: var(--ok-soft);
-  color: var(--ok);
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authInput {
-  height: 32px;
-  min-height: 32px;
-  padding: 0 9px;
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  border-radius: var(--radius-xs);
-  background: rgba(0, 0, 0, 0.32);
-  color: var(--sidebar-text-active);
-  font-size: 12px;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authInput::placeholder {
-  color: var(--text-4);
-}
 
-.authInput:focus-visible {
-  border-color: var(--accent-border);
-  box-shadow: var(--ring);
-}
 
-.authHint {
-  color: var(--text-4);
-  font-size: 10.5px;
-  line-height: 1.45;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authActions {
-  display: flex;
-  gap: 6px;
-  margin-top: 2px;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authButton {
-  flex: 1;
-  height: 30px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--sidebar-text-active);
-  font-size: 12px;
-  font-weight: 700;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authButton:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.13);
-}
 
-.authPrimary {
-  border-color: rgba(129, 140, 248, 0.55);
-  background: rgba(99, 102, 241, 0.85);
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
-.authPrimary:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
 
 /* 展开态里的「收起」：不定宽，让「应用」保持主导按钮。 */
-.authGhost {
-  flex: 0 0 auto;
-  padding: 0 10px;
-}
+/* 管理令牌的样式已挪到 AdminTokenControl.module.css（控件现在在右上角状态条上）。 */
 
 @media (max-width: 860px) {
   .container {
@@ -324,15 +211,6 @@
   }
 
   .link::before {
-    display: none;
-  }
-
-  .authForm,
-  .authCollapsed {
-    margin-top: 0;
-  }
-
-  .authHint {
     display: none;
   }
 }

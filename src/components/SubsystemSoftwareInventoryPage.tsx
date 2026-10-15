@@ -67,8 +67,8 @@ function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401)
       return t(
-        "Admin Token 缺失或无效：请在左侧输入正确的 Admin Token 并点击「应用」。",
-        "Admin Token missing or invalid: enter a valid Admin Token on the left and click “Apply”.",
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击「应用」。",
+        "Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click “Apply”.",
       );
     if (error.status === 429)
       return t(
@@ -274,8 +274,8 @@ function FleetInventory({
                 "No software inventory loaded yet. Use “Refresh” in the top right to retry.",
               )
             : t(
-                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
-                "No Admin Token set: data is requested from the admin API only after you enter one on the left, so nothing is shown here.",
+                "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: data is requested from the admin API only after you fill it in via the key button in the top bar, so nothing is shown here.",
               )}
         </div>
       ) : null}
@@ -603,8 +603,8 @@ function AgentInventory({
                 "This machine's inventory has not loaded yet. Use “Refresh” in the top right to retry.",
               )
             : t(
-                "未设置 Admin Token：在左侧填入后才向管理面请求，这里不会显示数据。",
-                "No Admin Token set: data is requested from the admin API only after you enter one on the left, so nothing is shown here.",
+                "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: data is requested from the admin API only after you fill it in via the key button in the top bar, so nothing is shown here.",
               )}
         </div>
       ) : null}
