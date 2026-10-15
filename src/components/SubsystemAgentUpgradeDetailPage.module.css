@@ -412,7 +412,7 @@
 .primaryButtonWarn {
   border-color: var(--warn-border);
   background: var(--warn);
-  color: #1b1205;
+  color: var(--on-warn);
 }
 
 .primaryButtonWarn:hover:not(:disabled) {
@@ -527,7 +527,7 @@
 
 .table tbody td {
   padding: 11px 20px;
-  border-bottom: 1px solid rgba(38, 52, 77, 0.6);
+  border-bottom: 1px solid var(--border);
   color: var(--text-2);
   font-size: 13px;
   vertical-align: middle;
@@ -538,7 +538,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.022);
+  background: var(--overlay-soft);
 }
 
 .targetLink {

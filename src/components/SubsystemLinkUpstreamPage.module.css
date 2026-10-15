@@ -221,7 +221,7 @@
 }
 
 .primaryButton:hover:not(:disabled) {
-  filter: brightness(1.15);
+  background: var(--accent-hover);
 }
 
 .primaryButton:focus-visible,

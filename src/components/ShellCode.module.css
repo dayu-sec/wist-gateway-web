@@ -1,30 +1,33 @@
 /*
- * Shell 语法着色 —— 本文件是唯一允许出现字面色值的地方（它就是语法主题本身，
- * 不应该跟着 UI 的灰阶走）。其余样式一律用 index.css 的令牌。
+ * Shell 语法着色 —— 颜色本身定义在 index.css 的 `--syntax-*` 令牌里（深/浅两套）。
+ *
+ * 为什么不是写在这里：这几个色**必须随主题变**。深色下那组亮色放到浅色的 `--code-bg: #f2f5fa`
+ * 上对比度只有 1.3~2.7:1，命令基本读不出来；token 化之后 `npm run test:theme` 会拦住「只加了深色
+ * 一处」的情况。
  *
  * 注意：刻意不用红色系 —— 红/橙在运维控制台里代表故障与危险状态，
- * 拿它标关键字会让一段正常命令看起来像报错。
+ * 拿它标关键字会让一段正常命令看起来像报错（浅色那套也遵守这条）。
  */
 .comment {
-  color: #8b99ad;
+  color: var(--syntax-comment);
   font-style: italic;
 }
 
 .string {
-  color: #86efac;
+  color: var(--syntax-string);
 }
 
 .variable {
-  color: #7dd3fc;
+  color: var(--syntax-variable);
 }
 
 .keyword {
-  color: #c084fc;
+  color: var(--syntax-keyword);
   font-weight: 600;
 }
 
 .operator {
-  color: #f0abfc;
+  color: var(--syntax-operator);
 }
 
 .text {

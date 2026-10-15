@@ -4,12 +4,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { initLocale, useLocale } from "./i18n";
+import { initTheme } from "./theme";
 import "./index.css";
 
 const queryClient = new QueryClient();
 
 // 启动即把存储的语言偏好装进本 app 与共享口径（`@dayu-sec/wist-web-core`）。
 initLocale();
+// 主题同样要在首次渲染**之前**定下来：晚一步会先按深色画一帧再跳成浅色（闪一下）。
+// 与语言不同，切主题不重挂载组件树 —— 颜色走 CSS 变量，改 `<html data-theme>` 全站即变。
+initTheme();
 
 /**
  * 语言变化时**整棵树重挂载**（`<App key={locale} />`）：任何组件里的 `t()` 都会在新语言下重新

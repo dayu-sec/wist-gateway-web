@@ -657,7 +657,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(8, 12, 20, 0.55);
+  background: var(--scrim);
 }
 
 .dialog {

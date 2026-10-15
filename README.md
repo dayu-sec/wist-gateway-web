@@ -89,6 +89,23 @@ React Query 缓存里，不会重新拉。
   本 app 只在 `src/i18n/index.ts` 调一次 `setLocale`；别在别处再映射一遍。
 - 全站唯一的语言状态与持久化都在 `src/i18n/index.ts`。
 
+## 主题（浅色 / 深色）
+
+右上角状态条里有一个日/月图标开关（与语言开关同一条 chrome 区）：**首次进入跟随系统**
+（`prefers-color-scheme`），点过之后以你的选择为准（存 `localStorage`，键 `wistGatewayWeb.theme`）。
+
+- 两套配色都在 [`src/index.css`](src/index.css)：深色是默认（`:root`），浅色是 `:root[data-theme="light"]`
+  的**覆盖**。切主题只改 `<html data-theme>` 一个属性 —— 颜色全走 CSS 变量，**不需要重挂载组件树**
+  （这与语言切换不同）。
+- ⚠️ **新增颜色 token 时两处都要加**：漏一处，浅色下那块就是深色的。`npm run test:theme` 会拦这件事
+  （`:root` 里凡是给了字面量值的 token，浅色块必须再给一次；尺度 / 字体 / `var()` 别名不算）。
+- ⚠️ **组件 CSS 里不要写颜色字面量**：用 token。除了配色 token，还有一组「叠加层 / 浮层」也是随主题变的：
+  `--overlay-soft`（悬停高亮）、`--overlay` / `--overlay-border`、`--bar-bg`（贴顶状态条）、
+  `--panel-solid` / `--panel-translucent`（弹层）、`--scrim`（遮罩）、`--scrollbar-thumb*`。
+  `#fff` 只该出现在**彩色底上的白字/白描边**（徽标、主按钮、品牌标）。
+- 图表（`Sparkline` / `TrendChart`）把颜色当 `var(--series-*)` 传进 SVG，所以切主题自动跟着变；
+  如果以后有组件在 JS 里**读出**具体颜色（canvas、导图），要订阅 `useAppTheme()` 重画。
+
 ## 页面路由
 
 | 路径 | 说明 |

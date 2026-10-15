@@ -190,7 +190,7 @@
 .chipCount {
   padding: 0 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--overlay);
   color: var(--text-3);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -198,7 +198,7 @@
 }
 
 .chipActive .chipCount {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--overlay);
   color: var(--text);
 }
 
@@ -258,7 +258,7 @@
 }
 
 .sortHead:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--overlay-soft);
   color: var(--text);
 }
 
@@ -279,7 +279,7 @@
 
 .table tbody td {
   padding: 11px 14px;
-  border-bottom: 1px solid rgba(38, 52, 77, 0.6);
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
@@ -288,7 +288,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.022);
+  background: var(--overlay-soft);
 }
 
 .tdHost {
@@ -408,7 +408,7 @@
 .barTrack {
   height: 4px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--overlay);
   overflow: hidden;
 }
 

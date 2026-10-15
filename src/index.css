@@ -60,6 +60,19 @@
   --warning: var(--warn);
   --warning-soft: var(--warn-soft);
 
+  /* ---------- Shell 语法着色 ----------
+     放进 token（而不是留在 ShellCode.module.css 里）是因为它**必须随主题变**：深色下那几个亮色
+     放到浅底上对比度只有 1.3~2.7:1，基本看不见。放在这里，`npm run test:theme` 会保证浅色主题
+     不漏掉它们。仍然刻意避开红色系 —— 红/橙在运维控制台里代表故障。 */
+  --syntax-comment: #8b99ad;
+  --syntax-string: #86efac;
+  --syntax-variable: #7dd3fc;
+  --syntax-keyword: #c084fc;
+  --syntax-operator: #f0abfc;
+
+  /* 琥珀底上的字色：深色主题的 --warn 是亮琥珀（要压深字），浅色主题是深琥珀（要压白字）。 */
+  --on-warn: #1b1205;
+
   /* ---------- 图表分类色板 ---------- */
   --series-1: #38bdf8;
   --series-2: #a78bfa;
@@ -76,6 +89,19 @@
   --sidebar-text-active: #ffffff;
   --sidebar-hover: rgba(255, 255, 255, 0.055);
   --sidebar-active: rgba(99, 102, 241, 0.16);
+
+  /* ---------- 主题相关的叠加层 / 浮层 ----------
+     组件里那些「比背景亮一档」的悬停高亮、贴顶状态条的半透明底、弹层与遮罩，深色下是白/深蓝
+     半透明，浅色下必须换成黑/白半透明 —— 抽成 token，两套主题各给一组，组件里不再写字面量。 */
+  --overlay-soft: rgba(255, 255, 255, 0.04);
+  --overlay: rgba(255, 255, 255, 0.07);
+  --overlay-border: rgba(255, 255, 255, 0.14);
+  --bar-bg: rgba(11, 17, 32, 0.82);
+  --panel-solid: rgba(15, 23, 42, 0.96);
+  --panel-translucent: rgba(38, 52, 77, 0.6);
+  --scrim: rgba(8, 12, 20, 0.55);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.28);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
 
   /* ---------- 尺度 ---------- */
   --radius-lg: 14px;
@@ -99,6 +125,105 @@
   --sidebar-width: 236px;
   --content-max: 1180px;
   --topbar-height: 52px;
+}
+
+/* ============================ 浅色主题 ============================
+   由 `<html data-theme="light">` 触发（见 `src/theme/index.ts`）。这里**只覆盖随主题变的 token**
+   （配色 / 阴影 / 叠加层 / 滚动条），尺度与字体沿用上面的定义 —— 两套主题的结构必须逐字一致，
+   否则浅色下会出现只有深色才对的间距或圆角。新增颜色 token 时**两处都要加**：
+   `npm run test:theme` 会检查这件事。 */
+:root[data-theme="light"] {
+  /* 表面分层：白 → 灰，层级靠边框与极浅的底差表达（浅色下堆阴影会显脏）。 */
+  --bg: #f5f7fb;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f1f4fa;
+  --surface-3: #e5ebf5;
+  --border: #dbe2ee;
+  --border-strong: #b8c4d9;
+  --code-bg: #f2f5fa;
+  --code-text: #1e293b;
+
+  /* 文本：正文 #111a2e on #ffffff ≈ 16:1；--text-4 也保持在 4.5:1 以上。 */
+  --text: #111a2e;
+  --text-2: #33405c;
+  --text-3: #586a8c;
+  --text-4: #5f6b83;
+
+  /* 品牌：底色浅，强调色要压深一档才够对比。 */
+  --accent: #5b5ef0;
+  --accent-hover: #4f46e5;
+  --accent-strong: #4338ca;
+  --accent-soft: rgba(99, 102, 241, 0.1);
+  --accent-border: #818cf8;
+
+  /* 语义状态：深色下的亮色在浅底上会「发光」，统一压深。 */
+  --ok: #047857;
+  --ok-soft: rgba(4, 120, 87, 0.1);
+  --ok-border: rgba(4, 120, 87, 0.32);
+  --warn: #b45309;
+  --warn-soft: rgba(180, 83, 9, 0.1);
+  --warn-border: rgba(180, 83, 9, 0.32);
+  --crit: #c02626;
+  --crit-soft: rgba(192, 38, 38, 0.1);
+  --crit-border: rgba(192, 38, 38, 0.32);
+  --info: #1d4ed8;
+  --info-soft: rgba(29, 78, 216, 0.1);
+  --unknown: #64748b;
+  --unknown-soft: rgba(100, 116, 139, 0.12);
+
+  /* 图表：分类色板在浅底上整体降一档亮度，网格线改成深色半透明。 */
+  /* 语法着色：浅底上要压深，且保持与深色主题同一套「色相语义」。 */
+  --syntax-comment: #5b6a82;
+  --syntax-string: #047857;
+  --syntax-variable: #0369a1;
+  --syntax-keyword: #7c3aed;
+  --syntax-operator: #a21caf;
+
+  /* 浅色的琥珀底是深琥珀，字要反过来用白色。 */
+  --on-warn: #ffffff;
+
+  --series-1: #0369a1;
+  --series-2: #7c3aed;
+  --series-3: #047857;
+  --series-4: #b45309;
+  --series-5: #be123c;
+  --grid: rgba(15, 23, 42, 0.1);
+  --grid-strong: rgba(15, 23, 42, 0.2);
+
+  /* 侧边栏：浅色版整条亮起来，靠右边框与背景做区分。 */
+  --sidebar-bg: #ffffff;
+  --sidebar-border: rgba(15, 23, 42, 0.08);
+  --sidebar-text: #4c5c7a;
+  --sidebar-text-active: #111a2e;
+  --sidebar-hover: rgba(15, 23, 42, 0.045);
+  --sidebar-active: rgba(99, 102, 241, 0.12);
+
+  /* 叠加层 / 浮层：深色下是白半透明，浅色下换成黑半透明。 */
+  --overlay-soft: rgba(15, 23, 42, 0.03);
+  --overlay: rgba(15, 23, 42, 0.06);
+  --overlay-border: rgba(15, 23, 42, 0.12);
+  --bar-bg: rgba(255, 255, 255, 0.86);
+  --panel-solid: #ffffff;
+  --panel-translucent: rgba(255, 255, 255, 0.92);
+  --scrim: rgba(15, 23, 42, 0.35);
+  --scrollbar-thumb: rgba(100, 116, 139, 0.35);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.55);
+
+  /* 阴影：浅色下要更轻更散，否则每个卡片都像浮起来。 */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow: 0 2px 8px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 18px 44px rgba(15, 23, 42, 0.18);
+  --ring: 0 0 0 3px rgba(99, 102, 241, 0.28);
+  --ring-crit: 0 0 0 3px rgba(192, 38, 38, 0.25);
+
+  /* 原生控件（下拉、滚动条、日期选择器）跟着走，否则浅色页面里会露出深色控件。 */
+  color-scheme: light;
+}
+
+/* 深色是默认：显式声明一次，避免浏览器按系统偏好给原生控件套浅色。 */
+:root {
+  color-scheme: dark;
 }
 
 html,
@@ -220,7 +345,7 @@ a:focus-visible {
 /* ---------- 滚动条 ---------- */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.32) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -235,12 +360,12 @@ a:focus-visible {
 *::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.28);
+  background: var(--scrollbar-thumb);
   background-clip: content-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.45);
+  background: var(--scrollbar-thumb-hover);
   background-clip: content-box;
 }
 

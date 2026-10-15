@@ -72,6 +72,10 @@ jobs:
       - name: Test (agent package registry)
         run: npm run test:agent-package-registry
 
+      # 浅色 / 深色两套 token 的对齐 + 主题状态机（跟随系统 / 用户选择优先 / 双向切换）。
+      - name: Test (theme contract)
+        run: npm run test:theme
+
       # 安装 / 重装命令的拼装：重装标记（WIST_AGENTD_REINSTALL=1）必须进两份产物，
       # 否则粘过去的命令会静默降级成普通安装（证书根本不会换）。
       - name: Test (install command contract)
