@@ -50,8 +50,8 @@ export function SubsystemAgentInstallPage() {
         <p className={styles.pageSummary}>
           {reinstall
             ? t(
-                "给某台已经在网的主机「换一张新证书」：重装一遍并重新注册。换的只是那台机器的客户端证书，agent_id 不变，也不影响其它机器。",
-                "Swap in a fresh certificate for a host that is already in the fleet: reinstall it and re-enroll. Only that machine's client certificate changes; its agent_id stays the same and no other host is affected.",
+                "给某台已经在网的主机重装一次，换掉它的客户端证书；其它一概不变。",
+                "Reinstall a host that is already in the fleet to swap in a fresh client certificate; nothing else changes.",
               )
             : t(
                 "在目标主机上装一次采集 Agent，它就会把该主机的指标与日志持续上报到本网关。",
@@ -127,10 +127,44 @@ export function SubsystemAgentInstallPage() {
       </header>
       {reinstall ? (
         <div className={styles.modeNotice}>
-          {t(
-            "重装会替换该主机上的客户端证书：命令先停掉在跑的 agentd，再凭 token 强制重新注册（enroll --force）换一张新证书，然后重建服务。agent_id 是机器标识的稳定哈希，不会变；只影响这一台。仅用于证书已过期 / 换过网关 / 本机身份错乱 —— 证书正常的机器不需要重装。",
-            "Reinstalling replaces the client certificate on that host: the command stops the running agentd, force re-enrolls with the token (enroll --force) to obtain a fresh certificate, then rebuilds the service. agent_id is a stable hash of the machine identity, so it does not change, and only this host is affected. Use it only when the certificate has expired, the machine moved to another gateway, or the local identity is inconsistent — hosts with a healthy certificate do not need it.",
-          )}
+          <p className={styles.modeNoticeLead}>
+            {t(
+              "重装只影响这一台，但有几件事要先知道：",
+              "A reinstall only affects this host, but a few things are worth knowing first:",
+            )}
+          </p>
+          <ul className={styles.modeNoticeList}>
+            <li>
+              {t(
+                "会替换这台主机的客户端证书 —— 它在网关上的身份不变，不会多出一台新机器；",
+                "It replaces this host's client certificate — its identity on the gateway stays the same, so it will not show up as a new machine;",
+              )}
+            </li>
+            <li>
+              {t(
+                "过程中这台主机的采集与上报会短暂中断，别挑关键窗口做；",
+                "Collection and reporting from this host pause briefly, so avoid doing it in a critical window;",
+              )}
+            </li>
+            <li>
+              {t(
+                "需要在那台主机上有管理员权限（安装是系统级的）；",
+                "Administrator rights are required on that host (the install is system-wide);",
+              )}
+            </li>
+            <li>
+              {t(
+                "命令里的一次性 Token 只能给一台主机用一次，用掉后回到本页重取。",
+                "The one-time token in the command covers exactly one host; come back to this page for a new one after it is used.",
+              )}
+            </li>
+          </ul>
+          <p className={styles.modeNoticeFoot}>
+            {t(
+              "仅用于：证书已过期、换过网关、本机身份异常。证书正常的机器不需要重装。",
+              "Use it only when the certificate has expired, the host moved to another gateway, or its local identity is broken. Hosts with a healthy certificate do not need it.",
+            )}
+          </p>
         </div>
       ) : null}
       {isError ? (
@@ -179,6 +213,12 @@ export function SubsystemAgentInstallPage() {
               ))}
             </div>
           </div>
+          <p className={styles.platformNote}>
+            {t(
+              "命令要按「目标主机」的架构选：平台不符会在动手之前就被拒绝，不会改动那台机器。",
+              "Pick the command for the target host's architecture: a platform mismatch is refused before anything on that host is changed.",
+            )}
+          </p>
           {/* 三份命令来自同一次请求，切换是纯本地状态，无重新取数。 */}
           <div role="tabpanel" className={styles.archPanel}>
             {activeArch === "x86" ? (

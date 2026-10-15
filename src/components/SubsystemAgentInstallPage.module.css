@@ -104,6 +104,13 @@
   gap: 10px 16px;
 }
 
+/* 平台注意项：选错平台（比如在 macOS 上跑 Linux 那一栏）会在动手前被拒绝。 */
+.platformNote {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
 .sectionTitle {
   color: var(--text);
   font-size: 16px;
@@ -203,7 +210,7 @@
   outline: none;
 }
 
-/* 重装提示：说明它会替换证书、只说清影响面（不做成红色错误条）。 */
+/* 重装提示：只说要注意的事（影响面 / 中断 / 权限 / 触发条件），不展开内部机制。 */
 .modeNotice {
   width: calc(100% - 48px);
   max-width: calc(var(--content-max) - 48px);
@@ -214,6 +221,23 @@
   background: var(--warn-soft);
   color: var(--warn);
   font-size: 13px;
-  font-weight: 600;
   line-height: 1.6;
+}
+
+.modeNoticeLead {
+  font-weight: 700;
+}
+
+.modeNoticeList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+
+.modeNoticeFoot {
+  margin-top: 6px;
+  font-weight: 600;
 }

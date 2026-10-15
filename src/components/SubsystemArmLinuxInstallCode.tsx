@@ -35,14 +35,8 @@ export function SubsystemArmLinuxInstallCode({
       </code>
       <div className={styles.actions}>
         <CopyButton
-          text={command}
-          label={t("复制命令", "Copy command")}
-          className={styles.copyButton}
-        />
-        <CopyButton
           text={fullCommand}
-          label={t("复制完整命令（含 Token）", "Copy full command (with token)")}
-          copiedLabel={t("已复制完整命令", "Full command copied")}
+          label={t("复制命令", "Copy command")}
           className={styles.copyButton}
         />
       </div>

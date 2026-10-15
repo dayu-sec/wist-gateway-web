@@ -77,8 +77,8 @@ function describe(
           "Client certificate expired — reinstall with a token",
         ),
         detail: t(
-          "过期由 agent 本地读 notAfter 判定（服务端在握手期就拒，给不出 401）。无宽限：需要在那台机器上用一次性 token 重装一次 —— 会替换本机证书，agent_id 不变。",
-          "Expiry is decided locally by the agent reading notAfter (the server rejects during the handshake and cannot return a 401). No grace period: reinstall once on that machine with a one-time token — it replaces the local certificate and keeps agent_id.",
+          "过期由 agent 本地读 notAfter 判定（服务端在握手期就拒，给不出 401）。无宽限：需要在那台机器上重装一次 —— 会替换它的客户端证书，但它在网关上的身份不变。",
+          "Expiry is decided locally by the agent reading notAfter (the server rejects during the handshake and cannot return a 401). No grace period: reinstall once on that machine — it replaces that host's client certificate, but its identity on the gateway stays the same.",
         ),
       };
     case "renew_due":
