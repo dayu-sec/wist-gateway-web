@@ -38,6 +38,10 @@ import {
   unsupportedSourceCount,
   unsupportedSourceReason,
 } from "./agentWorkStatus";
+import {
+  collectionFamilyName,
+  collectionFamilySummary,
+} from "./collectionFamilyText";
 import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentWorkView.module.css";
 
@@ -679,6 +683,7 @@ function StandingWorkCard({
   const localAckBehind = localWork
     ? localWork.acknowledgedVersion !== localWork.planVersion
     : false;
+  const familySummary = collectionFamilySummary(work.family);
   return (
     <li
       className={styles.card}
@@ -707,7 +712,8 @@ function StandingWorkCard({
         .join(" · ")}
     >
       <div className={styles.cardHeader}>
-        <span className={styles.family}>{work.family}</span>
+        <span className={styles.workName}>{collectionFamilyName(work.family)}</span>
+        <span className={styles.workNameCode}>{work.family}</span>
         <span className={`${styles.badge} ${toneClass(STANDING_STATUS_TONE[work.status])}`}>
           {STANDING_STATUS_LABEL[work.status]}
         </span>
@@ -715,6 +721,10 @@ function StandingWorkCard({
           {ACK_STATE_LABEL[ackState]}
         </span>
       </div>
+
+      {familySummary ? (
+        <p className={styles.workSummary}>{familySummary}</p>
+      ) : null}
 
       {work.spec.error ? (
         <span className={styles.critText}>
@@ -1122,10 +1132,12 @@ interface GrantCandidateCardProps {
  * 根本看不到该面的目录单元 id。要让某台机器多采/少采一个单元，改的是目录，不是这张卡。
  */
 function GrantCandidateCard({ entry, pending, onSubmit }: GrantCandidateCardProps) {
+  const familySummary = collectionFamilySummary(entry.family);
   return (
     <li className={styles.card}>
       <div className={styles.cardHeader}>
-        <span className={styles.family}>{entry.family}</span>
+        <span className={styles.workName}>{collectionFamilyName(entry.family)}</span>
+        <span className={styles.workNameCode}>{entry.family}</span>
         <span className={`${styles.badge} ${styles.toneUnknown}`}>
           {t("未授权", "Not granted")}
         </span>
@@ -1135,6 +1147,10 @@ function GrantCandidateCard({ entry, pending, onSubmit }: GrantCandidateCardProp
           </span>
         )}
       </div>
+
+      {familySummary ? (
+        <p className={styles.workSummary}>{familySummary}</p>
+      ) : null}
 
       <div className={styles.workMeta}>
         <span className={styles.workMetaMain}>

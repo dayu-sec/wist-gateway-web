@@ -201,6 +201,26 @@
   font-weight: 700;
 }
 
+/* 工作名（人话）与面名（协议值）并排：前者给人读，后者用于查日志 / 对数。 */
+.workName {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.workNameCode {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.workSummary {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .badge {
   padding: 1px 8px;
   border: 1px solid var(--border-strong);
