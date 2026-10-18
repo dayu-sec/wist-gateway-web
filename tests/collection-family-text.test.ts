@@ -44,6 +44,35 @@ const payload = {
   ],
   templates: [],
   readiness: [],
+  units: [
+    {
+      unit_id: "linux-kernel",
+      family: "KernelSystem",
+      platform: "linux",
+      capability: "collect_logs",
+      match: "installed:rsyslog",
+      rule_ref: "",
+      requires_privilege: "root",
+      status: "active",
+      collect_ready: true,
+      parse_ready: false,
+      executable: true,
+      sources: [
+        {
+          kind: "FileGlob",
+          target: "/var/log/kern.log",
+          multiline: "none",
+          executable: true,
+        },
+        {
+          kind: "Exporter",
+          target: "dmesg:panic",
+          multiline: "none",
+          executable: false,
+        },
+      ],
+    },
+  ],
 };
 
 const catalog = normalizeContentCatalog(payload);
@@ -52,8 +81,19 @@ assert(catalog.families[1].platforms[0] === "linux", "platforms 原样透传");
 assert(catalog.families[0].nameZh === "登录会话", "name_zh → nameZh");
 
 // 旧网关：没有 families 字段 → 空数组（页面回落成面 ID，而不是崩）。
-const old = normalizeContentCatalog({ ...payload, families: undefined });
+const old = normalizeContentCatalog({ ...payload, families: undefined, units: undefined });
 assert(old.families.length === 0, "旧网关缺 families 时要补空数组");
+assert(old.units.length === 0, "旧网关缺 units 时要补空数组");
+
+// 单元明细：snake_case → camelCase，`match` 原样保留（它是 JSON 关键字，不是重命名）。
+assert(catalog.units.length === 1, "units 要归一化出来");
+assert(catalog.units[0].match === "installed:rsyslog", "match 原样透传");
+assert(catalog.units[0].collectReady === true, "collect_ready → collectReady");
+assert(catalog.units[0].parseReady === false, "parse_ready → parseReady");
+assert(
+  catalog.units[0].sources[1].executable === false,
+  "来源级可执行标志要传下来",
+);
 
 const index = indexCollectionFamilies(catalog.families);
 

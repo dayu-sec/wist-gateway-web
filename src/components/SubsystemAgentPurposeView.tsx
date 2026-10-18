@@ -29,7 +29,7 @@ const EMPTY = "—";
  *
  * **必须是函数**：模块级常量里的 `t()` 只在导入时求值一次，切语言不会变。
  */
-function machineClassLabel(machineClass: MachineClass): string {
+export function machineClassLabel(machineClass: MachineClass): string {
   switch (machineClass) {
     case "MacDaily":
       return t("macOS 日常机", "macOS daily driver");

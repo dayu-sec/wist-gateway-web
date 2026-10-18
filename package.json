@@ -30,6 +30,7 @@
     "test:sha256": "tsx tests/sha256.test.ts",
     "test:knowledge": "tsx tests/knowledge-contract.test.ts",
     "test:family-text": "tsx tests/collection-family-text.test.ts",
+    "test:family-overview": "tsx tests/family-overview.test.ts",
     "test:admin-api-error": "tsx tests/admin-api-error.test.ts",
     "test:admin-token": "tsx tests/admin-token-contract.test.ts",
     "test:agent-delete": "tsx tests/agent-delete-contract.test.ts",

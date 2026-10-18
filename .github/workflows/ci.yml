@@ -65,6 +65,11 @@ jobs:
       - name: Test (collection family text)
         run: npm run test:family-text
 
+      # 采集面全景的派生：三态（已就绪 / 有单元未就绪 / 未建单元）、
+      # 跨平台合计、模板覆盖、筛选计数。
+      - name: Test (family overview)
+        run: npm run test:family-overview
+
       # 管理接口读取失败的文案（服务端正文必须透出来，通用话只能兜底）。
       - name: Test (admin api error messages)
         run: npm run test:admin-api-error

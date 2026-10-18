@@ -14,6 +14,8 @@ import type {
   ContentCatalogView,
   ContentFamilyView,
   ContentTemplateView,
+  ContentUnitSourceView,
+  ContentUnitView,
   FamilyReadinessView,
   MachineClass,
   OneShotWork,
@@ -3002,6 +3004,50 @@ function normalizeContentFamily(payload: any): ContentFamilyView {
   };
 }
 
+function normalizeContentUnitSource(payload: any, field: string): ContentUnitSourceView {
+  const record = requiredRecord(payload, field);
+  return {
+    kind: requiredString(record.kind, `${field}.kind`),
+    target: requiredString(record.target, `${field}.target`),
+    multiline: requiredString(record.multiline ?? "none", `${field}.multiline`),
+    executable: requiredBoolean(record.executable, `${field}.executable`),
+  };
+}
+
+function normalizeContentUnit(payload: any, index: number): ContentUnitView {
+  const field = `contentCatalog.units[${index}]`;
+  const record = requiredRecord(payload, field);
+  return {
+    unitId: requiredString(record.unit_id ?? record.unitId, `${field}.unitId`),
+    family: requiredString(record.family, `${field}.family`),
+    platform: requiredString(record.platform, `${field}.platform`),
+    capability: requiredString(record.capability, `${field}.capability`),
+    match: requiredString(record.match ?? "", `${field}.match`),
+    ruleRef: requiredString(
+      record.rule_ref ?? record.ruleRef ?? "",
+      `${field}.ruleRef`,
+    ),
+    requiresPrivilege: requiredString(
+      record.requires_privilege ?? record.requiresPrivilege,
+      `${field}.requiresPrivilege`,
+    ),
+    status: requiredString(record.status, `${field}.status`),
+    collectReady: requiredBoolean(
+      record.collect_ready ?? record.collectReady,
+      `${field}.collectReady`,
+    ),
+    parseReady: requiredBoolean(
+      record.parse_ready ?? record.parseReady,
+      `${field}.parseReady`,
+    ),
+    executable: requiredBoolean(record.executable, `${field}.executable`),
+    sources: requiredArray(record.sources ?? [], `${field}.sources`).map(
+      (source, sourceIndex) =>
+        normalizeContentUnitSource(source, `${field}.sources[${sourceIndex}]`),
+    ),
+  };
+}
+
 export function normalizeContentCatalog(payload: any): ContentCatalogView {
   return {
     catalogVersion: requiredNumber(
@@ -3022,6 +3068,10 @@ export function normalizeContentCatalog(payload: any): ContentCatalogView {
       payload.families ?? [],
       "contentCatalog.families",
     ).map(normalizeContentFamily),
+    // 单元明细：旧网关不返回，补空数组（全景页只能列面，不能展开）。
+    units: requiredArray(payload.units ?? [], "contentCatalog.units").map(
+      normalizeContentUnit,
+    ),
     templates: requiredArray(
       payload.templates ?? [],
       "contentCatalog.templates",

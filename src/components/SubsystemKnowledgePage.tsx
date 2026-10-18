@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { isRateLimitedError } from "../api";
 import {
   useActivateKnowledgePackage,
+  useContentCatalog,
   useKnowledge,
   useKnowledgeLocks,
   useKnowledgePackages,
   useRecordKnowledgePackage,
 } from "../hooks";
+import { ContentFamilyOverview } from "./ContentFamilyOverview";
 import { CopyButton } from "./CopyButton";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { t } from "../i18n";
@@ -64,8 +67,23 @@ export function SubsystemKnowledgePage() {
   const knowledge = useKnowledge();
   const packages = useKnowledgePackages();
   const locks = useKnowledgeLocks();
+  const catalog = useContentCatalog();
   const record = useRecordKnowledgePackage();
   const activate = useActivateKnowledgePackage();
+
+  // 两个 tab 答的是两个问题：「哪一版内容在生效」与「这一版里有哪些面」。
+  // tab 落在 URL 上（`?view=families`）：可直接分享 / 收藏到全景页，刷新也不会跳回去。
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: "packages" | "families" =
+    searchParams.get("view") === "families" ? "families" : "packages";
+  function selectTab(next: "packages" | "families") {
+    const params = new URLSearchParams(searchParams);
+    // 默认视图不写进 URL：`/knowledge` 就是「知识包」，链接保持短。
+    if (next === "families") params.set("view", "families");
+    else params.delete("view");
+    // replace：切 tab 是换视图，不是导航，不该堆历史记录。
+    setSearchParams(params, { replace: true });
+  }
 
   const [source, setSource] = useState("");
   const [sha256, setSha256] = useState("");
@@ -153,6 +171,35 @@ export function SubsystemKnowledgePage() {
           </p>
         </header>
 
+        <div className={styles.tabs} role="tablist" aria-label={t("知识库视图", "Knowledge views")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "packages"}
+            className={`${styles.tab} ${tab === "packages" ? styles.tabActive : ""}`}
+            onClick={() => selectTab("packages")}
+          >
+            {t("知识包", "Packages")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "families"}
+            className={`${styles.tab} ${tab === "families" ? styles.tabActive : ""}`}
+            onClick={() => selectTab("families")}
+          >
+            {t("采集面", "Collection families")}
+          </button>
+        </div>
+
+        {tab === "families" ? (
+          <ContentFamilyOverview
+            catalog={catalog.data ?? null}
+            loading={catalog.isLoading}
+            error={catalog.isError ? catalog.error : null}
+          />
+        ) : (
+          <>
         {/* ① 当前生效 */}
         <section className={styles.card} aria-labelledby="knowledge-current">
           <header className={styles.cardHead}>
@@ -673,6 +720,8 @@ export function SubsystemKnowledgePage() {
             </div>
           </form>
         </section>
+          </>
+        )}
       </main>
 
       {pending ? (

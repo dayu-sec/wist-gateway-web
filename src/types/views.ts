@@ -451,6 +451,35 @@ export interface ContentFamilyView {
   summaryEn: string;
 }
 
+/** 一条采集来源：从哪拿、怎么读、agentd 今天能不能执行。 */
+export interface ContentUnitSourceView {
+  kind: string;
+  target: string;
+  multiline: string;
+  /** 与网关派活闸门同一判据：`false` 的来源派下去会被 agentd 报 `unsupported`。 */
+  executable: boolean;
+}
+
+/** 一个采集单元：某个面具体采什么（来源 / 前提 / 规则 / 权限）。 */
+export interface ContentUnitView {
+  unitId: string;
+  family: string;
+  platform: string;
+  capability: string;
+  /** 采集前提条件（`installed:...` 等）；空 = 无条件。 */
+  match: string;
+  ruleRef: string;
+  requiresPrivilege: string;
+  status: string;
+  /** 采集就绪（`status = active`）。 */
+  collectReady: boolean;
+  /** 解析就绪（`rule_ref` 非空）。**不参与闸门**。 */
+  parseReady: boolean;
+  /** 至少一条来源 agentd 能执行。 */
+  executable: boolean;
+  sources: ContentUnitSourceView[];
+}
+
 /** 已装载的采集内容目录。 */
 export interface ContentCatalogView {
   catalogVersion: number;
@@ -462,6 +491,8 @@ export interface ContentCatalogView {
    * 旧网关（还没实现 `[[families]]`）不返回它 —— 归一化时补 `[]`，页面回落成面 ID。
    */
   families: ContentFamilyView[];
+  /** 采集单元明细（旧网关不返回它时归一化成空数组）。 */
+  units: ContentUnitView[];
   templates: ContentTemplateView[];
   readiness: FamilyReadinessView[];
 }

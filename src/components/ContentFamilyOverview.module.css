@@ -1,0 +1,361 @@
+.card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardHead {
+  padding: 14px 20px 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cardHead h2 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cardHead p {
+  max-width: 760px;
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.noticeBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 20px;
+}
+
+.notice {
+  margin: 14px 20px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.noticeDanger {
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 14px 20px;
+  padding: 18px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.empty strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 20px 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 20px 14px;
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.filterChip:hover {
+  border-color: var(--border-strong);
+}
+
+.filterChipActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.filterCount {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.filterChipActive .filterCount {
+  color: inherit;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  padding: 11px 16px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.nameCell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.workName {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.code {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.toneOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.toneWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.toneUnknown {
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-2);
+}
+
+.mono {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.summaryCell {
+  max-width: 420px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.classesCell {
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.emptyFilter {
+  padding: 14px 20px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* ---------- 展开：一个面具体采什么（单元 / 来源 / 前提 / 规则） ---------- */
+
+.expandButton {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chevron {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.unitCount {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.detailRow > td {
+  background: var(--bg-elevated);
+}
+
+.detailEmpty {
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.unitList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.unit {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.unitHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.unitId {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.unitMeta {
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.unitLine {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.unitLabel {
+  min-width: 32px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.unitValue {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.sourceList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  list-style: none;
+}
+
+.source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.sourceKind {
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sourceTarget {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.sourceMeta {
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.scopeHint {
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
