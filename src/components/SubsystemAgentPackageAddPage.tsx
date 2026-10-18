@@ -1,9 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import type { InstallPackageView } from "../api/admin";
+import { versionFromArtifactUrl } from "@dayu-sec/wist-web-core/artifact";
+import type {
+  InstallPackageView,
+  ResolvedGitHubRelease,
+} from "../api/admin";
 import {
   useInstallPackages,
+  useResolveCosPath,
   useResolveGitHubRelease,
   useSetAgentInstallPackage,
 } from "../hooks";
@@ -16,7 +21,13 @@ import {
   isEmptyPackageHistory,
   recentPackages,
 } from "./agentUpgradePackages";
-import { LoadNotice, packageAddErrorMessage, timestampText } from "./agentPackageUi";
+import {
+  LoadNotice,
+  packageAddErrorMessage,
+  resolveSourceErrorMessage,
+  timestampText,
+  type ResolveSource,
+} from "./agentPackageUi";
 import styles from "./SubsystemAgentPackages.module.css";
 
 /**
@@ -42,7 +53,7 @@ function RecentPackageItem({ pkg }: { pkg: InstallPackageView }) {
         </span>
         <span className={styles.recentMeta}>
           <span className={styles.artifactNote}>{pkg.packageSha256}</span>
-          <span>{timestampText(pkg.createdAt)}</span>
+          <span className={styles.recentDate}>{timestampText(pkg.createdAt)}</span>
         </span>
       </div>
       <div className={styles.recentArtifacts}>
@@ -83,7 +94,8 @@ function RecentPackageItem({ pkg }: { pkg: InstallPackageView }) {
 export function SubsystemAgentPackageAddPage() {
   const setInstallPackage = useSetAgentInstallPackage();
   const packages = useInstallPackages();
-  const resolve = useResolveGitHubRelease();
+  const githubResolve = useResolveGitHubRelease();
+  const cosResolve = useResolveCosPath();
   const queryClient = useQueryClient();
 
   const blankRows = () =>
@@ -93,9 +105,11 @@ export function SubsystemAgentPackageAddPage() {
   const [rowErrors, setRowErrors] = useState<(string | null)[]>(() =>
     PLATFORM_SLOTS.map(() => null),
   );
-  // GitHub Release 地址：可选，一键把各平台资产填进对应槽位（对齐 gops 的录入范式）。
-  const [releaseUrl, setReleaseUrl] = useState("");
+  // 解析来源与输入：可选，一键把各平台资产填进对应槽位（对齐中心录入页的两种入口）。
+  const [resolveSource, setResolveSource] = useState<ResolveSource>("github");
+  const [sourceInput, setSourceInput] = useState("");
   const [resolveNote, setResolveNote] = useState<string | null>(null);
+  const resolve = resolveSource === "github" ? githubResolve : cosResolve;
 
   const history = packages.data ?? [];
   const recentHistory = recentPackages(history, PACKAGE_HISTORY_DISPLAY_LIMIT);
@@ -113,43 +127,54 @@ export function SubsystemAgentPackageAddPage() {
     );
   }
 
+  /** 把一次解析结果按 target-triple 填进三个槽位；缺哪个就点名，不静默留空。 */
+  function applyResolved(result: ResolvedGitHubRelease) {
+    const missing: string[] = [];
+    setRows((current) =>
+      current.map((row, index) => {
+        const slot = PLATFORM_SLOTS[index];
+        const asset = result.assets.find((item) => item.platform === slot.id);
+        if (!asset) {
+          missing.push(slot.label);
+          return row;
+        }
+        return { ...row, url: asset.artifactUrl, sha256: asset.sha256 ?? "" };
+      }),
+    );
+    setRowErrors(PLATFORM_SLOTS.map(() => null));
+    setResolveNote(
+      missing.length === 0
+        ? t(
+            "已按 {version} 填充 {n} 个平台。",
+            "Filled {n} platforms from {version}.",
+            { version: result.version, n: PLATFORM_SLOTS.length },
+          )
+        : t(
+            "{version}：已填充 {n} 个平台，缺少 {missing}，请手动补址（或该平台本次没有资产）。",
+            "{version}: filled {n} platforms; missing {missing}. Fill in the URLs manually (or this release has no asset for that platform).",
+            {
+              version: result.version,
+              n: PLATFORM_SLOTS.length - missing.length,
+              missing: missing.join(" / "),
+            },
+          ),
+    );
+  }
+
   function handleResolve() {
-    const url = releaseUrl.trim();
-    if (!url) return;
-    resolve.mutate(url, {
-      onSuccess: (result) => {
-        const missing: string[] = [];
-        setRows((current) =>
-          current.map((row, index) => {
-            const slot = PLATFORM_SLOTS[index];
-            const asset = result.assets.find((item) => item.platform === slot.id);
-            if (!asset) {
-              missing.push(slot.label);
-              return row;
-            }
-            return { ...row, url: asset.artifactUrl, sha256: asset.sha256 ?? "" };
-          }),
-        );
-        setRowErrors(PLATFORM_SLOTS.map(() => null));
-        setResolveNote(
-          missing.length === 0
-            ? t(
-                "已按 {version} 填充 {n} 个平台。",
-                "Filled {n} platforms from {version}.",
-                { version: result.version, n: PLATFORM_SLOTS.length },
-              )
-            : t(
-                "{version}：已填充 {n} 个平台，缺少 {missing}，请手动补址（或该平台本次没有资产）。",
-                "{version}: filled {n} platforms; missing {missing}. Fill in the URLs manually (or this release has no asset for that platform).",
-                {
-                  version: result.version,
-                  n: PLATFORM_SLOTS.length - missing.length,
-                  missing: missing.join(" / "),
-                },
-              ),
-        );
-      },
-    });
+    const value = sourceInput.trim();
+    if (!value) return;
+    resolve.mutate(value, { onSuccess: applyResolved });
+  }
+
+  function selectResolveSource(next: ResolveSource) {
+    if (next === resolveSource) return;
+    setResolveSource(next);
+    // 两种来源的输入不可互换（页面地址 vs 桶/前缀），切换就清掉，别留一个必然失败的值。
+    setSourceInput("");
+    setResolveNote(null);
+    githubResolve.reset();
+    cosResolve.reset();
   }
 
   function handlePackageSubmit(event: FormEvent<HTMLFormElement>) {
@@ -194,8 +219,8 @@ export function SubsystemAgentPackageAddPage() {
           <h1 className={styles.pageTitle}>{t("安装包录入", "Install package entry")}</h1>
           <p className={styles.pageSummary}>
             {t(
-              "把 agentd 的三个平台制品录进网关包目录：摘要必填、一次填齐三平台，任一不符整次不生效。已托管包一览见「安装包管理」。",
-              "Record the three agentd platform artifacts into the gateway's package catalog: the digest is required and all three platforms are submitted at once; if any one fails the whole entry has no effect. The hosted list lives under Install packages.",
+              "把 agentd 的三个平台制品录进网关包目录；已托管包一览见「安装包管理」。",
+              "Record the three agentd platform artifacts into the gateway's package catalog. The hosted list lives under Install packages.",
             )}
           </p>
         </header>
@@ -213,116 +238,204 @@ export function SubsystemAgentPackageAddPage() {
             </h2>
             <p>
               {t(
-                "agentd 是三平台制品：一次填齐三个平台的来源；任一拉不到或摘要不符，整次录入不生效。",
-                "agentd is a three-platform artifact: fill in all three platform sources at once. If any source cannot be fetched or its digest does not match, the whole entry has no effect.",
+                "Agent 服务安装包，供接入本网关的 Agent 按平台拉取。多平台：一次录入三平台。",
+                "The agent service package that agents connected to this gateway download per platform. Multi-platform: enter all three at once.",
               )}
             </p>
           </header>
 
           <form className={styles.form} onSubmit={handlePackageSubmit}>
-            <div className={styles.resolveBlock}>
-              <label className={styles.field}>
-                <span>
-                  {t(
-                    "GitHub Release 地址（可选，一键填充）",
-                    "GitHub Release URL (optional, one-click fill)",
-                  )}
-                </span>
+            {/* 多平台提示放在表单最上面（对齐中心录入页）：三平台是一组，不是三个独立表单。 */}
+            <p className={styles.variantsHint}>
+              {t(
+                "该组件为多平台：一次必须录入 ",
+                "This component is multi-platform: enter all three artifacts at once — ",
+              )}
+              <strong>
+                {PLATFORM_SLOTS.map((slot) => slot.label).join(" / ")}
+              </strong>
+              {t(
+                " 三个制品（同一版本）。全部校验通过才会录入成功。",
+                " (same version). Nothing is recorded unless every one passes validation.",
+              )}
+            </p>
+
+            {/* 解析来源：GitHub Release 页面地址 / 腾讯 COS 路径。两个接口同形，
+                只有「输入什么、网关怎么找」不同；填充与缺平台提示完全共用。 */}
+            <div
+              className={styles.sourceTabs}
+              role="tablist"
+              aria-label={t("解析来源", "Resolve source")}
+            >
+              {(["github", "cos"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={resolveSource === value}
+                  className={
+                    resolveSource === value
+                      ? `${styles.sourceTab} ${styles.sourceTabActive}`
+                      : styles.sourceTab
+                  }
+                  onClick={() => selectResolveSource(value)}
+                >
+                  {value === "github"
+                    ? "GitHub Release"
+                    : t("COS 路径", "COS path")}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.resolveField}>
+              <label className={styles.resolveLabel} htmlFor="agent-package-source">
+                {resolveSource === "github"
+                  ? t(
+                      "GitHub Release 地址（可选，一键填充）",
+                      "GitHub Release URL (optional, one-click fill)",
+                    )
+                  : t(
+                      "COS 路径（可选，一键填充）",
+                      "COS path (optional, one-click fill)",
+                    )}
+              </label>
+              <div className={styles.resolveControls}>
                 <input
+                  id="agent-package-source"
+                  className={styles.resolveInput}
                   type="text"
-                  value={releaseUrl}
+                  value={sourceInput}
                   onChange={(event) => {
-                    setReleaseUrl(event.target.value);
+                    setSourceInput(event.target.value);
                     if (resolveNote) setResolveNote(null);
                   }}
-                  placeholder="https://github.com/<owner>/<repo>/releases/tag/<tag>"
+                  onKeyDown={(event) => {
+                    // 回车是「解析」，别把整个三平台表单提交掉（那会立刻跳到校验错误）。
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleResolve();
+                    }
+                  }}
+                  placeholder={
+                    resolveSource === "github"
+                      ? "https://github.com/<owner>/<repo>/releases/tag/<tag>"
+                      : t(
+                          "桶/组件/版本，如 wist-1347593047/wist-agentd/v0.4.0-alpha",
+                          "bucket/component/version, e.g. wist-1347593047/wist-agentd/v0.4.0-alpha",
+                        )
+                  }
                   autoComplete="off"
                   spellCheck={false}
                 />
-                <small>
-                  {t(
-                    "填 release 页面地址后点「解析并填充」：网关拉该 release 的资产，按 target-triple 自动填到对应平台槽位。",
-                    "Enter the release page URL and click Resolve and fill: the gateway fetches that release's assets and fills them into the matching platform slots by target-triple.",
-                  )}
-                </small>
-              </label>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={handleResolve}
-                disabled={resolve.isPending || !releaseUrl.trim()}
-              >
-                {resolve.isPending
-                  ? t("解析中…", "Resolving…")
-                  : t("解析并填充", "Resolve and fill")}
-              </button>
+                <button
+                  type="button"
+                  className={styles.resolveButton}
+                  onClick={handleResolve}
+                  disabled={resolve.isPending || !sourceInput.trim()}
+                >
+                  {resolve.isPending
+                    ? t("解析中…", "Resolving…")
+                    : t("解析并填充", "Resolve and fill")}
+                </button>
+              </div>
+              <small className={styles.resolveHint}>
+                {resolveSource === "github"
+                  ? t(
+                      "填 release 页面地址后点「解析并填充」：网关拉该 release 的资产，按 target-triple 自动填到对应平台槽位。",
+                      "Enter the release page URL and click Resolve and fill: the gateway fetches that release's assets and fills them into the matching platform slots by target-triple.",
+                    )
+                  : t(
+                      "填 COS 路径后点「解析并填充」：网关按发布命名约定展开该前缀下的三平台制品，并读回对象元数据里的 sha256。支持 cos://桶/前缀、桶/前缀，或带 region 的 COS 下载地址；未指定 region 时会逐个探测，可能要十几秒。",
+                      "Enter a COS path and click Resolve and fill: the gateway expands the three platform artifacts under that prefix and reads their sha256 from object metadata. Accepts cos://bucket/prefix, bucket/prefix, or a region-qualified COS download URL; without a region it probes them in order, which can take a while.",
+                    )}
+              </small>
             </div>
             {resolve.error ? (
               <div className={styles.errorBanner} role="alert">
                 {t("解析失败：{detail}", "Resolve failed: {detail}", {
-                  detail: packageAddErrorMessage(resolve.error),
+                  detail: resolveSourceErrorMessage(resolve.error, resolveSource),
                 })}
               </div>
             ) : null}
             {resolveNote ? <p className={styles.fieldHint}>{resolveNote}</p> : null}
-            {PLATFORM_SLOTS.map((slot, index) => (
-              <div key={slot.id} className={styles.variantBlock}>
-                <div className={styles.variantTitle}>
-                  <strong>{slot.label}</strong>
-                  <code>{slot.id}</code>
-                </div>
-                <label className={styles.field}>
-                  <span>{t("来源地址", "Source URL")}</span>
-                  <input
-                    type="text"
-                    value={rows[index].url}
-                    onChange={(event) => {
-                      updateRow(index, { url: event.target.value });
-                      if (rowErrors[index]) setRowError(index, null);
-                    }}
-                    placeholder={t(
-                      "https://mirror.example.com/wist-agentd-<版本>-{platform}.tar.gz",
-                      "https://mirror.example.com/wist-agentd-<version>-{platform}.tar.gz",
-                      { platform: slot.id },
-                    )}
-                    autoComplete="off"
-                    required
-                  />
-                </label>
-                <label className={styles.field}>
-                  <span>
-                    {t("期望摘要 sha256（必填）", "Expected digest sha256 (required)")}
-                  </span>
-                  <input
-                    type="text"
-                    value={rows[index].sha256}
-                    onChange={(event) => {
-                      updateRow(index, { sha256: event.target.value });
-                      if (rowErrors[index]) setRowError(index, null);
-                    }}
-                    placeholder={t(
-                      "64 位十六进制，可带 sha256: 前缀",
-                      "64 hex characters, optional sha256: prefix",
-                    )}
-                    autoComplete="off"
-                    spellCheck={false}
-                    required
-                    aria-invalid={rowErrors[index] ? true : undefined}
-                  />
-                </label>
-                {rowErrors[index] ? (
-                  <div className={styles.errorBanner} role="alert">
-                    {rowErrors[index]}
+            {PLATFORM_SLOTS.map((slot, index) => {
+              const derivedVersion = versionFromArtifactUrl(rows[index].url);
+              return (
+                <div key={slot.id} className={styles.variantRow}>
+                  <div className={styles.variantSlot}>
+                    <strong>{slot.label}</strong>
+                    <code>{slot.id}</code>
                   </div>
-                ) : null}
-              </div>
-            ))}
-            <small className={styles.fieldHint}>
+                  <label className={styles.field}>
+                    <span>{t("产物地址（artifact_url）", "Artifact URL (artifact_url)")}</span>
+                    <input
+                      type="text"
+                      value={rows[index].url}
+                      onChange={(event) => {
+                        updateRow(index, { url: event.target.value });
+                        if (rowErrors[index]) setRowError(index, null);
+                      }}
+                      placeholder={t(
+                        "https://mirror.example.com/wist-agentd-<版本>-{platform}.tar.gz",
+                        "https://mirror.example.com/wist-agentd-<version>-{platform}.tar.gz",
+                        { platform: slot.id },
+                      )}
+                      autoComplete="off"
+                      title={rows[index].url || undefined}
+                      required
+                    />
+                    <small>
+                      {derivedVersion
+                        ? t(
+                            "预计版本 {version}（以包内目录名为准）",
+                            "Expected version {version} (package directory wins)",
+                            { version: derivedVersion },
+                          )
+                        : t(
+                            "版本号从包地址自动解析。",
+                            "The version is parsed from the artifact URL.",
+                          )}
+                    </small>
+                  </label>
+                  <label className={styles.field}>
+                    <span>
+                      {t(
+                        "期望摘要（sha256，必填）",
+                        "Expected digest (sha256, required)",
+                      )}
+                    </span>
+                    <input
+                      type="text"
+                      value={rows[index].sha256}
+                      onChange={(event) => {
+                        updateRow(index, { sha256: event.target.value });
+                        if (rowErrors[index]) setRowError(index, null);
+                      }}
+                      placeholder={t(
+                        "64 位十六进制，可带 sha256: 前缀",
+                        "64 hex characters, optional sha256: prefix",
+                      )}
+                      autoComplete="off"
+                      spellCheck={false}
+                      title={rows[index].sha256 || undefined}
+                      required
+                      aria-invalid={rowErrors[index] ? true : undefined}
+                    />
+                  </label>
+                  {rowErrors[index] ? (
+                    <div className={styles.variantError} role="alert">
+                      {rowErrors[index]}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+            <p className={styles.formNote}>
               {t(
                 "https:// 链接，或网关主机上的绝对路径（如 /srv/wist/agentd.tar.gz）；不支持明文 http。摘要填发布侧 *.sha256 里那串，网关先校验，不符即拒。",
                 "An https:// link, or an absolute path on the gateway host (for example /srv/wist/agentd.tar.gz); plain http is not supported. Use the digest from the release's *.sha256 file: the gateway verifies it first and rejects a mismatch.",
               )}
-            </small>
+            </p>
             {setInstallPackage.isError ? (
               <div className={styles.errorBanner} role="alert">
                 {packageAddErrorMessage(setInstallPackage.error)}
@@ -337,7 +450,13 @@ export function SubsystemAgentPackageAddPage() {
                 )}
               </div>
             ) : null}
-            <div className={styles.formActions}>
+            <div className={styles.submitBar}>
+              <span className={styles.submitHint}>
+                {t(
+                  "三平台齐备后一次提交；缺任何一个都会被拒。只影响之后新签发的安装命令，已分发的不变。",
+                  "All three platforms are submitted at once; missing any one is rejected. Affects only install commands issued afterwards; already distributed packages are unchanged.",
+                )}
+              </span>
               <button
                 type="submit"
                 className={styles.primaryButton}
@@ -347,12 +466,6 @@ export function SubsystemAgentPackageAddPage() {
                   ? t("正在录入…", "Recording…")
                   : t("录入三平台", "Record all three platforms")}
               </button>
-              <span className={styles.actionHint}>
-                {t(
-                  "只影响之后新签发的安装命令，已分发的不变。",
-                  "Affects only install commands issued afterwards; already distributed packages are unchanged.",
-                )}
-              </span>
             </div>
           </form>
         </section>

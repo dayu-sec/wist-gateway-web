@@ -337,20 +337,27 @@ export function ContentFamilyOverview({
                             <span className={styles.chevron} aria-hidden>
                               {open ? "▾" : "▸"}
                             </span>
+                            {/* 两行固定分工：第一行「面名 + 面 id」，第二行「状态 + 单元数」。
+                                原先四个 span 一起 flex-wrap，名字长短不同就把状态徽标挤上挤下 ——
+                                同一列里徽标不在一条竖线上，扫读时要逐行找。 */}
                             <span className={styles.nameCell}>
-                              <span className={styles.workName}>
-                                {collectionFamilyName(row.family.id, familyText)}
+                              <span className={styles.nameLine}>
+                                <span className={styles.workName}>
+                                  {collectionFamilyName(row.family.id, familyText)}
+                                </span>
+                                <span className={styles.code}>{row.family.id}</span>
                               </span>
-                              <span className={styles.code}>{row.family.id}</span>
-                              <span
-                                className={`${styles.badge} ${stateTone(row.state)}`}
-                              >
-                                {stateLabel(row.state)}
-                              </span>
-                              <span className={styles.unitCount}>
-                                {t("{n} 个单元", "{n} units", {
-                                  n: row.units.length,
-                                })}
+                              <span className={styles.metaLine}>
+                                <span
+                                  className={`${styles.badge} ${stateTone(row.state)}`}
+                                >
+                                  {stateLabel(row.state)}
+                                </span>
+                                <span className={styles.unitCount}>
+                                  {t("{n} 个单元", "{n} units", {
+                                    n: row.units.length,
+                                  })}
+                                </span>
                               </span>
                             </span>
                           </button>

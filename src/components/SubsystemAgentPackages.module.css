@@ -12,12 +12,12 @@
 }
 
 .pageHeader {
-  max-width: 860px;
+  max-width: var(--prose-max);
   margin-bottom: 22px;
 }
 
 .pageTitle {
-  font-size: 24px;
+  font-size: var(--page-title);
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: -0.01em;
@@ -26,8 +26,9 @@
 .pageSummary {
   margin-top: 7px;
   color: var(--text-3);
-  font-size: 13.5px;
+  font-size: var(--page-summary);
   line-height: 1.65;
+  max-width: var(--prose-max);
 }
 
 /* 一张卡 = 一段内容：卡头（标题 + 一行说明）+ 卡体。卡体各不相同 —— 只读的两行、历史列表、
@@ -220,7 +221,8 @@
   font-weight: 600;
 }
 
-.field input {
+.field input,
+.resolveInput {
   width: 100%;
   min-height: 36px;
   padding: 7px 11px;
@@ -233,7 +235,8 @@
   font-weight: 500;
 }
 
-.field input:focus {
+.field input:focus,
+.resolveInput:focus {
   border-color: var(--accent-border);
   box-shadow: var(--ring);
   outline: none;
@@ -246,10 +249,13 @@
   line-height: 1.55;
 }
 
-.formActions {
+/* 提交区：说明在上、主按钮在下，靠右（同中心录入页）。 */
+.submitBar {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  padding-top: 2px;
 }
 
 .primaryButton {
@@ -279,10 +285,11 @@
   cursor: not-allowed;
 }
 
-.actionHint {
+.submitHint {
   color: var(--text-4);
-  font-size: 12px;
+  font-size: 11.5px;
   line-height: 1.5;
+  text-align: right;
 }
 
 .errorBanner {
@@ -423,37 +430,60 @@
   font-size: 13px;
 }
 
-/* 多平台录入：每个平台一组（标题 + 来源 + 摘要），组与组之间拉开。 */
-.variantBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 0;
-  border-top: 1px solid var(--border);
+/* 表单抬头的一句：三平台是一组，不是三个独立表单。 */
+.variantsHint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
 }
 
-.variantBlock:first-of-type {
-  border-top: none;
-  padding-top: 0;
-}
-
-.variantTitle {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 10px;
-}
-
-.variantTitle strong {
-  color: var(--text);
-  font-size: 13px;
+.variantsHint strong {
+  color: var(--text-2);
   font-weight: 700;
 }
 
-.variantTitle code {
+/* 一行 = 一个平台：槽位（名称 / triple）+ 产物地址 + 摘要。
+   地址给最宽（要放完整 URL），摘要够放 64 位十六进制。 */
+.variantRow {
+  display: grid;
+  grid-template-columns:
+    minmax(184px, 0.7fr)
+    minmax(260px, 1.45fr)
+    minmax(230px, 1.1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* 槽位与右侧字段的标签齐平（标签 13px + 7px 间距 ≈ 20px）。 */
+.variantSlot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding-top: 20px;
+}
+
+.variantSlot strong {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.variantSlot code {
   color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+/* 某一行校验失败：提示横跨整行，不挤在某一列里。 */
+.variantError {
+  grid-column: 1 / -1;
 }
 
 /* 跨平台共用的一句字段说明（挂在三组之后）。 */
@@ -463,44 +493,139 @@
   line-height: 1.6;
 }
 
-/* GitHub Release 一键填充（可选）：输入 + 按钮。 */
-.resolveBlock {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
+/* 解析来源切换（GitHub Release / COS 路径）：与中心录入页同一套分段控件。
+   两个入口返回同形结果，所以只是「输入什么」不同，下面的填充与缺平台提示共用。 */
+.sourceTabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
   background: var(--bg-elevated);
 }
 
-.secondaryButton {
-  min-height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 700;
+.sourceTab {
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.secondaryButton:hover:not(:disabled) {
-  border-color: var(--accent-border);
-  background: var(--surface-2);
+.sourceTab:hover:not(:disabled) {
+  background: var(--overlay-soft);
   color: var(--text);
 }
 
-.secondaryButton:disabled {
+.sourceTab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.sourceTabActive,
+.sourceTabActive:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* 一键填充：标签一行，输入 + 按钮一行（按钮不再掉到输入下面）。
+   这里不再套虚线框 —— 它只是三个平台共用的一步，不是第三种「字段」。 */
+.resolveField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.resolveLabel {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.resolveControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.resolveInput {
+  /* basis 0 而不是 auto：输入框自身的 width:100% 不会再参与「先按内容宽算一次」，
+     窄窗口下按钮不会被挤。 */
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.resolveHint {
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.resolveButton {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.resolveButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.resolveButton:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.secondaryButton:focus-visible {
+.resolveButton:focus-visible {
   box-shadow: var(--ring);
   outline: none;
+}
+
+/* 摘要格式与协议要求：放在三组之后一次说清，不塞进每个输入框。 */
+.formNote {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 1040px) {
+  /* 三列放不下时整行竖排：槽位回到第一行，输入占满宽度。
+     断点取 1040 而不是 980：184+260+230+24 的最小列宽在 981~1021 之间会横向溢出。 */
+  .variantRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .variantSlot {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    padding-top: 0;
+  }
+
+  .submitBar {
+    /* 窄屏改成左对齐：长说明右对齐会散成几行，主按钮也不必拉满整行。 */
+    align-items: flex-start;
+  }
+
+  .submitHint {
+    text-align: left;
+  }
 }
 
 @media (max-width: 560px) {
@@ -520,11 +645,6 @@
   .packageMore {
     padding-left: 16px;
     padding-right: 16px;
-  }
-
-  .formActions {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .packageEmpty {
@@ -736,20 +856,36 @@
 }
 
 .recentVersion {
+  flex: 0 0 auto;
   color: var(--text);
   font-family: var(--font-mono);
   font-size: 12.5px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
+/* 摘要 + 录入时间靠右。窄窗口下让**摘要**省略，别让版本号折成两行：
+   版本是这一行要认的东西，摘要只是附注（完整值在列表页）。 */
 .recentMeta {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   margin-left: auto;
   color: var(--text-3);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.recentHead .artifactNote {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recentDate {
+  flex: 0 0 auto;
 }
 
 .recentArtifacts {

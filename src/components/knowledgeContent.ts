@@ -3,6 +3,7 @@ import {
   type KnowledgeLocksView,
   type KnowledgePackageView,
   type KnowledgeView,
+  type ResolvedGitHubAsset,
 } from "../api";
 import { t } from "../i18n";
 
@@ -12,6 +13,18 @@ import { t } from "../i18n";
  * 单独成模块而不是塞进组件里：本仓没有组件渲染测试环境（无 jsdom），页面逻辑只能靠
  * **纯函数 + 契约测试**钉住（同 `agentUpgradePackages.ts` / `agentWorkStatus.ts` 的做法）。
  */
+
+/**
+ * 从解析结果里挑出知识库包**本体**：`.tar.gz` 制品。
+ *
+ * GitHub Release 会同时挂 `.sha256` 与 `.sig` 旁文件，COS 也可能返回多个候选；直接取第一个
+ * 资产是错的（很可能拿到摘要文件）。按名字取 `.tar.gz`，大小写不敏感。
+ */
+export function pickKnowledgeArtifact(
+  assets: readonly ResolvedGitHubAsset[],
+): ResolvedGitHubAsset | null {
+  return assets.find((asset) => /\.tar\.gz$/i.test(asset.name)) ?? null;
+}
 
 /** 包自报版本的显示形式：`v0.1.1`；版本为空时不装作有。 */
 export function knowledgeVersionLabel(pkg: KnowledgePackageView): string {

@@ -23,6 +23,7 @@ import {
   knowledgeVersionLabel,
   knowledgeVersionSummary,
   lockedWorkTotal,
+  pickKnowledgeArtifact,
   rollbackTarget,
   staleLocks,
 } from "../src/components/knowledgeContent";
@@ -642,5 +643,49 @@ check(
   knowledgeSourceKind("something-new") === "config-files",
   "未知来源当过渡态（内容确实在），别装作没有内容",
 );
+
+// ── ⑥ 解析结果里的包本体：不能把 `.sha256` / `.sig` 旁文件当成包 ─────────────────────
+const picked = pickKnowledgeArtifact([
+  {
+    name: "wist-knowledge-0.1.1.tar.gz.sha256",
+    artifactUrl: "https://example.test/wist-knowledge-0.1.1.tar.gz.sha256",
+    sha256: "f51cdcb6e6bf2779964148bd7787b5d2c2c4e31cd9fa70def90a2ca047a9cf41",
+    platform: null,
+  },
+  {
+    name: "wist-knowledge-0.1.1.tar.gz",
+    artifactUrl: "https://example.test/wist-knowledge-0.1.1.tar.gz",
+    sha256: "780d6375472e069016209755a42bfdaa89876da03670d2c9ffc8d397bc52c6ec",
+    platform: null,
+  },
+  {
+    name: "wist-knowledge-0.1.1.tar.gz.sig",
+    artifactUrl: "https://example.test/wist-knowledge-0.1.1.tar.gz.sig",
+    sha256: "73834a5e16cb351a27f47d70494d9ea02e204f81562e953c2ff4801a68d19365",
+    platform: null,
+  },
+]);
+if (!picked || picked.artifactUrl !== "https://example.test/wist-knowledge-0.1.1.tar.gz") {
+  throw new Error(`pickKnowledgeArtifact must pick the tarball, got ${JSON.stringify(picked)}`);
+}
+if (
+  pickKnowledgeArtifact([
+    {
+      name: "wist-knowledge-0.1.1.tar.gz.sha256",
+      artifactUrl: "https://example.test/x.sha256",
+      sha256: null,
+      platform: null,
+    },
+  ]) !== null
+) {
+  throw new Error("pickKnowledgeArtifact must return null when no tarball is present");
+}
+if (
+  pickKnowledgeArtifact([
+    { name: "PKG.TAR.GZ", artifactUrl: "https://example.test/PKG.TAR.GZ", sha256: null, platform: null },
+  ])?.name !== "PKG.TAR.GZ"
+) {
+  throw new Error("pickKnowledgeArtifact must match the extension case-insensitively");
+}
 
 console.log("knowledge contract test passed");

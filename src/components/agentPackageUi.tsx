@@ -4,6 +4,12 @@ import { t } from "../i18n";
 import styles from "./SubsystemAgentPackages.module.css";
 
 /**
+ * 一键填充的解析来源：GitHub Release 页面地址 / 腾讯 COS 路径。
+ * 两个接口返回**同形**（version + assets），填充逻辑共用一份；只有错误提示按来源细化。
+ */
+export type ResolveSource = "github" | "cos";
+
+/**
  * 安装包两个页面（安装包管理 / 安装包录入）共用的提示与时间格式。
  *
  * 放在这里而不是各写一份：两页读的是同一批端点，401 / 404 / 429 的处置必须逐字一致 ——
@@ -87,6 +93,77 @@ export function packageAddErrorMessage(error: unknown): string {
   return t(
     "添加失败：响应不符合当前契约，请检查网关与前端版本。",
     "Add failed: the response does not match the current contract. Check the gateway and frontend versions.",
+  );
+}
+
+/**
+ * 解析失败（GitHub Release / COS 路径）的提示。
+ *
+ * 与「提交失败」分开：解析是**读远端**，502 多半是路径 / 桶权限 / region 的问题，而不是
+ * 表单字段不合法；把「添加失败」套在解析上会让操作者去改字段，方向就错了。
+ */
+export function resolveSourceErrorMessage(
+  error: unknown,
+  source: ResolveSource,
+): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401)
+      return t(
+        "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击「应用」。",
+        "Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click “Apply”.",
+      );
+    if (error.status === 429)
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentication attempts. Try again later.",
+      );
+    if (error.status === 404)
+      return t(
+        "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
+        "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build. Rebuild and restart the gateway, then retry.",
+      );
+    if (error.status === 502) {
+      return source === "cos"
+        ? t(
+            "网关拉取 COS 失败（HTTP 502）：确认桶 / 组件 / 版本写对、对象是公有读，且上传时带了 sha256 元数据；网关日志里有尝试过的 region 与具体原因。",
+            "The gateway could not fetch from COS (HTTP 502): check the bucket/component/version, that the objects are public-read and carry the sha256 metadata; the gateway log records the regions tried and the reason.",
+          )
+        : t(
+            "网关拉取 GitHub Release 失败（HTTP 502）：确认 release 地址、网络与（私有仓时的）token；网关日志里有具体原因。",
+            "The gateway could not fetch the GitHub release (HTTP 502): check the release URL, network access, and (for private repos) the token; the gateway log has the reason.",
+          );
+    }
+    if (error.status === 504) {
+      return source === "cos"
+        ? t(
+            "网关解析超时（HTTP 504）：COS 的 region 探测在 60 秒内没有命中。确认桶 / 组件 / 版本正确；若能确定 region，可在网关环境里设 WIST_GATEWAY_COS_REGION 直接指定，省掉逐个探测。",
+            "The resolve timed out (HTTP 504): COS region probing did not hit within 60 seconds. Check the bucket/component/version; if the region is known, set WIST_GATEWAY_COS_REGION on the gateway to skip probing.",
+          )
+        : t(
+            "网关解析超时（HTTP 504）：远端在超时内没有返回，请检查网关网络后重试。",
+            "The resolve timed out (HTTP 504): the remote did not answer in time. Check the gateway's network and retry.",
+          );
+    }
+    if (error.status === 400)
+      return t(
+        "解析地址不符合要求：请检查输入的地址 / 路径格式。",
+        "The resolve input is not acceptable: check the address or path format.",
+      );
+    return error.detail
+      ? t(
+          "解析失败（HTTP {status}）：{detail}",
+          "Resolve failed (HTTP {status}): {detail}",
+          { status: error.status, detail: error.detail },
+        )
+      : t(
+          "解析失败（HTTP {status}），请检查网关日志。",
+          "Resolve failed (HTTP {status}). Check the gateway logs.",
+          { status: error.status },
+        );
+  }
+  return t(
+    "解析失败：响应不符合当前契约，请检查网关与前端版本。",
+    "Resolve failed: the response does not match the current contract. Check the gateway and frontend versions.",
   );
 }
 

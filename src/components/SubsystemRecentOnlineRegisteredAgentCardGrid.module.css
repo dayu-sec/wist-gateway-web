@@ -1,6 +1,8 @@
 .container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /* 260px 在 900~1100 宽的窗口里会把卡片压到 ~310px：代理 id 被截断、三个趋势图挤到
+     标题换行。360px 让中等宽度变成一列（每张都够宽），宽屏仍是每行 2~3 张。 */
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   align-items: start;
   gap: 12px;
 }

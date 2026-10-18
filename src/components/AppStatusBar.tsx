@@ -71,10 +71,15 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "ops", crumbs: [t("Agent 升级", "Agent upgrade")] };
     case "/fleet":
       return { section: "ops", crumbs: [t("Agent 机队", "Agent fleet")] };
+    case "/revocations":
+      return { section: "ops", crumbs: [t("吊销名单", "Revocations")] };
     case "/install":
       return { section: "settings", crumbs: [t("安装 Agent", "Install agent")] };
     case "/gateway-info":
       return { section: "settings", crumbs: [t("Gateway 信息", "Gateway info")] };
+    case "/gwlinkd":
+      // 与侧边栏「设置」组一致：这一页看的是「网关两层谁活着」，不是监控组的采集流水。
+      return { section: "settings", crumbs: [t("网关状态", "Gateway status")] };
     case "/install-package":
       return { section: "settings", crumbs: [t("安装包管理", "Install packages")] };
     case "/install-package/add":

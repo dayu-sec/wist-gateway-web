@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
@@ -38,21 +38,50 @@ function errorMessage(error: unknown): string {
 
 /**
  * 三步说明。**必须是函数**：模块级常量里的 `t()` 只会在导入时求值一次，切语言不会变。
+ *
+ * 内容用节点而不是字符串：文案里要点出「接入链接」「不直连 Center」两个关键处。原先那两句写的是
+ * Markdown 的 `**…**`，纯文本不会转成粗体 —— 页面上就真的把星号显示出来了（见 `steps` 的调用处）。
  */
-function steps(): string[] {
+interface Step {
+  key: string;
+  content: ReactNode;
+}
+
+function steps(): Step[] {
   return [
-    t(
-      "在 Center「连接 Gateway」页生成/轮换接入券，复制那一条**接入链接**（含中心地址 + 接入券 + CA）",
-      "On the Center \"Connect Gateway\" page, generate or rotate an enrollment ticket and copy that **enrollment link** (center address + enrollment ticket + CA)",
-    ),
-    t(
-      "把接入链接粘到本页提交（只落本机网关，**不直连 Center**）",
-      "Paste the enrollment link into this page and submit (it only reaches the local gateway, **never Center directly**)",
-    ),
-    t(
-      "宿主侧 wist-gwlinkd 自动拉取并完成接入（link-upstream → register），本页显示结果",
-      "The host-side wist-gwlinkd fetches it automatically and completes enrollment (link-upstream → register); this page shows the result",
-    ),
+    {
+      key: "ticket",
+      content: (
+        <>
+          {t(
+            "在 Center「连接 Gateway」页生成/轮换接入券，复制那一条",
+            "On the Center \"Connect Gateway\" page, generate or rotate an enrollment ticket and copy that ",
+          )}
+          <strong>{t("接入链接", "enrollment link")}</strong>
+          {t(
+            "（含中心地址 + 接入券 + CA）",
+            " (center address + enrollment ticket + CA)",
+          )}
+        </>
+      ),
+    },
+    {
+      key: "submit",
+      content: (
+        <>
+          {t("把接入链接粘到本页提交（只落本机网关，", "Paste the enrollment link into this page and submit (it only reaches the local gateway, ")}
+          <strong>{t("不直连 Center", "never Center directly")}</strong>
+          {t("）", ")")}
+        </>
+      ),
+    },
+    {
+      key: "linkd",
+      content: t(
+        "宿主侧 wist-gwlinkd 自动拉取并完成接入（link-upstream → register），本页显示结果",
+        "The host-side wist-gwlinkd fetches it automatically and completes enrollment (link-upstream → register); this page shows the result",
+      ),
+    },
   ];
 }
 
@@ -100,11 +129,11 @@ export function SubsystemLinkUpstreamPage() {
           </p>
           <ol className={styles.steps}>
             {steps().map((step, index) => (
-              <li key={step} className={styles.step}>
+              <li key={step.key} className={styles.step}>
                 <span className={styles.stepIndex} aria-hidden="true">
                   {index + 1}
                 </span>
-                <span className={styles.stepText}>{step}</span>
+                <span className={styles.stepText}>{step.content}</span>
               </li>
             ))}
           </ol>

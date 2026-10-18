@@ -1206,6 +1206,26 @@ export async function setAgentInstallPackage(
 }
 
 /**
+ * 解析响应归一化：GitHub Release 与 COS 路径两个解析接口**同形**
+ * （`{version, assets:[{name, artifact_url, sha256, platform}]}`），共用这一份。
+ */
+function normalizeResolvedRelease(raw: {
+  version?: unknown;
+  assets?: Array<Record<string, unknown>>;
+}): ResolvedGitHubRelease {
+  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
+  return {
+    version: typeof raw?.version === "string" ? raw.version : "",
+    assets: assets.map((asset) => ({
+      name: String(asset?.name ?? ""),
+      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
+      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
+      platform: typeof asset?.platform === "string" ? asset.platform : null,
+    })),
+  };
+}
+
+/**
  * 解析 GitHub Release 页面地址：拉出 tag（版本）与各平台制品地址（含 sha256），供「安装包」页一键填充。
  *
  * 输入 `https://github.com/<owner>/<repo>/releases/tag/<tag>`。**不回落示例**：这是解析请求，失败要冒出来。
@@ -1220,16 +1240,26 @@ export async function resolveGitHubRelease(
     method: "POST",
     body: JSON.stringify({ release_url: releaseUrl }),
   });
-  const assets = Array.isArray(raw?.assets) ? raw.assets : [];
-  return {
-    version: typeof raw?.version === "string" ? raw.version : "",
-    assets: assets.map((asset) => ({
-      name: String(asset?.name ?? ""),
-      artifactUrl: String(asset?.artifact_url ?? asset?.artifactUrl ?? ""),
-      sha256: typeof asset?.sha256 === "string" ? asset.sha256 : null,
-      platform: typeof asset?.platform === "string" ? asset.platform : null,
-    })),
-  };
+  return normalizeResolvedRelease(raw);
+}
+
+/**
+ * 解析腾讯 COS 路径（桶/组件/版本，如 `wist-1347593047/wist-agentd/v0.4.0-alpha`）：
+ * 网关按发布命名约定展开该前缀下的各平台制品，并从对象自定义元数据读回 sha256。
+ *
+ * 与 GitHub 解析**同形**，供安装包页一键填充。**不回落示例**：这是解析请求，失败要冒出来。
+ */
+export async function resolveCosPath(
+  cosPath: string,
+): Promise<ResolvedGitHubRelease> {
+  const raw = await requestJson<{
+    version?: unknown;
+    assets?: Array<Record<string, unknown>>;
+  }>("/api/v1/admin/cos/resolve", {
+    method: "POST",
+    body: JSON.stringify({ cos_path: cosPath }),
+  });
+  return normalizeResolvedRelease(raw);
 }
 
 export async function fetchAgentUplink(): Promise<AgentUplink> {

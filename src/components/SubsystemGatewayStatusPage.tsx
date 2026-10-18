@@ -132,9 +132,18 @@ export function SubsystemGatewayStatusPage() {
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>{t("网关状态", "Gateway status")}</h1>
           <p className={styles.pageSummary}>
+            {/* 原来整句写在一处，用 Markdown 的 `**…**` 想强调两个名字 —— 纯文本不会转成粗体，
+                页面上就真的显示成「**网关容器**」。这里按全站做法拆成 `<strong>`。 */}
+            {t("本机网关分两层：", "The gateway on this host has two layers: ")}
+            <strong>{t("网关容器", "the gateway container")}</strong>
             {t(
-              "本机网关分两层：**网关容器**（wist-gateway）自己，以及把网关接入上级控制中心的宿主侧常驻 **wist-gwlinkd**。两层各占一个标签页，每 5 秒自动刷新。",
-              "The gateway on this host has two layers: the **gateway container** (wist-gateway) itself, and the host-side resident **wist-gwlinkd** that links the gateway to the upstream control center. Each layer has its own tab; both refresh every 5 seconds.",
+              "（wist-gateway）自己，以及把网关接入上级控制中心的宿主侧常驻 ",
+              " (wist-gateway) itself, and the host-side resident ",
+            )}
+            <strong>wist-gwlinkd</strong>
+            {t(
+              "。两层各占一个标签页，每 5 秒自动刷新。",
+              " that links the gateway to the upstream control center. Each layer has its own tab; both refresh every 5 seconds.",
             )}
           </p>
         </header>

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { AgentUplinkStateView } from "../api";
 import { t } from "../i18n";
 import styles from "./SubsystemAgentUplinkStatusPanel.module.css";
@@ -14,7 +15,8 @@ interface Headline {
   tone: Tone;
   pill: string;
   title: string;
-  detail: string;
+  /** 句子里的标识符用 `<code>` 标出来（原先写的是反引号，纯文本不转义，页面上会露出 `` ` ``）。 */
+  detail: ReactNode;
 }
 
 /**
@@ -55,9 +57,18 @@ function describe(state: AgentUplinkStateView | null): Headline {
           "Uplink is enabled, but the output write failure has not recovered (target {target})",
           { target: state.target ?? t("本机配置", "local config") },
         ),
-        detail: t(
-          "去这台机器的 agentd 日志看 `telemetry output write failed` 行的 magnitude/cause（含目标地址与原因）。",
-          "Check this machine's agentd log for the magnitude/cause on the `telemetry output write failed` line (it carries the target address and the reason).",
+        detail: (
+          <>
+            {t(
+              "去这台机器的 agentd 日志看 ",
+              "Check this machine's agentd log for the magnitude/cause on the ",
+            )}
+            <code className={styles.code}>telemetry output write failed</code>
+            {t(
+              " 行的 magnitude/cause（含目标地址与原因）。",
+              " line (it carries the target address and the reason).",
+            )}
+          </>
         ),
       };
     }
@@ -133,9 +144,15 @@ function describe(state: AgentUplinkStateView | null): Headline {
       "没拿到控制面授权，按本机配置待命",
       "No control-plane grant; standing by on local config",
     ),
-    detail: t(
-      "网关旧（`uplink:poll` 回 404）或拉取一直失败。升级 / 修好网关后，这里会变成「由控制面决定」。",
-      "Either the gateway is old (`uplink:poll` returns 404) or the poll keeps failing. After the gateway is upgraded or fixed, this becomes “decided by the control plane”.",
+    detail: (
+      <>
+        {t("网关旧（", "Either the gateway is old (")}
+        <code className={styles.code}>uplink:poll</code>
+        {t(
+          " 回 404）或拉取一直失败。升级 / 修好网关后，这里会变成「由控制面决定」。",
+          " returns 404) or the poll keeps failing. After the gateway is upgraded or fixed, this becomes “decided by the control plane”.",
+        )}
+      </>
     ),
   };
 }

@@ -338,7 +338,9 @@ function FleetInventory({
                     {t("台机器", "machines")}
                   </span>
                 </header>
-                <p className={styles.cardKey}>{summary.softwareKey}</p>
+                <p className={styles.cardKey} title={summary.softwareKey}>
+                  {summary.softwareKey}
+                </p>
 
                 <ul className={styles.holderList}>
                   {visibleHolders.map((holder) => {
@@ -357,12 +359,17 @@ function FleetInventory({
                           {entry.agentId}
                         </button>
                         <StatusBadge entry={entry} />
-                        <span className={styles.holderPaths}>
+                        <span
+                          className={styles.holderPaths}
+                          title={holder.paths.join("\n")}
+                        >
                           {holder.paths.length > 1 ? (
                             <>
-                              {t("{n} 条路径：", "{n} paths: ", {
-                                n: holder.paths.length,
-                              })}
+                              <span className={styles.pathCount}>
+                                {t("{n} 条路径：", "{n} paths: ", {
+                                  n: holder.paths.length,
+                                })}
+                              </span>
                               <span className={styles.pathText}>
                                 {holder.paths.join(t("、", ", "))}
                               </span>
@@ -676,7 +683,9 @@ function AgentInventory({
                       {t("条可执行", "executables")}
                     </span>
                   </header>
-                  <p className={styles.cardKey}>{group.softwareKey}</p>
+                  <p className={styles.cardKey} title={group.softwareKey}>
+                    {group.softwareKey}
+                  </p>
                   <ul className={styles.pathList}>
                     {group.paths.map((path) => (
                       <li key={path} className={styles.pathRow}>

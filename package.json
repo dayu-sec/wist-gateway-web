@@ -25,6 +25,7 @@
     "test:link-enroll": "tsx tests/link-enroll-parse.test.ts",
     "test:install-package": "tsx tests/install-package-contract.test.ts",
     "test:github-release": "tsx tests/github-release-resolve-contract.test.ts",
+    "test:cos-resolve": "tsx tests/cos-resolve-contract.test.ts",
     "test:install-packages": "tsx tests/install-packages-contract.test.ts",
     "test:agent-package-registry": "tsx tests/agent-package-registry-contract.test.ts",
     "test:sha256": "tsx tests/sha256.test.ts",

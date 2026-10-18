@@ -118,6 +118,29 @@ check(
   "README 路由表缺少 /knowledge",
 );
 
+// ── ⑥ 侧边栏每一项都要有面包屑：漏一条就落到 default 的「未知页面」 ─────────────
+// 之前是逐条手写 check（/gateway-info、/knowledge 各一条），新加页面时照样会漏 ——
+// /gwlinkd、/revocations 就是这样在状态条上写着「监控 / 未知页面」的。这里改成从导航
+// 源码里取全部 `to:` 反查：以后新增页面，只要忘了在 AppStatusBar 里补 case 就会失败。
+const navRoutes = [...nav.matchAll(/to: "(\/[^"]*)"/g)].map((match) => match[1]);
+check(navRoutes.length >= 10, "没能从侧边栏源码里解析出导航项（正则可能已与 JSX 写法漂移）");
+for (const route of navRoutes) {
+  const casePath = route === "/" ? 'case "/"' : `case "${route}"`;
+  check(
+    statusBar.includes(casePath),
+    `面包屑缺少 ${route} 的 case（会显示「未知页面」）`,
+  );
+}
+// 分组也要对：面包屑的首段来自 section，写错分组时页面标题对、归属却错了。
+check(
+  /case "\/gwlinkd":[\s\S]{0,160}?section: "settings"/.test(statusBar),
+  "/gwlinkd 应归「设置」组（侧边栏把它放在设置组，面包屑不能写回监控）",
+);
+check(
+  /case "\/revocations":[\s\S]{0,160}?section: "ops"/.test(statusBar),
+  "/revocations 应归「运维」组",
+);
+
 if (failures.length > 0) {
   for (const message of failures) console.error(`FAIL: ${message}`);
   process.exit(1);

@@ -149,6 +149,12 @@
   vertical-align: middle;
 }
 
+/* 第一列要同时放「面名 + 面 id」：窄了 id 会折到第二行，把状态徽标挤到第三行，
+   同一列里的徽标就不在一条竖线上了。给足 300px，其余列按内容分。 */
+.table thead th:first-child {
+  width: 300px;
+}
+
 .table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -159,9 +165,22 @@
 
 .nameCell {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+
+.nameLine,
+.metaLine {
+  display: flex;
   align-items: baseline;
   gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.metaLine {
+  align-items: center;
 }
 
 .workName {

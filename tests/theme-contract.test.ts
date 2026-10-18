@@ -57,7 +57,8 @@ const lightBlock = block(':root[data-theme="light"]');
 const light = tokens(lightBlock);
 
 // 尺度 / 字体 / 布局与别名不算颜色：前者两套共用，后者指向已覆盖的 token。
-const NOT_COLOR = /^--(radius|font|sidebar-width|content-max|topbar-height)/;
+// `--page-*` / `--prose-max` 是版式尺度（页边距、标题字号、正文行宽），与配色无关。
+const NOT_COLOR = /^--(radius|font|sidebar-width|content-max|topbar-height|page-|prose-max)/;
 const missing: string[] = [];
 for (const [name, value] of darkAll) {
   if (NOT_COLOR.test(name)) continue;

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { isRateLimitedError } from "../api";
+import { isRateLimitedError, type ResolvedGitHubRelease } from "../api";
 import {
   useActivateKnowledgePackage,
   useContentCatalog,
@@ -8,6 +8,8 @@ import {
   useKnowledgeLocks,
   useKnowledgePackages,
   useRecordKnowledgePackage,
+  useResolveCosPath,
+  useResolveGitHubRelease,
 } from "../hooks";
 import { ContentFamilyOverview } from "./ContentFamilyOverview";
 import { CopyButton } from "./CopyButton";
@@ -26,9 +28,14 @@ import {
   knowledgeVersionLabel,
   knowledgeVersionSummary,
   lockedWorkTotal,
+  pickKnowledgeArtifact,
   rollbackTarget,
   staleLocks,
 } from "./knowledgeContent";
+import {
+  resolveSourceErrorMessage,
+  type ResolveSource,
+} from "./agentPackageUi";
 import styles from "./SubsystemKnowledgePage.module.css";
 
 function timestampText(value: string | null): string {
@@ -70,6 +77,8 @@ export function SubsystemKnowledgePage() {
   const catalog = useContentCatalog();
   const record = useRecordKnowledgePackage();
   const activate = useActivateKnowledgePackage();
+  const githubResolve = useResolveGitHubRelease();
+  const cosResolve = useResolveCosPath();
 
   // 两个 tab 答的是两个问题：「哪一版内容在生效」与「这一版里有哪些面」。
   // tab 落在 URL 上（`?view=families`）：可直接分享 / 收藏到全景页，刷新也不会跳回去。
@@ -89,6 +98,11 @@ export function SubsystemKnowledgePage() {
   const [sha256, setSha256] = useState("");
   const [shaFormError, setShaFormError] = useState<string | null>(null);
   const [activateNow, setActivateNow] = useState(false);
+  // 一键填充（GitHub Release / COS 路径）：知识库包是单制品，解析后直接填来源与摘要。
+  const [resolveSource, setResolveSource] = useState<ResolveSource>("github");
+  const [resolveInput, setResolveInput] = useState("");
+  const [resolveNote, setResolveNote] = useState<string | null>(null);
+  const resolve = resolveSource === "github" ? githubResolve : cosResolve;
   const [pending, setPending] = useState<PendingAction | null>(null);
 
   const current = knowledge.data ?? null;
@@ -103,6 +117,56 @@ export function SubsystemKnowledgePage() {
   const isPackageMode = sourceKind === "package";
 
   const canSubmit = source.trim().length > 0 && !record.isPending;
+
+  /**
+   * 把一次解析结果填进「来源地址 + 摘要」。知识库包是**单制品**：只取 `.tar.gz` 本体，
+   * 不碰 GitHub Release 同挂的 `.sha256` / `.sig` 旁文件。
+   */
+  function applyResolved(result: ResolvedGitHubRelease) {
+    const artifact = pickKnowledgeArtifact(result.assets);
+    if (!artifact) {
+      setResolveNote(
+        t(
+          "解析结果里没有 .tar.gz 制品；请直接填写来源地址。",
+          "The resolved assets contain no .tar.gz artifact; fill in the source URL manually.",
+        ),
+      );
+      return;
+    }
+    setSource(artifact.artifactUrl);
+    // 摘要跟着这一次的来源走：解析没给就清空，别留着上一份的摘要去校验新包。
+    setSha256(artifact.sha256 ?? "");
+    setShaFormError(null);
+    setResolveNote(
+      artifact.sha256
+        ? t(
+            "已按 {version} 填入来源与摘要。",
+            "Filled the source and digest from {version}.",
+            { version: result.version },
+          )
+        : t(
+            "已按 {version} 填入来源；这次解析没有摘要（旧资产没有 digest），请在下方手动补。",
+            "Filled the source from {version}; this resolve returned no digest (older assets have none), so fill it in below.",
+            { version: result.version },
+          ),
+    );
+  }
+
+  function handleResolve() {
+    const value = resolveInput.trim();
+    if (!value) return;
+    resolve.mutate(value, { onSuccess: applyResolved });
+  }
+
+  function selectResolveSource(next: ResolveSource) {
+    if (next === resolveSource) return;
+    setResolveSource(next);
+    // 两种来源的输入不可互换（页面地址 vs 桶/前缀），切换就清掉。
+    setResolveInput("");
+    setResolveNote(null);
+    githubResolve.reset();
+    cosResolve.reset();
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,6 +193,8 @@ export function SubsystemKnowledgePage() {
           setSha256("");
           setShaFormError(null);
           setActivateNow(false);
+          setResolveInput("");
+          setResolveNote(null);
         },
       },
     );
@@ -615,45 +681,164 @@ export function SubsystemKnowledgePage() {
           </header>
 
           <form className={styles.form} onSubmit={handleSubmit}>
-            <label className={styles.field}>
-              <span>{t("来源地址", "Source URL")}</span>
-              <input
-                type="text"
-                value={source}
-                onChange={(event) => setSource(event.target.value)}
-                placeholder="https://github.com/dayu-sec/wist-knowledge/releases/download/v0.1.1/wist-knowledge-0.1.1.tar.gz"
-                autoComplete="off"
-                required
-              />
-              <small>
-                {t(
-                  "https:// 链接，或「网关容器内」的绝对路径（宿主路径容器里看不见；离线投放见 stack 的 import-knowledge.sh）。不支持明文 http。",
-                  "An https:// link, or an absolute path inside the gateway container (host paths are invisible in the container; for offline deployment see the stack's import-knowledge.sh). Plain http is not supported.",
-                )}
+            {/* 一键填充：与安装包录入页同一套入口（GitHub Release / COS 路径），
+                解析后直接填「来源地址 + 摘要」——这两项本来就成对。 */}
+            <div
+              className={styles.sourceTabs}
+              role="tablist"
+              aria-label={t("解析来源", "Resolve source")}
+            >
+              {(["github", "cos"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={resolveSource === value}
+                  className={
+                    resolveSource === value
+                      ? `${styles.sourceTab} ${styles.sourceTabActive}`
+                      : styles.sourceTab
+                  }
+                  onClick={() => selectResolveSource(value)}
+                >
+                  {value === "github"
+                    ? "GitHub Release"
+                    : t("COS 路径", "COS path")}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.resolveField}>
+              <label
+                className={styles.resolveLabel}
+                htmlFor="knowledge-source-input"
+              >
+                {resolveSource === "github"
+                  ? t(
+                      "GitHub Release 地址（可选，一键填充）",
+                      "GitHub Release URL (optional, one-click fill)",
+                    )
+                  : t(
+                      "COS 路径（可选，一键填充）",
+                      "COS path (optional, one-click fill)",
+                    )}
+              </label>
+              <div className={styles.resolveControls}>
+                <input
+                  id="knowledge-source-input"
+                  className={styles.resolveInput}
+                  type="text"
+                  value={resolveInput}
+                  onChange={(event) => {
+                    setResolveInput(event.target.value);
+                    if (resolveNote) setResolveNote(null);
+                  }}
+                  onKeyDown={(event) => {
+                    // 回车是「解析」，别提交整个录入表单。
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleResolve();
+                    }
+                  }}
+                  placeholder={
+                    resolveSource === "github"
+                      ? "https://github.com/dayu-sec/wist-knowledge/releases/tag/<tag>"
+                      : t(
+                          "桶/组件/版本，如 wist-1347593047/wist-knowledge/v0.1.1",
+                          "bucket/component/version, e.g. wist-1347593047/wist-knowledge/v0.1.1",
+                        )
+                  }
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <button
+                  type="button"
+                  className={styles.resolveButton}
+                  onClick={handleResolve}
+                  disabled={resolve.isPending || !resolveInput.trim()}
+                >
+                  {resolve.isPending
+                    ? t("解析中…", "Resolving…")
+                    : t("解析并填充", "Resolve and fill")}
+                </button>
+              </div>
+              <small className={styles.resolveHint}>
+                {resolveSource === "github"
+                  ? t(
+                      "填 release 页面地址后点「解析并填充」：网关拉该 release 的制品，取其中的 .tar.gz 地址与摘要填到下面。",
+                      "Enter the release page URL and click Resolve and fill: the gateway fetches the release's assets and fills in the .tar.gz URL and its digest below.",
+                    )
+                  : t(
+                      "填 COS 路径后点「解析并填充」：网关按命名约定找到该前缀下的 .tar.gz，并读回对象元数据里的 sha256；未指定 region 时会逐个探测，可能要十几秒。",
+                      "Enter a COS path and click Resolve and fill: the gateway finds the .tar.gz under that prefix and reads its sha256 from object metadata; without a region it probes them in order, which can take a while.",
+                    )}
               </small>
-            </label>
-            <label className={styles.field}>
-              <span>{t("期望摘要 sha256（必填）", "Expected digest sha256 (required)")}</span>
-              <input
-                type="text"
-                value={sha256}
-                onChange={(event) => {
-                  setSha256(event.target.value);
-                  if (shaFormError) setShaFormError(null);
-                }}
-                placeholder={t("64 位十六进制，可带 sha256: 前缀", "64 hex characters, optionally prefixed with sha256:")}
-                autoComplete="off"
-                spellCheck={false}
-                required
-                aria-invalid={shaFormError ? true : undefined}
-              />
-              <small>
-                {t(
-                  "必填：填发布侧 *.sha256 里那串（算的是来源 tarball 的字节）；网关先校验，不符即拒绝。",
-                  "Required: paste the value from the published *.sha256 (it covers the source tarball bytes); the gateway verifies it first and rejects a mismatch.",
-                )}
-              </small>
-            </label>
+            </div>
+            {resolve.error ? (
+              <div className={styles.errorBanner} role="alert">
+                {t("解析失败：{detail}", "Resolve failed: {detail}", {
+                  detail: resolveSourceErrorMessage(resolve.error, resolveSource),
+                })}
+              </div>
+            ) : null}
+            {resolveNote ? <p className={styles.resolveNote}>{resolveNote}</p> : null}
+
+            {/* 来源与摘要并排：它们是一对（摘要只校验这个来源），别再上下拉开一屏。 */}
+            <div className={styles.recordFields}>
+              <label className={styles.field}>
+                <span>{t("来源地址", "Source URL")}</span>
+                <input
+                  type="text"
+                  value={source}
+                  onChange={(event) => {
+                    setSource(event.target.value);
+                    // 手动改了来源，上一次解析的说明就不再描述这次要录的东西了。
+                    if (resolveNote) setResolveNote(null);
+                  }}
+                  placeholder={
+                    resolveSource === "github"
+                      ? "https://github.com/dayu-sec/wist-knowledge/releases/download/v0.1.1/wist-knowledge-0.1.1.tar.gz"
+                      : t(
+                          "https://<桶>.cos.<region>.myqcloud.com/wist-knowledge/v0.1.1/wist-knowledge-0.1.1.tar.gz",
+                          "https://<bucket>.cos.<region>.myqcloud.com/wist-knowledge/v0.1.1/wist-knowledge-0.1.1.tar.gz",
+                        )
+                  }
+                  autoComplete="off"
+                  title={source || undefined}
+                  required
+                />
+                <small>
+                  {t(
+                    "https:// 链接，或「网关容器内」的绝对路径（宿主路径在网关容器里看不见；离线投放见 stack 的 import-knowledge.sh）。不支持明文 http。",
+                    "An https:// link, or an absolute path inside the gateway container (host paths are invisible in the container; for offline deployment see the stack's import-knowledge.sh). Plain http is not supported.",
+                  )}
+                </small>
+              </label>
+              <label className={styles.field}>
+                <span>{t("期望摘要 sha256（必填）", "Expected digest sha256 (required)")}</span>
+                <input
+                  type="text"
+                  value={sha256}
+                  onChange={(event) => {
+                    setSha256(event.target.value);
+                    if (shaFormError) setShaFormError(null);
+                    if (resolveNote) setResolveNote(null);
+                  }}
+                  placeholder={t("64 位十六进制，可带 sha256: 前缀", "64 hex characters, optionally prefixed with sha256:")}
+                  autoComplete="off"
+                  spellCheck={false}
+                  title={sha256 || undefined}
+                  required
+                  aria-invalid={shaFormError ? true : undefined}
+                />
+                <small>
+                  {t(
+                    "必填：填发布侧 *.sha256 里那串（算的是来源 tarball 的字节）；网关先校验，不符即拒绝。",
+                    "Required: paste the value from the published *.sha256 (it covers the source tarball bytes); the gateway verifies it first and rejects a mismatch.",
+                  )}
+                </small>
+              </label>
+            </div>
             <label className={styles.checkboxField}>
               <input
                 type="checkbox"

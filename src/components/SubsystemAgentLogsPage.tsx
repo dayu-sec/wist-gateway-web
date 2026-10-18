@@ -6,7 +6,7 @@ import {
   useAgentOverview,
   useContentCatalog,
 } from "../hooks";
-import { t, dateLocale } from "../i18n";
+import { t } from "../i18n";
 import { CopyButton } from "./CopyButton";
 import { RateLimitNotice } from "./RateLimitNotice";
 import styles from "./SubsystemAgentLogsPage.module.css";
@@ -58,11 +58,20 @@ function loadErrorMessage(error: unknown): string {
   );
 }
 
-/** 时间戳按本地时区展示；解析不了就原样透出，不假装成 1970。 */
+/**
+ * 时间戳按本地时区、固定成 `YYYY-MM-DD HH:mm:ss`；解析不了就原样透出，不假装成 1970。
+ *
+ * 不用 `toLocaleString`：英文界面会给 `10/18/2026, 11:58:30`，比中文长一截 —— 一条记录
+ * 要并排放「观测时刻 / 到达网关」两个时间，英文下就会折行，把每条日志撑成三行。固定形状
+ * 还和日志原文（`2026-10-18 10:08:24.319237 …`）对得上，肉眼比对时不用换算格式。
+ */
 function formatTimestamp(value: string): string {
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return value;
-  return at.toLocaleString(dateLocale(), { hour12: false });
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(
+    at.getHours(),
+  )}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
 }
 
 /**
@@ -124,6 +133,13 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
     .filter((part) => part !== null)
     .join(t("、", ", "));
   const logs = data?.logs ?? [];
+  // 记录来源（`logDesc`）按类型注释当前恒为「Agent 日志-原文」：两百条里重复两百遍只是噪声。
+  // 全都一样就提到列表上方说一次；真出现多种来源时，再退回逐条标注（见下面的条件渲染）。
+  const uniformLogSource =
+    logs.length > 0 &&
+    logs.every((record) => record.logDesc === logs[0].logDesc)
+      ? logs[0].logDesc
+      : null;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -179,9 +195,9 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
             "每条的两个时间不同：",
             "Each record carries two different timestamps: ",
           )}
-          <strong>{t("观测时刻", "observed at")}</strong>
+          <strong>{t("观测时刻", "observed")}</strong>
           {t("是 Agent 自己采到它的时刻，", " is when the agent collected it, ")}
-          <strong>{t("到达网关", "arrived at gateway")}</strong>
+          <strong>{t("到达网关", "received")}</strong>
           {t(
             "是网关把它写入磁盘的时刻，中间隔着上行链路与数据面处理。一条多行日志在文件里仍是一行（换行被转义），这里按原文保留换行展示。",
             " is when the gateway wrote it to disk — the uplink and data plane processing happen in between. A multi-line log stays one line in the file (newlines are escaped); this page shows the original line breaks. ",
@@ -399,6 +415,13 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
                   {filterActive
                     ? null
                     : t(" · 所有 Agent / 所有面", " · all agents / all families")}
+                  {uniformLogSource ? (
+                    <>
+                      {" "}
+                      · {t("来源", "source")}{" "}
+                      <strong>{uniformLogSource}</strong>
+                    </>
+                  ) : null}
                 </div>
 
                 <div className={styles.recordList}>
@@ -449,23 +472,33 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
                         <span className={styles.recordSeq}>seq {record.seq}</span>
                         <span className={styles.recordTime}>
                           <span className={styles.recordTimeLabel}>
-                            {t("观测时刻", "Observed at")}
+                            {t("观测时刻", "Observed")}
                           </span>
                           {formatTimestamp(record.observedAt)}
                         </span>
                         <span className={styles.recordTime}>
                           <span className={styles.recordTimeLabel}>
-                            {t("到达网关", "Arrived at gateway")}
+                            {/* 英文标签刻意短：这一行要并排放两个时间 + 五个标识，
+                                "Observed at" / "Arrived at gateway" 会把第二个时间挤到下一行；
+                                正文里的两个词也同步改短（observed / received），免得解释与行内标签对不上。 */}
+                            {t("到达网关", "Received")}
                           </span>
                           {formatTimestamp(record.receivedAt)}
                         </span>
+                        {/* 来源原先每条都独占一行。按契约定它当前恒为「Agent 日志-原文」
+                            （见 `AgentLogRecord.logDesc`），两百条里重复两百遍只是噪声。
+                            因此只在**它与上一条不同**时标一次：内容没变就不占行，变了也不会漏。 */}
+                        {!uniformLogSource &&
+                        (index === 0 ||
+                          logs[index - 1]?.logDesc !== record.logDesc) ? (
+                          <span className={styles.recordSource}>
+                            {t("来源 · {desc}", "Source · {desc}", {
+                              desc: record.logDesc,
+                            })}
+                          </span>
+                        ) : null}
                       </header>
                       <pre className={styles.recordRaw}>{record.raw}</pre>
-                      <p className={styles.recordDesc}>
-                        {t("来源 · {desc}", "Source · {desc}", {
-                          desc: record.logDesc,
-                        })}
-                      </p>
                     </article>
                   ))}
                 </div>

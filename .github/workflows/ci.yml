@@ -65,6 +65,12 @@ jobs:
       - name: Test (collection family text)
         run: npm run test:family-text
 
+      # 安装包 / 知识库包的「COS 路径」解析：接口地址、请求体字段
+      # （cos_path）、响应归一化（artifact_url → artifactUrl，sha256/platform 缺项为 null），
+      # 与 GitHub Release 解析同一份口径。
+      - name: Test (cos resolve contract)
+        run: npm run test:cos-resolve
+
       # 采集面全景的派生：三态（已就绪 / 有单元未就绪 / 未建单元）、
       # 跨平台合计、模板覆盖、筛选计数。
       - name: Test (family overview)

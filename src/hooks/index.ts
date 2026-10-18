@@ -45,6 +45,7 @@ import {
   liftAgentRevocation,
   pauseWork,
   recordKnowledgePackage,
+  resolveCosPath,
   resolveGitHubRelease,
   resumeWork,
   revokeAgent,
@@ -269,6 +270,17 @@ export function useSetAgentInstallPackage() {
 export function useResolveGitHubRelease() {
   return useMutation({
     mutationFn: (releaseUrl: string) => resolveGitHubRelease(releaseUrl),
+  });
+}
+
+/**
+ * 解析腾讯 COS 路径（安装包页「一键填充」用，与 GitHub 解析同形）。
+ *
+ * 同一个入口也覆盖「带 region 的 COS 下载地址」写法；region 解析由网关做（见网关 `infra::cos`）。
+ */
+export function useResolveCosPath() {
+  return useMutation({
+    mutationFn: (cosPath: string) => resolveCosPath(cosPath),
   });
 }
 

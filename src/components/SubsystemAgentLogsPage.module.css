@@ -14,12 +14,12 @@
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
-  padding: 22px 24px 0;
+  padding: var(--page-pad-top) var(--page-pad-x) 0;
 }
 
 .pageTitle {
   color: var(--text);
-  font-size: 23px;
+  font-size: var(--page-title);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
@@ -27,8 +27,9 @@
 .pageSummary,
 .pageThresholds {
   color: var(--text-2);
-  font-size: 12.5px;
-  line-height: 1.75;
+  font-size: var(--page-summary);
+  line-height: 1.65;
+  max-width: var(--prose-max);
 }
 
 .pageSummary strong,
@@ -180,27 +181,46 @@
   font-family: var(--font-mono);
 }
 
+/* 一屏常见 200 条：每条一张描边卡片会读成「两百个孤立的块」，也把行距撑到 12px。
+   改成一个容器、行间只留 1px 分隔线 —— 扫读时视线沿着一条竖线往下走，不被卡片边界打断。
+   悬停时才亮左侧 2px 主色：定位当前行，又不用让每行都挂一条色带。 */
 .recordList {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .recordCard {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent-border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  gap: 6px;
+  padding: 10px 14px 11px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid transparent;
+  background: transparent;
+  transition:
+    background 0.12s ease,
+    border-left-color 0.12s ease;
+}
+
+.recordCard:last-child {
+  border-bottom: 0;
+}
+
+.recordCard:hover {
+  border-left-color: var(--accent-border);
+  background: var(--overlay-soft);
 }
 
 .recordHead {
   display: flex;
   align-items: baseline;
-  gap: 6px 14px;
+  gap: 6px 10px;
   flex-wrap: wrap;
 }
 
@@ -314,9 +334,13 @@
   word-break: break-word;
 }
 
-.recordDesc {
+/* 来源：头部末尾的弱标签（原先在正文下单占一行，见组件里的说明）。
+   靠右对齐 —— 它是这条记录的「出处」，与左侧的身份字段分列两端，扫读时不抢戏。 */
+.recordSource {
+  margin-left: auto;
   color: var(--text-4);
   font-size: 11px;
+  white-space: nowrap;
 }
 
 /* ---------- 日志文件路径 ---------- */

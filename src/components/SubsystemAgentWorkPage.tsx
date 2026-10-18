@@ -114,8 +114,8 @@ function actionErrorMessage(error: unknown): string {
       );
     if (error.status === 503)
       return t(
-        "采集内容目录未装载（HTTP 503）：网关未配置 `[content]` 三件套。",
-        "The collection content catalog is not loaded (HTTP 503): the gateway has no `[content]` trio configured.",
+        "采集内容目录未装载（HTTP 503）：网关未配置 [content] 三件套。",
+        "The collection content catalog is not loaded (HTTP 503): the gateway has no [content] trio configured.",
       );
     return error.detail
       ? t(
