@@ -1,7 +1,7 @@
 {
   "name": "wist-gateway-web",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -29,6 +29,7 @@
     "test:agent-package-registry": "tsx tests/agent-package-registry-contract.test.ts",
     "test:sha256": "tsx tests/sha256.test.ts",
     "test:knowledge": "tsx tests/knowledge-contract.test.ts",
+    "test:family-text": "tsx tests/collection-family-text.test.ts",
     "test:admin-api-error": "tsx tests/admin-api-error.test.ts",
     "test:admin-token": "tsx tests/admin-token-contract.test.ts",
     "test:agent-delete": "tsx tests/agent-delete-contract.test.ts",
