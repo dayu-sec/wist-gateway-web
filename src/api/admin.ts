@@ -12,6 +12,7 @@ import type {
   AgentSoftwareInventory,
   AgentWorkView,
   ContentCatalogView,
+  ContentFamilyView,
   ContentTemplateView,
   FamilyReadinessView,
   MachineClass,
@@ -2974,6 +2975,33 @@ function normalizeContentTemplate(payload: any): ContentTemplateView {
   };
 }
 
+function normalizeContentFamily(payload: any): ContentFamilyView {
+  const record = requiredRecord(payload, "contentFamily");
+  return {
+    id: requiredString(record.id, "contentFamily.id"),
+    platforms: requiredArray(
+      record.platforms ?? [],
+      "contentFamily.platforms",
+    ).map((value, index) =>
+      requiredString(value, `contentFamily.platforms[${index}]`),
+    ),
+    semanticsVersion: requiredNumber(
+      record.semantics_version ?? record.semanticsVersion ?? 0,
+      "contentFamily.semanticsVersion",
+    ),
+    nameZh: requiredString(record.name_zh ?? record.nameZh ?? "", "contentFamily.nameZh"),
+    nameEn: requiredString(record.name_en ?? record.nameEn ?? "", "contentFamily.nameEn"),
+    summaryZh: requiredString(
+      record.summary_zh ?? record.summaryZh ?? "",
+      "contentFamily.summaryZh",
+    ),
+    summaryEn: requiredString(
+      record.summary_en ?? record.summaryEn ?? "",
+      "contentFamily.summaryEn",
+    ),
+  };
+}
+
 export function normalizeContentCatalog(payload: any): ContentCatalogView {
   return {
     catalogVersion: requiredNumber(
@@ -2989,6 +3017,11 @@ export function normalizeContentCatalog(payload: any): ContentCatalogView {
       if (value === null) return null;
       return requiredNumber(value, "contentCatalog.supersededBy");
     })(),
+    // 词表是**数据**：旧网关不返回它，补空数组让页面回落成面 ID（不要编造文案）。
+    families: requiredArray(
+      payload.families ?? [],
+      "contentCatalog.families",
+    ).map(normalizeContentFamily),
     templates: requiredArray(
       payload.templates ?? [],
       "contentCatalog.templates",

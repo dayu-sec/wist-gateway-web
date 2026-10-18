@@ -438,11 +438,30 @@ export interface ContentTemplateView {
   capabilityScope: string[];
 }
 
+/** 采集面的元数据（`catalog.toml` 的 `[[families]]`）：值在知识库，不在前端。 */
+export interface ContentFamilyView {
+  /** 协议值（大小写敏感，不翻译）。 */
+  id: string;
+  /** 允许出现的平台；空 = 全平台。 */
+  platforms: string[];
+  semanticsVersion: number;
+  nameZh: string;
+  nameEn: string;
+  summaryZh: string;
+  summaryEn: string;
+}
+
 /** 已装载的采集内容目录。 */
 export interface ContentCatalogView {
   catalogVersion: number;
   /** 已被新版取代时非空（引用式版本锁：多版并存，不追改已授权工作）。 */
   supersededBy: number | null;
+  /**
+   * 面词表：ID、平台归属与展示文案。
+   *
+   * 旧网关（还没实现 `[[families]]`）不返回它 —— 归一化时补 `[]`，页面回落成面 ID。
+   */
+  families: ContentFamilyView[];
   templates: ContentTemplateView[];
   readiness: FamilyReadinessView[];
 }

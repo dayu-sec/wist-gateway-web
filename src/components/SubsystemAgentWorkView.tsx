@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type {
   AgentLocalOneShotWorkView,
   AgentLocalStandingWorkView,
@@ -41,6 +41,8 @@ import {
 import {
   collectionFamilyName,
   collectionFamilySummary,
+  indexCollectionFamilies,
+  type CollectionFamilyTextIndex,
 } from "./collectionFamilyText";
 import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentWorkView.module.css";
@@ -121,6 +123,12 @@ export function SubsystemAgentWorkView({
 }: SubsystemAgentWorkViewProps) {
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
+  // 面名与说明来自知识库（网关随内容目录返回），不是前端硬编码：新增面不用发前端。
+  // 旧网关不返回词表时这里是空索引，卡片回落成面 ID。
+  const familyText = useMemo(
+    () => indexCollectionFamilies(catalog?.families),
+    [catalog],
+  );
   // 带时间的漂移计数：「等待首次确认」（刚授权 90 秒内）不算漂移，免得刚授权就报「漂移 N」。
   // 页面每 5 秒轮询重渲染一次，所以宽限期一到，徽标/计数会自己转过来。
   const drift = driftingCountAt(agentWorkView.standing, Date.now());
@@ -260,6 +268,7 @@ export function SubsystemAgentWorkView({
                 work={work}
                 local={local}
                 sharedPaths={sharedPaths}
+                familyText={familyText}
                 pending={pending}
                 onAction={onAction}
                 revokeTarget={revokeTarget}
@@ -272,6 +281,7 @@ export function SubsystemAgentWorkView({
               <GrantCandidateCard
                 key={entry.family}
                 entry={entry}
+                familyText={familyText}
                 pending={pending}
                 onSubmit={onGrantStanding}
               />
@@ -636,6 +646,8 @@ interface StandingWorkCardProps {
   local: AgentLocalWorkView | null;
   /** 被两份以上工作声明的路径 → 声明它的采集面（重复采集要标出来）。 */
   sharedPaths: Map<string, string[]>;
+  /** 面名与说明（来自知识库；缺项回落成面 ID）。 */
+  familyText: CollectionFamilyTextIndex;
   pending: boolean;
   onAction: (command: WorkActionCommand) => void;
   revokeTarget: string | null;
@@ -648,6 +660,7 @@ function StandingWorkCard({
   work,
   local,
   sharedPaths,
+  familyText,
   pending,
   onAction,
   revokeTarget,
@@ -683,7 +696,7 @@ function StandingWorkCard({
   const localAckBehind = localWork
     ? localWork.acknowledgedVersion !== localWork.planVersion
     : false;
-  const familySummary = collectionFamilySummary(work.family);
+  const familySummary = collectionFamilySummary(work.family, familyText);
   return (
     <li
       className={styles.card}
@@ -712,7 +725,7 @@ function StandingWorkCard({
         .join(" · ")}
     >
       <div className={styles.cardHeader}>
-        <span className={styles.workName}>{collectionFamilyName(work.family)}</span>
+        <span className={styles.workName}>{collectionFamilyName(work.family, familyText)}</span>
         <span className={styles.workNameCode}>{work.family}</span>
         <span className={`${styles.badge} ${toneClass(STANDING_STATUS_TONE[work.status])}`}>
           {STANDING_STATUS_LABEL[work.status]}
@@ -1116,6 +1129,8 @@ function OneShotWorkCard({ work, local, pending, onAction }: OneShotWorkCardProp
 
 interface GrantCandidateCardProps {
   entry: GrantableFamily;
+  /** 面名与说明（来自知识库；缺项回落成面 ID）。 */
+  familyText: CollectionFamilyTextIndex;
   pending: boolean;
   onSubmit: (command: GrantStandingWorkCommand) => void;
 }
@@ -1131,12 +1146,12 @@ interface GrantCandidateCardProps {
  * （`derive_spec` —— 逐单元求目录里的 `match`），手写就是绕过它，而且这个页面上
  * 根本看不到该面的目录单元 id。要让某台机器多采/少采一个单元，改的是目录，不是这张卡。
  */
-function GrantCandidateCard({ entry, pending, onSubmit }: GrantCandidateCardProps) {
-  const familySummary = collectionFamilySummary(entry.family);
+function GrantCandidateCard({ entry, familyText, pending, onSubmit }: GrantCandidateCardProps) {
+  const familySummary = collectionFamilySummary(entry.family, familyText);
   return (
     <li className={styles.card}>
       <div className={styles.cardHeader}>
-        <span className={styles.workName}>{collectionFamilyName(entry.family)}</span>
+        <span className={styles.workName}>{collectionFamilyName(entry.family, familyText)}</span>
         <span className={styles.workNameCode}>{entry.family}</span>
         <span className={`${styles.badge} ${styles.toneUnknown}`}>
           {t("未授权", "Not granted")}
