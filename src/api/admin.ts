@@ -229,7 +229,17 @@ export interface AgentHostMetrics {
   diskUsagePercent?: number;
   diskTotalKb?: number;
   diskAvailableKb?: number;
+  /** 逐挂载点容量；旧网关不返回时为空。 */
+  filesystems?: AgentFilesystemMetrics[];
   history?: AgentHostMetricsHistory;
+}
+
+export interface AgentFilesystemMetrics {
+  mount: string;
+  fstype?: string;
+  usagePercent?: number;
+  totalKb?: number;
+  availableKb?: number;
 }
 
 export interface AgentHostMetricsHistory {
@@ -251,6 +261,8 @@ export interface AgentHostMetricsSummary {
   memoryTotalKb?: number;
   memoryAvailableKb?: number;
   diskUsagePercent?: number;
+  /** 当前最紧张的挂载点使用率；旧网关不返回。 */
+  maxFilesystemUsagePercent?: number;
 }
 
 export interface AgentInstallCode {
@@ -835,10 +847,36 @@ function normalizeHostMetrics(payload: any): AgentHostMetrics {
     diskUsagePercent: payload.disk_usage_percent ?? payload.diskUsagePercent,
     diskTotalKb: payload.disk_total_kb ?? payload.diskTotalKb,
     diskAvailableKb: payload.disk_available_kb ?? payload.diskAvailableKb,
+    filesystems: Array.isArray(payload.filesystems)
+      ? payload.filesystems.map(normalizeFilesystem)
+      : undefined,
     history: payload.history
       ? normalizeHostMetricsHistory(payload.history)
       : undefined,
   };
+}
+
+function normalizeFilesystem(payload: any): AgentFilesystemMetrics {
+  return {
+    mount: requiredString(payload.mount ?? "", "filesystem.mount"),
+    fstype:
+      typeof payload.fstype === "string" && payload.fstype
+        ? payload.fstype
+        : undefined,
+    usagePercent: optionalFiniteNumber(
+      payload.usage_percent ?? payload.usagePercent,
+    ),
+    totalKb: optionalFiniteNumber(payload.total_kb ?? payload.totalKb),
+    availableKb: optionalFiniteNumber(
+      payload.available_kb ?? payload.availableKb,
+    ),
+  };
+}
+
+function optionalFiniteNumber(value: any): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function normalizeHostMetricsHistory(payload: any): AgentHostMetricsHistory {
@@ -901,6 +939,10 @@ function normalizeHostMetricsSummary(payload: any): AgentHostMetricsSummary {
     memoryTotalKb: payload.memory_total_kb ?? payload.memoryTotalKb,
     memoryAvailableKb: payload.memory_available_kb ?? payload.memoryAvailableKb,
     diskUsagePercent: payload.disk_usage_percent ?? payload.diskUsagePercent,
+    maxFilesystemUsagePercent: optionalFiniteNumber(
+      payload.max_filesystem_usage_percent ??
+        payload.maxFilesystemUsagePercent,
+    ),
   };
 }
 
@@ -1244,7 +1286,7 @@ export async function resolveGitHubRelease(
 }
 
 /**
- * 解析腾讯 COS 路径（桶/组件/版本，如 `wist-1347593047/wist-agentd/v0.4.0-alpha`）：
+ * 解析腾讯 COS 路径（桶/组件/版本，如 `github-1347593047/wist-agentd/v0.4.0-alpha`）：
  * 网关按发布命名约定展开该前缀下的各平台制品，并从对象自定义元数据读回 sha256。
  *
  * 与 GitHub 解析**同形**，供安装包页一键填充。**不回落示例**：这是解析请求，失败要冒出来。
@@ -1378,6 +1420,9 @@ export interface GatewayLinkdStatusView {
   gatewayId: string;
   instanceId: string;
   version: string;
+  /** 宿主依赖工具 gops 的版本（空串 = 未安装 / 探测失败）。 */
+  gopsVersion: string;
+  gxVersion: string;
   centerEndpoint: string;
   state: string;
   credentialExpiresAt: string;
@@ -1407,6 +1452,8 @@ export function normalizeGatewayLinkdStatusView(
     gatewayId: requiredString(view.gateway_id, "gateway_id"),
     instanceId: requiredString(view.instance_id, "instance_id"),
     version: requiredString(view.version, "version"),
+    gopsVersion: optionalStringField(view, ["gops_version"], "gops_version") ?? "",
+    gxVersion: optionalStringField(view, ["gx_version"], "gx_version") ?? "",
     centerEndpoint: requiredString(view.center_endpoint, "center_endpoint"),
     state: requiredString(view.state, "state"),
     credentialExpiresAt: requiredString(

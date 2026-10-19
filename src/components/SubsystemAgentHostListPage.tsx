@@ -32,6 +32,9 @@ interface HostRow {
   memoryTotalKb?: number;
   memoryAvailableKb?: number;
   diskUsagePercent?: number;
+  maxFilesystemUsagePercent?: number;
+  /** 旧主盘使用率与逐挂载点最大值里的较大者，列表页按它排序/分级。 */
+  diskWorstUsagePercent?: number;
   memoryUsedKb?: number;
   memoryUsagePercent?: number;
   severity: Severity;
@@ -91,10 +94,23 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
               host.memoryTotalKb) *
             100
           : undefined;
+      const diskWorstUsagePercent = [
+        host.diskUsagePercent,
+        host.maxFilesystemUsagePercent,
+      ].reduce<number | undefined>(
+        (worstValue, value) =>
+          value === undefined
+            ? worstValue
+            : worstValue === undefined
+              ? value
+              : Math.max(worstValue, value),
+        undefined,
+      );
       return {
         ...host,
         addresses: summarizeAddresses(host.ipAddresses),
         memoryUsagePercent,
+        diskWorstUsagePercent,
         memoryUsedKb:
           host.memoryTotalKb !== undefined &&
           host.memoryAvailableKb !== undefined
@@ -102,7 +118,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
             : undefined,
         severity: worst(
           severityForUsage(memoryUsagePercent),
-          severityForUsage(host.diskUsagePercent),
+          severityForUsage(diskWorstUsagePercent),
           severityForLoad(host.loadAverage1m),
         ),
       };
@@ -141,7 +157,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
       if (sortKey === "severity") {
         const bySeverity = severityRank(a.severity, b.severity);
         if (bySeverity !== 0) return bySeverity;
-        return (b.diskUsagePercent ?? -1) - (a.diskUsagePercent ?? -1);
+        return (b.diskWorstUsagePercent ?? -1) - (a.diskWorstUsagePercent ?? -1);
       }
 
       const pick = (row: HostRow): number | string => {
@@ -151,7 +167,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
           case "memory":
             return row.memoryUsagePercent ?? -1;
           case "disk":
-            return row.diskUsagePercent ?? -1;
+            return row.diskWorstUsagePercent ?? -1;
           default:
             return row.hostname || row.agentId;
         }
@@ -346,7 +362,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       className={styles.sortHead}
                       onClick={() => toggleSort("disk")}
                     >
-                      {t("磁盘", "Disk")}
+                      {t("磁盘（最紧张）", "Disk (worst)")}
                       <SortMark active={sortKey === "disk"} asc={sortAsc} />
                     </button>
                   </th>
@@ -406,9 +422,9 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                     </td>
                     <td className={styles.tdMetric}>
                       <MetricBar
-                        percent={row.diskUsagePercent}
-                        value={formatPercent(row.diskUsagePercent)}
-                        severity={severityForUsage(row.diskUsagePercent)}
+                        percent={row.diskWorstUsagePercent}
+                        value={formatPercent(row.diskWorstUsagePercent)}
+                        severity={severityForUsage(row.diskWorstUsagePercent)}
                       />
                     </td>
                     <td className={styles.tdAction}>

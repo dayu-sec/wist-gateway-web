@@ -51,6 +51,15 @@ function detailPayload(overrides: Record<string, unknown> = {}) {
     load_average_1m: 1.5,
     memory_total_kb: 1024,
     memory_available_kb: 512,
+    filesystems: [
+      {
+        mount: "/var",
+        fstype: "xfs",
+        usage_percent: 95,
+        total_kb: 20_971_520,
+        available_kb: 1_048_576,
+      },
+    ],
     ...overrides,
   };
 }
@@ -63,6 +72,7 @@ function summaryPayload(overrides: Record<string, unknown> = {}) {
     memory_total_kb: 1024,
     memory_available_kb: 512,
     disk_usage_percent: 42,
+    max_filesystem_usage_percent: 95,
     ...overrides,
   };
 }
@@ -103,6 +113,50 @@ if (JSON.stringify(detail.ipAddresses) !== ips) {
 if (detail.loadAverage1m !== 1.5 || detail.memoryTotalKb !== 1024) {
   throw new Error("metric readings must survive normalization");
 }
+if (
+  detail.filesystems?.length !== 1 ||
+  detail.filesystems[0].mount !== "/var" ||
+  detail.filesystems[0].fstype !== "xfs" ||
+  detail.filesystems[0].usagePercent !== 95
+) {
+  throw new Error("filesystem capacity rows were not normalized");
+}
+
+// --- 多挂载点 / 缺可选字段：不能把缺失值变成 0 或空串 ----------------------
+responder = () =>
+  Response.json(
+    detailPayload({
+      filesystems: [
+        { mount: "/data" },
+        {
+          mount: "/var",
+          fstype: "xfs",
+          usage_percent: 95,
+          total_kb: 20_971_520,
+          available_kb: 1_048_576,
+        },
+      ],
+    }),
+  );
+const multi = await fetchAgentHostMetrics("agent-1");
+if (multi.filesystems?.length !== 2) {
+  throw new Error("multiple filesystem rows were not kept");
+}
+if (
+  multi.filesystems[0].mount !== "/data" ||
+  multi.filesystems[0].fstype !== undefined ||
+  multi.filesystems[0].usagePercent !== undefined ||
+  multi.filesystems[0].totalKb !== undefined ||
+  multi.filesystems[0].availableKb !== undefined
+) {
+  throw new Error("absent optional filesystem fields must stay undefined");
+}
+if (
+  multi.filesystems[1].mount !== "/var" ||
+  multi.filesystems[1].usagePercent !== 95
+) {
+  throw new Error("filesystem readings must survive normalization");
+}
 
 // --- 列表：路径 / 方法 / 凭据 + 身份映射 -------------------------------------
 recorded = [];
@@ -121,6 +175,9 @@ if (rows.length !== 2) {
 if (rows[0].hostname !== "host-1" || rows[0].nodeId !== "node-1") {
   throw new Error("list row identity was not normalized");
 }
+if (rows[0].maxFilesystemUsagePercent !== 95) {
+  throw new Error("max filesystem usage was not normalized");
+}
 if (JSON.stringify(rows[1].ipAddresses) !== ips) {
   throw new Error("list row ip_addresses was not normalized");
 }
@@ -134,11 +191,17 @@ if (legacy.hostname !== "" || legacy.nodeId !== "") {
 if (!Array.isArray(legacy.ipAddresses) || legacy.ipAddresses.length !== 0) {
   throw new Error("absent ip_addresses must normalize to an empty array");
 }
+if (legacy.filesystems !== undefined) {
+  throw new Error("absent filesystems must stay undefined for old gateways");
+}
 
 responder = () => Response.json([{ agent_id: "agent-1", load_average_1m: 1.5 }]);
 const legacyRows = await fetchAllAgentsHostMetrics();
 if (legacyRows[0].hostname !== "" || legacyRows[0].ipAddresses.length !== 0) {
   throw new Error("absent identity keys on a list row must normalize to empty values");
+}
+if (legacyRows[0].maxFilesystemUsagePercent !== undefined) {
+  throw new Error("absent max filesystem usage must stay undefined");
 }
 
 // --- 404 未知 Agent：正文要落到 ApiError.detail -----------------------------

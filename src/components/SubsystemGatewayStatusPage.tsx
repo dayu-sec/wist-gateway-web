@@ -395,6 +395,14 @@ export function SubsystemGatewayStatusPage() {
                   <dd>{linkdView.version || "—"}</dd>
                 </div>
                 <div className={styles.gridItem}>
+                  <dt>gops</dt>
+                  <dd>{linkdView.gopsVersion || t("未检测到", "Not found")}</dd>
+                </div>
+                <div className={styles.gridItem}>
+                  <dt>gx</dt>
+                  <dd>{linkdView.gxVersion || t("未检测到", "Not found")}</dd>
+                </div>
+                <div className={styles.gridItem}>
                   <dt>{t("实例", "Instance")}</dt>
                   <dd>{linkdView.instanceId || "—"}</dd>
                 </div>
@@ -423,6 +431,14 @@ export function SubsystemGatewayStatusPage() {
                   {t("gwlinkd 最近一次失败：{error}", "gwlinkd last failure: {error}", {
                     error: linkdView.lastError,
                   })}
+                </div>
+              ) : null}
+              {!linkdView.gopsVersion || !linkdView.gxVersion ? (
+                <div className={styles.noticeWarn} role="status">
+                  {t(
+                    "宿主侧未检测到 gops / gx 版本：请确认它们已装在 $HOME/bin（或与 gops 同目录）；缺工具会无法升级网关栈。旧版 gwlinkd 不会上报该信息。",
+                    "gops / gx versions were not detected on the host: make sure they are installed under $HOME/bin (or beside gops); without them the gateway stack cannot be upgraded. Older gwlinkd builds do not report this information.",
+                  )}
                 </div>
               ) : null}
             </>

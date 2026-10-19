@@ -282,6 +282,67 @@
   }
 }
 
+/* ---------- 文件系统容量 ---------- */
+
+.filesystems {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+}
+
+.filesystemsHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.fsTableWrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.fsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.fsTable th {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.fsTable td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.fsTable tr:last-child td {
+  border-bottom: none;
+}
+
+.fsMount {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
 /* ---------- 趋势 ---------- */
 
 .trends {
@@ -336,6 +397,7 @@
 @media (max-width: 860px) {
   .pageHeader,
   .tiles,
+  .filesystems,
   .trends,
   .skeletonWrap,
   .errorBanner {

@@ -23,7 +23,7 @@ const responder = () =>
       {
         name: "wist-agentd-v0.4.0-alpha-aarch64-apple-darwin.tar.gz",
         artifact_url:
-          "https://wist-1347593047.cos.ap-guangzhou.myqcloud.com/wist-agentd/v0.4.0-alpha/wist-agentd-v0.4.0-alpha-aarch64-apple-darwin.tar.gz",
+          "https://github-1347593047.cos.ap-hongkong.myqcloud.com/wist-agentd/v0.4.0-alpha/wist-agentd-v0.4.0-alpha-aarch64-apple-darwin.tar.gz",
         sha256: "3d9478082139e0081fcea1c23a794f60491e6561c8efb03d88e015aaba19f765",
         platform: "aarch64-apple-darwin",
       },
@@ -31,7 +31,7 @@ const responder = () =>
         // 单制品形态（无三元组）：platform 必须是 null，不是 undefined。
         name: "wist-agentd-v0.4.0-alpha.tar.gz",
         artifact_url:
-          "https://wist-1347593047.cos.ap-guangzhou.myqcloud.com/wist-agentd/v0.4.0-alpha/wist-agentd-v0.4.0-alpha.tar.gz",
+          "https://github-1347593047.cos.ap-hongkong.myqcloud.com/wist-agentd/v0.4.0-alpha/wist-agentd-v0.4.0-alpha.tar.gz",
         sha256: null,
         platform: null,
       },
@@ -52,7 +52,7 @@ globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
 setAdminApiToken("admin-token-under-test");
 
 recorded = [];
-const resolved = await resolveCosPath("wist-1347593047/wist-agentd/v0.4.0-alpha");
+const resolved = await resolveCosPath("github-1347593047/wist-agentd/v0.4.0-alpha");
 if (recorded.length !== 1) {
   throw new Error(`cos resolve must issue exactly one request, got ${recorded.length}`);
 }
@@ -67,7 +67,7 @@ if (call.authorization !== "Bearer admin-token-under-test") {
   throw new Error("admin credential must be sent in the Authorization Header");
 }
 const sentBody = JSON.parse(call.body) as Record<string, unknown>;
-if (sentBody.cos_path !== "wist-1347593047/wist-agentd/v0.4.0-alpha") {
+if (sentBody.cos_path !== "github-1347593047/wist-agentd/v0.4.0-alpha") {
   throw new Error(`resolve body must carry cos_path: ${call.body}`);
 }
 if (resolved.version !== "v0.4.0-alpha" || resolved.assets.length !== 2) {

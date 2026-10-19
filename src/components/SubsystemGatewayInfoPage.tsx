@@ -388,6 +388,19 @@ export function SubsystemGatewayInfoPage() {
                 )}
               </dd>
             </div>
+            <div className={styles.summaryRow}>
+              <dt>{t("宿主依赖工具", "Host dependencies")}</dt>
+              <dd>
+                {linkdView?.hasStatus ? (
+                  <span className={styles.summaryValueMono}>
+                    gops {linkdView.gopsVersion || t("未检测到", "not found")} · gx{" "}
+                    {linkdView.gxVersion || t("未检测到", "not found")}
+                  </span>
+                ) : (
+                  <span className={styles.summaryValueMono}>—</span>
+                )}
+              </dd>
+            </div>
           </dl>
 
           {linkdQuery.isLoading || linkdQuery.isError ? (

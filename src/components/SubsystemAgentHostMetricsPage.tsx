@@ -83,6 +83,15 @@ export function SubsystemAgentHostMetricsPage(
   const span = describeSpan(data?.history?.loadAverage1m);
   // 多网卡主机一次能报十几条 IP（链路本地 + 虚拟网卡），这里只挑主地址，全量进 tooltip。
   const addresses = summarizeAddresses(data?.ipAddresses ?? []);
+  // 最紧张的挂载点排前面；旧网关没有 filesystems 时为空。
+  const filesystems = useMemo(
+    () =>
+      [...(data?.filesystems ?? [])].sort(
+        (left, right) =>
+          (right.usagePercent ?? -1) - (left.usagePercent ?? -1),
+      ),
+    [data?.filesystems],
+  );
 
   return (
     <div className={styles.container}>
@@ -222,7 +231,9 @@ export function SubsystemAgentHostMetricsPage(
           </article>
 
           <article className={styles.tile}>
-            <h2 className={styles.tileTitle}>{t("磁盘", "Disk")}</h2>
+            <h2 className={styles.tileTitle}>
+              {t("磁盘（主盘）", "Disk (primary)")}
+            </h2>
             <p className={`${styles.tileValue} ${severityClass(diskSeverity)}`}>
               {formatPercent(data?.diskUsagePercent)}
             </p>
@@ -231,6 +242,14 @@ export function SubsystemAgentHostMetricsPage(
                 level: SEVERITY_LABEL[diskSeverity],
               })}
             </span>
+            {filesystems.length > 0 ? (
+              <span className={styles.tileCaption}>
+                {t(
+                  "逐挂载点容量见下方",
+                  "Per-mount capacity below",
+                )}
+              </span>
+            ) : null}
             <div className={styles.barTrack}>
               <div
                 className={`${styles.barFill} ${barClass(diskSeverity)}`}
@@ -285,6 +304,55 @@ export function SubsystemAgentHostMetricsPage(
           </article>
         </section>
       )}
+
+      {filesystems.length > 0 ? (
+        <section className={styles.filesystems}>
+          <div className={styles.filesystemsHead}>
+            <h2 className={styles.trendsTitle}>
+              {t("文件系统容量", "Filesystem capacity")}
+            </h2>
+            <span className={styles.trendsHint}>
+              {t(
+                "按挂载点独立统计；告警按挂载点触发，不会被其他挂载点的空闲稀释",
+                "Measured per mount; alerts fire per mount and are not diluted by free space elsewhere",
+              )}
+            </span>
+          </div>
+          <div className={styles.fsTableWrap}>
+            <table className={styles.fsTable}>
+              <thead>
+                <tr>
+                  <th>{t("挂载点", "Mount")}</th>
+                  <th>{t("文件系统", "Filesystem")}</th>
+                  <th>{t("使用率", "Usage")}</th>
+                  <th>{t("可用", "Available")}</th>
+                  <th>{t("总量", "Total")}</th>
+                  <th>{t("状态", "Status")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filesystems.map((filesystem) => {
+                  const severity = severityForUsage(filesystem.usagePercent);
+                  return (
+                    <tr key={filesystem.mount}>
+                      <td className={styles.fsMount}>{filesystem.mount}</td>
+                      <td>{filesystem.fstype ?? "—"}</td>
+                      <td className={severityClass(severity)}>
+                        {formatPercent(filesystem.usagePercent)}
+                      </td>
+                      <td>{formatKiB(filesystem.availableKb)}</td>
+                      <td>{formatKiB(filesystem.totalKb)}</td>
+                      <td className={severityClass(severity)}>
+                        {SEVERITY_LABEL[severity]}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       {data?.history ? (
         <section className={styles.trends}>

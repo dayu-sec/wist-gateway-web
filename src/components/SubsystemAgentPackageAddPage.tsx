@@ -320,8 +320,8 @@ export function SubsystemAgentPackageAddPage() {
                     resolveSource === "github"
                       ? "https://github.com/<owner>/<repo>/releases/tag/<tag>"
                       : t(
-                          "桶/组件/版本，如 wist-1347593047/wist-agentd/v0.4.0-alpha",
-                          "bucket/component/version, e.g. wist-1347593047/wist-agentd/v0.4.0-alpha",
+                          "桶/组件/版本，如 github-1347593047/wist-agentd/v0.4.0-alpha",
+                          "bucket/component/version, e.g. github-1347593047/wist-agentd/v0.4.0-alpha",
                         )
                   }
                   autoComplete="off"

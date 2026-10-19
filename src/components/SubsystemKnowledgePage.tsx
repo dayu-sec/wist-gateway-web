@@ -744,8 +744,8 @@ export function SubsystemKnowledgePage() {
                     resolveSource === "github"
                       ? "https://github.com/dayu-sec/wist-knowledge/releases/tag/<tag>"
                       : t(
-                          "桶/组件/版本，如 wist-1347593047/wist-knowledge/v0.1.1",
-                          "bucket/component/version, e.g. wist-1347593047/wist-knowledge/v0.1.1",
+                          "桶/组件/版本，如 github-1347593047/wist-knowledge/v0.1.1",
+                          "bucket/component/version, e.g. github-1347593047/wist-knowledge/v0.1.1",
                         )
                   }
                   autoComplete="off"
