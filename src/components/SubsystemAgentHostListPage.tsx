@@ -35,6 +35,8 @@ interface HostRow {
   maxFilesystemUsagePercent?: number;
   /** 旧主盘使用率与逐挂载点最大值里的较大者，列表页按它排序/分级。 */
   diskWorstUsagePercent?: number;
+  /** 最紧张挂载点路径（来自逐挂载点摘要；旧网关没有）。 */
+  diskWorstMount?: string;
   memoryUsedKb?: number;
   memoryUsagePercent?: number;
   severity: Severity;
@@ -94,23 +96,24 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
               host.memoryTotalKb) *
             100
           : undefined;
-      const diskWorstUsagePercent = [
-        host.diskUsagePercent,
-        host.maxFilesystemUsagePercent,
-      ].reduce<number | undefined>(
-        (worstValue, value) =>
-          value === undefined
-            ? worstValue
-            : worstValue === undefined
-              ? value
-              : Math.max(worstValue, value),
-        undefined,
-      );
+      // 逐挂载点最大值优先（同分时也优先，因为它能带上具体挂载点）；
+      // 老网关没有逐挂载点数据时回退旧主盘值。
+      const useFilesystem =
+        host.maxFilesystemUsagePercent !== undefined &&
+        (host.diskUsagePercent === undefined ||
+          host.maxFilesystemUsagePercent >= host.diskUsagePercent);
+      const diskWorstUsagePercent = useFilesystem
+        ? host.maxFilesystemUsagePercent
+        : host.diskUsagePercent;
+      const diskWorstMount = useFilesystem
+        ? host.maxFilesystemUsageMount
+        : undefined;
       return {
         ...host,
         addresses: summarizeAddresses(host.ipAddresses),
         memoryUsagePercent,
         diskWorstUsagePercent,
+        diskWorstMount,
         memoryUsedKb:
           host.memoryTotalKb !== undefined &&
           host.memoryAvailableKb !== undefined
@@ -424,6 +427,7 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                       <MetricBar
                         percent={row.diskWorstUsagePercent}
                         value={formatPercent(row.diskWorstUsagePercent)}
+                        detail={row.diskWorstMount}
                         severity={severityForUsage(row.diskWorstUsagePercent)}
                       />
                     </td>

@@ -77,7 +77,6 @@ export function SubsystemAgentHostMetricsPage(
       : undefined;
 
   const currentLoad = data?.loadAverage1m;
-  const diskSeverity = severityForUsage(data?.diskUsagePercent);
   const memorySeverity = severityForUsage(memoryUsagePercent);
   const loadSeverity = severityForLoad(currentLoad);
   const span = describeSpan(data?.history?.loadAverage1m);
@@ -92,6 +91,23 @@ export function SubsystemAgentHostMetricsPage(
       ),
     [data?.filesystems],
   );
+  // 磁贴展示“最紧张挂载点”；macOS 上 `/` 是只读系统卷，存在 Data 卷时不参与“最紧张”。
+  const worstFilesystem = useMemo(() => {
+    if (filesystems.length === 0) return undefined;
+    const hasDataVolume = filesystems.some(
+      (filesystem) => filesystem.mount === "/System/Volumes/Data",
+    );
+    const candidates = hasDataVolume
+      ? filesystems.filter((filesystem) => filesystem.mount !== "/")
+      : filesystems;
+    return (candidates.length > 0 ? candidates : filesystems)[0];
+  }, [filesystems]);
+  const diskUsagePercent =
+    worstFilesystem?.usagePercent ?? data?.diskUsagePercent;
+  const diskTotalKb = worstFilesystem?.totalKb ?? data?.diskTotalKb;
+  const diskAvailableKb =
+    worstFilesystem?.availableKb ?? data?.diskAvailableKb;
+  const diskSeverity = severityForUsage(diskUsagePercent);
 
   return (
     <div className={styles.container}>
@@ -232,10 +248,12 @@ export function SubsystemAgentHostMetricsPage(
 
           <article className={styles.tile}>
             <h2 className={styles.tileTitle}>
-              {t("磁盘（主盘）", "Disk (primary)")}
+              {worstFilesystem
+                ? t("磁盘（最紧张）", "Disk (worst mount)")
+                : t("磁盘（主盘）", "Disk (primary)")}
             </h2>
             <p className={`${styles.tileValue} ${severityClass(diskSeverity)}`}>
-              {formatPercent(data?.diskUsagePercent)}
+              {formatPercent(diskUsagePercent)}
             </p>
             <span className={styles.tileCaption}>
               {t("当前分级：{level}", "Current level: {level}", {
@@ -254,18 +272,24 @@ export function SubsystemAgentHostMetricsPage(
               <div
                 className={`${styles.barFill} ${barClass(diskSeverity)}`}
                 style={{
-                  width: `${Math.min(Math.max(data?.diskUsagePercent ?? 0, 0), 100)}%`,
+                  width: `${Math.min(Math.max(diskUsagePercent ?? 0, 0), 100)}%`,
                 }}
               />
             </div>
             <dl className={styles.subList}>
+              {worstFilesystem ? (
+                <div className={styles.subRow}>
+                  <dt>{t("挂载点", "Mount")}</dt>
+                  <dd>{worstFilesystem.mount}</dd>
+                </div>
+              ) : null}
               <div className={styles.subRow}>
                 <dt>{t("总量", "Total")}</dt>
-                <dd>{formatKiB(data?.diskTotalKb)}</dd>
+                <dd>{formatKiB(diskTotalKb)}</dd>
               </div>
               <div className={styles.subRow}>
                 <dt>{t("可用", "Available")}</dt>
-                <dd>{formatKiB(data?.diskAvailableKb)}</dd>
+                <dd>{formatKiB(diskAvailableKb)}</dd>
               </div>
             </dl>
           </article>

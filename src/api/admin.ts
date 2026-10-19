@@ -263,6 +263,8 @@ export interface AgentHostMetricsSummary {
   diskUsagePercent?: number;
   /** 当前最紧张的挂载点使用率；旧网关不返回。 */
   maxFilesystemUsagePercent?: number;
+  /** 当前最紧张的挂载点路径；与百分比成对返回。 */
+  maxFilesystemUsageMount?: string;
 }
 
 export interface AgentInstallCode {
@@ -943,6 +945,12 @@ function normalizeHostMetricsSummary(payload: any): AgentHostMetricsSummary {
       payload.max_filesystem_usage_percent ??
         payload.maxFilesystemUsagePercent,
     ),
+    maxFilesystemUsageMount:
+      optionalStringField(
+        payload,
+        ["max_filesystem_usage_mount", "maxFilesystemUsageMount"],
+        "max_filesystem_usage_mount",
+      ) ?? undefined,
   };
 }
 

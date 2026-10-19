@@ -73,6 +73,7 @@ function summaryPayload(overrides: Record<string, unknown> = {}) {
     memory_available_kb: 512,
     disk_usage_percent: 42,
     max_filesystem_usage_percent: 95,
+    max_filesystem_usage_mount: "/var",
     ...overrides,
   };
 }
@@ -175,8 +176,11 @@ if (rows.length !== 2) {
 if (rows[0].hostname !== "host-1" || rows[0].nodeId !== "node-1") {
   throw new Error("list row identity was not normalized");
 }
-if (rows[0].maxFilesystemUsagePercent !== 95) {
-  throw new Error("max filesystem usage was not normalized");
+if (
+  rows[0].maxFilesystemUsagePercent !== 95 ||
+  rows[0].maxFilesystemUsageMount !== "/var"
+) {
+  throw new Error("max filesystem usage/mount was not normalized");
 }
 if (JSON.stringify(rows[1].ipAddresses) !== ips) {
   throw new Error("list row ip_addresses was not normalized");
@@ -200,8 +204,11 @@ const legacyRows = await fetchAllAgentsHostMetrics();
 if (legacyRows[0].hostname !== "" || legacyRows[0].ipAddresses.length !== 0) {
   throw new Error("absent identity keys on a list row must normalize to empty values");
 }
-if (legacyRows[0].maxFilesystemUsagePercent !== undefined) {
-  throw new Error("absent max filesystem usage must stay undefined");
+if (
+  legacyRows[0].maxFilesystemUsagePercent !== undefined ||
+  legacyRows[0].maxFilesystemUsageMount !== undefined
+) {
+  throw new Error("absent max filesystem usage/mount must stay undefined");
 }
 
 // --- 404 未知 Agent：正文要落到 ApiError.detail -----------------------------
