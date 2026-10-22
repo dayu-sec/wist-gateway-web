@@ -227,9 +227,18 @@ export function sourceLabel(unit: WorkSpecUnit, index: number): string {
   return sourceText(source);
 }
 
-/** 一条来源的可读写法（`kind target`）；与 [`sourceLabel`] 同一口径。 */
+/**
+ * 一条来源的可读写法（`kind target`）；与 [`sourceLabel`] 同一口径。
+ *
+ * 文件族带了排除项时一并写出来：否则同一个 `*.log` 在页面上看起来是“采整个目录”，
+ * 而实际上剔掉了几个 —— 运维对账时会以为“该有的没采”。
+ */
 export function sourceText(source: WorkSpecSource): string {
-  return `${source.kind} ${source.target}`;
+  const excluded =
+    source.excludeGlobs.length > 0
+      ? ` (exclude: ${source.excludeGlobs.join(", ")})`
+      : "";
+  return `${source.kind} ${source.target}${excluded}`;
 }
 
 /** 目标里有没有通配元字符（与模型 `has_glob_meta` 同一口径：`* ? [`）。 */
@@ -238,12 +247,30 @@ export function hasGlobMeta(target: string): boolean {
 }
 
 /**
- * 这个目标是不是采集端今天**真能打开**的路径：**绝对路径、无通配**。
+ * 这个目标是不是**显式单路径**：绝对路径、无通配。
  *
- * `~` 展开与 glob 展开都不在 agentd 第一版的能力边界内，所以两者都不算显式路径。
+ * 只服务「单文件」语义（例如存在性裁剪只能对显式路径做）；带通配的目标走
+ * [`isGlobPath`] / [`isFileTarget`]。
  */
 export function isExplicitPath(target: string): boolean {
   return target.startsWith("/") && !hasGlobMeta(target);
+}
+
+/**
+ * 这个目标是不是**受支持的文件族 glob**：绝对路径、有通配、不含 `**`。
+ *
+ * `**` 被拒不是保守：agentd 只扫 pattern 的固定前缀目录、`*` 不跨目录，
+ * 递归展开既没实现也给不出上限（与 `wist_contracts::work::is_glob_path` 同口径）。
+ */
+export function isGlobPath(target: string): boolean {
+  return (
+    target.startsWith("/") && hasGlobMeta(target) && !target.includes("**")
+  );
+}
+
+/** 采集端能承接的文件目标：显式绝对路径，或受支持的文件族 glob。 */
+export function isFileTarget(target: string): boolean {
+  return isExplicitPath(target) || isGlobPath(target);
 }
 
 /**
@@ -287,7 +314,7 @@ export function isKnownExporter(target: string): boolean {
  * 这种没人能发现的矛盾。加一种可采 kind 时，两侧一起改。
  */
 export function isExecutableSource(kind: string, target: string): boolean {
-  if (kind === "FileGlob") return isExplicitPath(target);
+  if (kind === "FileGlob") return isFileTarget(target);
   if (kind === "MetricInterval") return true;
   if (kind === "Exporter") return isKnownExporter(target);
   return false;
@@ -303,7 +330,11 @@ export function unsupportedSourceReason(
   target: string,
 ): string | null {
   if (isExecutableSource(kind, target)) return null;
-  if (kind === "FileGlob") return t("通配路径", "Glob path");
+  if (kind === "FileGlob")
+    return t(
+      "不可采的路径（需绝对路径；不支持 `**` 递归）",
+      "Unsupported path (absolute only; `**` is not supported)",
+    );
   if (kind === "Exporter")
     return t("未知导出器（未实现）", "Unknown exporter (not implemented)");
   if (kind === "UnifiedLogPredicate")
@@ -327,7 +358,9 @@ export function unsupportedSourceCount(spec: WorkSpec): number {
  *
  * 这就是 agentd `state/work.json` 里 `standing[].tasks[].path` 的来源：agentd 用**同一份判据**
  * 折算（`is_executable_source`）。只有「可采的 `FileGlob`」会成为采集任务 ——
- * 指标周期与导出器不是文件；通配 / `~` / 统一日志谓词今天采不到。
+ * 指标周期与导出器不是文件；`**` / `~` / 统一日志谓词今天采不到。
+ *
+ * 返回的是**路径模式**（可能是 glob）：页面把它当「这个面在看哪个位置」读。
  *
  * 注意：本机配置里手工加的 `[telemetry.logs] file_inputs`（运维逃生舱）**不**在这里，
  * 也**不在** `work.json` 里 —— 它不来自任何采集面，只网关不知道、agent 自己知道。

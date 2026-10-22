@@ -199,6 +199,13 @@ export interface WorkSpecSource {
   kind: string;
   /** 路径通配 / 导出器标识 / 谓词 / 周期。 */
   target: string;
+  /**
+   * 文件族里不该采的绝对路径 glob（空 = 不排除）。
+   *
+   * 容器日志的选源就靠它：`/var/log/containers/*.log` 里同时有 init / sidecar /
+   * 平台自身的 pod，不该把业务名写进 pattern 来避开。
+   */
+  excludeGlobs: string[];
 }
 
 /** 工作参数里的一个**已物化**采集单元：agentd 拿着它就能直接采。 */
@@ -456,6 +463,8 @@ export interface ContentUnitSourceView {
   kind: string;
   target: string;
   multiline: string;
+  /** 选源排除项（空 = 不排除）。 */
+  excludeGlobs: string[];
   /** 与网关派活闸门同一判据：`false` 的来源派下去会被 agentd 报 `unsupported`。 */
   executable: boolean;
 }

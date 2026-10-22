@@ -509,6 +509,27 @@ function requiredArray(value: unknown, fieldName: string): any[] {
   throw new Error(`Invalid API response: missing ${fieldName}`);
 }
 
+/**
+ * 可选的字符串数组：**字段缺失 = 空数组**（契约里是 `#[serde(default)]` 且空数组不序列化）。
+ *
+ * 与 `presentField` 的分工：那些字段在线上**总是存在**，缺失就是契约漂移；
+ * `exclude_globs` 这类「空就不发」的字段，缺失是正常形态。但值存在而类型不对、或元素不是字符串，
+ * 仍然要报错 —— 那才是真漂移。
+ */
+function optionalStringArray(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): string[] {
+  const key = keys.find((candidate) =>
+    Object.prototype.hasOwnProperty.call(record, candidate),
+  );
+  if (key === undefined || record[key] === null) return [];
+  return requiredArray(record[key], fieldName).map((value, index) =>
+    requiredString(value, `${fieldName}[${index}]`),
+  );
+}
+
 function normalizeAgentStatus(
   value: unknown,
 ): AgentRuntimeStatusView["status"] {
@@ -1208,15 +1229,36 @@ export async function fetchAgentInstallCode(): Promise<AgentInstallCode> {
  * 网关（后端）版本（`GET /api/v1/version`）。
  *
  * **公开端点**：未带 admin token 也能取（页面左下角在未登录时也要显示后端版本）。契约是扁平的
- * `{ version }`；`version` 缺失 / 不是字符串即视为契约漂移 —— 抛错而不是静默成空串，让调用方
- * （版本块）把未知一律显示成 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）。
+ * `{ version, stack_version? }`；`version` 缺失 / 不是字符串即视为契约漂移 —— 抛错而不是静默成
+ * 空串，让调用方（版本块）把未知一律显示成 `—`，**绝不回落示例值**（一个假的版本号比没有更
+ * 误导排障）。
+ *
+ * `stack_version` 是**可省字段**：老网关不返回它（全栈版本未知，显示 `—`）；一旦存在就必须是
+ * 非空字符串 —— 同样不编造。
  */
-export function normalizeBackendVersion(payload: unknown): string {
-  const record = requiredRecord(payload, "version");
-  return requiredString(record.version, "version");
+export interface BackendVersionInfo {
+  version: string;
+  stackVersion?: string;
 }
 
-export async function fetchBackendVersion(): Promise<string> {
+export function normalizeBackendVersion(payload: unknown): BackendVersionInfo {
+  const record = requiredRecord(payload, "version");
+  const stackVersion = optionalStringField(
+    record,
+    ["stack_version"],
+    "stack_version",
+  );
+  if (stackVersion !== null && stackVersion.trim() === "") {
+    // 契约里「返回了就一定是非空字符串」——空串是一种漂移，展示成 `—` 会掩盖问题。
+    throw new Error("Invalid API response: missing stack_version");
+  }
+  return {
+    version: requiredString(record.version, "version"),
+    stackVersion: stackVersion ?? undefined,
+  };
+}
+
+export async function fetchBackendVersion(): Promise<BackendVersionInfo> {
   const payload = await requestJson<unknown>("/api/v1/version");
   return normalizeBackendVersion(payload);
 }
@@ -2461,6 +2503,11 @@ export function parseWorkSpec(raw: string): WorkSpec {
                       entry.target,
                       `workSpec.units[${index}].sources[${sourceIndex}].target`,
                     ),
+                    excludeGlobs: optionalStringArray(
+                      entry,
+                      ["exclude_globs", "excludeGlobs"],
+                      `workSpec.units[${index}].sources[${sourceIndex}].excludeGlobs`,
+                    ),
                   };
                 }),
         };
@@ -3095,6 +3142,11 @@ function normalizeContentUnitSource(payload: any, field: string): ContentUnitSou
     kind: requiredString(record.kind, `${field}.kind`),
     target: requiredString(record.target, `${field}.target`),
     multiline: requiredString(record.multiline ?? "none", `${field}.multiline`),
+    excludeGlobs: optionalStringArray(
+      record,
+      ["exclude_globs", "excludeGlobs"],
+      `${field}.excludeGlobs`,
+    ),
     executable: requiredBoolean(record.executable, `${field}.executable`),
   };
 }

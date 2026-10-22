@@ -28,6 +28,8 @@ import {
   grantableFamilies,
   isExecutableSource,
   isExplicitPath,
+  isFileTarget,
+  isGlobPath,
   localExecutionLabel,
   metricIntervalSeconds,
   oneShotStatusLabel,
@@ -37,6 +39,7 @@ import {
   standingAckState,
   standingDrift,
   ungrantedFamilies,
+  sourceText,
   unsupportedSourceCount,
   unsupportedSourceReason,
 } from "../src/components/agentWorkStatus";
@@ -688,7 +691,14 @@ assert(counts.units === 2 && counts.sources === 3, "单元与来源计数要分�
 // 页面要是把这个判据写歪，就会出现「页面说可采、agent 拿到后报 unsupported」这种
 // 没人能发现的矛盾；下面把两侧共同认的几条边界锁住。
 assert(isExecutableSource("FileGlob", "/var/log/app.log"), "显式绝对路径可采");
-assert(!isExecutableSource("FileGlob", "/var/log/app*"), "通配路径不算可采");
+assert(
+  isExecutableSource("FileGlob", "/var/log/containers/*.log"),
+  "单层 glob 可采（容器日志的选源就是它）",
+);
+assert(
+  !isExecutableSource("FileGlob", "/var/log/**/*.log"),
+  "`**` 递归没实现，不算可采",
+);
 assert(!isExecutableSource("FileGlob", "~/Library/Logs/a.log"), "~ 不展开，不算可采");
 assert(isExecutableSource("MetricInterval", "15s"), "指标周期可采");
 assert(isExecutableSource("Exporter", "smartctl"), "已知导出器 ID 可采");
@@ -698,10 +708,22 @@ assert(!isExecutableSource("UnifiedLogPredicate", "syspolicyd"), "统一日志�
 assert(isExplicitPath("/var/log/app.log"), "绝对路径无通配 = 显式路径");
 assert(!isExplicitPath("/var/log/app?.log"), "? 也是通配元字符");
 assert(!isExplicitPath("/var/log/app[12].log"), "[ 也是通配元字符");
+assert(isGlobPath("/var/log/containers/*.log"), "单层通配 = 文件族 glob");
+assert(!isGlobPath("/var/log/**/*.log"), "递归通配不支持");
+assert(!isGlobPath("/var/log/app.log"), "显式路径不算 glob");
+assert(isFileTarget("/var/log/app.log"), "显式路径是文件目标");
+assert(isFileTarget("/var/log/containers/*.log"), "单层 glob 是文件目标");
+assert(!isFileTarget("/var/log/**/*.log"), "递归 glob 不是文件目标");
 assert(unsupportedSourceReason("FileGlob", "/var/log/app.log") === null, "可采来源不该报原因");
 assert(
-  (unsupportedSourceReason("FileGlob", "/var/log/app*") ?? "").includes("通配"),
-  "通配要说清原因",
+  (unsupportedSourceReason("FileGlob", "/var/log/**/*.log") ?? "").includes(
+    "**",
+  ),
+  "递归通配要说清原因",
+);
+assert(
+  unsupportedSourceReason("FileGlob", "/var/log/containers/*.log") === null,
+  "单层 glob 可采，不该报原因",
 );
 assert(
   unsupportedSourceReason("Exporter", "smartctl") === null,
@@ -712,13 +734,13 @@ assert(
   "未知导出器要说清原因",
 );
 assert(
-  unsupportedSourceCount(metricsOnly) === 1,
-  "上面那份 spec 里只有 FileGlob /x/* 未接（两条 MetricInterval 都可采）",
+  unsupportedSourceCount(metricsOnly) === 0,
+  "上面的 spec 三条来源都可采（两条 MetricInterval + 一条单层 glob）",
 );
 
 // --- 6c. 「在采的日志文件」= work.json tasks 的来源 --------------------------
 //
-// 只有可采的 FileGlob 会变成采集文件；指标不是文件，通配/谓词今天采不到。
+// 只有可采的 FileGlob 会变成采集文件；指标不是文件，`**` 递归与谓词采不到。
 const mixed = parseWorkSpec(
   JSON.stringify({
     units: [
@@ -745,12 +767,76 @@ const mixed = parseWorkSpec(
 );
 const collectedFiles = collectedLogFiles(mixed);
 assert(
-  collectedFiles.length === 1 && collectedFiles[0] === "/var/log/system.log",
-  "只有可采的 FileGlob 会变成采集文件",
+  collectedFiles.length === 2 &&
+    collectedFiles.includes("/var/log/system.log") &&
+    collectedFiles.includes("/var/log/system.log.*"),
+  "可采的 FileGlob（显式路径与单层 glob）都会变成采集文件",
 );
 assert(
-  collectedLogFiles(metricsOnly).length === 0,
-  "纯通配/指标的工作不产生日志文件",
+  collectedLogFiles(metricsOnly).length === 1,
+  "只有 FileGlob 变成日志文件，MetricInterval 不是文件",
+);
+
+// `**` 仍不可采：它不会变成 work.json 里的采集任务。
+const recursiveOnly = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "none",
+        sources: [{ kind: "FileGlob", target: "/var/log/**/*.log" }],
+      },
+    ],
+  }),
+);
+assert(
+  collectedLogFiles(recursiveOnly).length === 0,
+  "递归通配不会变成采集文件",
+);
+
+// 选源排除项要能读出来（空则不输出，缺失 = 空数组）。
+const withExcludes = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          {
+            kind: "FileGlob",
+            target: "/var/log/containers/*.log",
+            exclude_globs: ["/var/log/containers/*_kube-system_*.log"],
+          },
+          { kind: "FileGlob", target: "/var/log/system.log" },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  withExcludes.units[0].sources[0].excludeGlobs.length === 1 &&
+    withExcludes.units[0].sources[0].excludeGlobs[0] ===
+      "/var/log/containers/*_kube-system_*.log",
+  "exclude_globs 要解析成 excludeGlobs",
+);
+assert(
+  withExcludes.units[0].sources[1].excludeGlobs.length === 0,
+  "没写 exclude_globs = 空数组",
+);
+// 页面要把排除项写出来，否则同一个 `*.log` 看起来像“采整个目录”。
+assert(
+  sourceText(withExcludes.units[0].sources[0]).includes(
+    "exclude: /var/log/containers/*_kube-system_*.log",
+  ),
+  "来源文案要带排除项",
+);
+assert(
+  !sourceText(withExcludes.units[0].sources[1]).includes("exclude:"),
+  "没有排除项时不写这一段",
 );
 
 // --- 7. 授权/暂停/恢复/撤回的请求形状 --------------------------------------

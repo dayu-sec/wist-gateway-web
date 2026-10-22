@@ -1,12 +1,13 @@
 import { fetchBackendVersion, normalizeBackendVersion } from "../src/api/admin";
 
-// 契约测试：网关（后端）版本端点 `GET /api/v1/version`。
+// 契约测试：网关（后端）与部署栈的版本端点 `GET /api/v1/version`。
 //
-// 这条端点是**公开**的 —— 页面左下角在未登录时也要显示后端版本，所以它绝不能依赖 admin token。
-// 契约定死两条：
+// 这条端点是**公开**的 —— 页面左下角在未登录时也要显示后端/全栈版本，所以它绝不能依赖 admin token。
+// 契约定死：
 //   1. 路径 / 方法正确，且**未设 token 时不发 Authorization**（公开端点，凭据可有可无）；
-//   2. 载荷是扁平的 `{ version }`；缺 `version`（或非对象）即契约漂移，必须显式抛错 ——
-//      版本块据此显示 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）。
+//   2. 载荷是扁平的 `{ version, stack_version? }`；缺 `version`（或非对象）即契约漂移，必须显式抛错
+//      —— 版本块据此显示 `—`，**绝不回落示例值**（一个假的版本号比没有更误导排障）；
+//   3. `stack_version` 可省（旧网关），一旦存在就必须是非空字符串；前端把它映射成 `stackVersion`。
 //
 // Usage: npm run test:version
 
@@ -17,7 +18,8 @@ interface Recorded {
 }
 
 let recorded: Recorded[] = [];
-let responder: () => Response = () => Response.json({ version: "0.8.0" });
+let responder: () => Response = () =>
+  Response.json({ version: "0.8.0", stack_version: "0.1.49" });
 
 globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const headers = new Headers(init?.headers);
@@ -47,8 +49,19 @@ if (call.authorization !== "") {
     "version endpoint is public — no credential must be sent (nor required) when no token is set",
   );
 }
-if (version !== "0.8.0") {
-  throw new Error(`version was not read from the flat { version } payload: ${version}`);
+if (version.version !== "0.8.0") {
+  throw new Error(`backend version was not read from { version }: ${version.version}`);
+}
+if (version.stackVersion !== "0.1.49") {
+  throw new Error(
+    `stack version was not read from { stack_version }: ${version.stackVersion}`,
+  );
+}
+
+// 旧网关：不返回 `stack_version` 时必须是 undefined（版本块显示 `—`），而不是空串或假值。
+const legacy = normalizeBackendVersion({ version: "0.8.0" });
+if (legacy.stackVersion !== undefined) {
+  throw new Error(`missing stack_version must be undefined, got: ${legacy.stackVersion}`);
 }
 
 // 契约漂移：缺 `version` 必须显式失败，不能静默成空串。
@@ -71,6 +84,28 @@ try {
 }
 if (!rejectedNonObject) {
   throw new Error("non-object version payload must be rejected");
+}
+
+// `stack_version` 存在但不是字符串 = 契约漂移，必须失败（不能把数字/对象直接展示）。
+let rejectedBadStackVersion = false;
+try {
+  normalizeBackendVersion({ version: "0.8.0", stack_version: 49 });
+} catch {
+  rejectedBadStackVersion = true;
+}
+if (!rejectedBadStackVersion) {
+  throw new Error("a non-string stack_version must be rejected");
+}
+
+// 空串同样是漂移：契约是「要么不返回，要么非空」。
+let rejectedBlankStackVersion = false;
+try {
+  normalizeBackendVersion({ version: "0.8.0", stack_version: "  " });
+} catch {
+  rejectedBlankStackVersion = true;
+}
+if (!rejectedBlankStackVersion) {
+  throw new Error("a blank stack_version must be rejected");
 }
 
 console.log("gateway version contract test passed");

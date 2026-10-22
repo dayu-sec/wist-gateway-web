@@ -31,7 +31,7 @@ export function SubsystemVersionFooter() {
       </span>
       <span className={styles.row}>
         <span className={styles.label}>{t("后端版本", "Backend version")}</span>
-        <span className={styles.value}>{formatVersion(backendVersion)}</span>
+        <span className={styles.value}>{formatVersion(backendVersion?.version)}</span>
       </span>
     </div>
   );
