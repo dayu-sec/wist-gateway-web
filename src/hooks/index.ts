@@ -199,7 +199,7 @@ export function useAgentInstallCode() {
 }
 
 /**
- * 网关（后端）版本（`GET /api/v1/version`）。
+ * 网关（后端）与部署栈的版本（`GET /api/v1/version`）。
  *
  * 与别的查询不同，这条**不**等 admin token：端点是公开的，未登录时也要显示后端版本。
  * 版本只在网关重启后才会变，`staleTime: Infinity` 让一次会话只取一次（切窗口不重拉）。
