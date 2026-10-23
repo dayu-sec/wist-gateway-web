@@ -704,6 +704,12 @@ assert(!isExecutableSource("FileGlob", "~/Library/Logs/a.log"), "~ 不展开，�
 assert(isExecutableSource("MetricInterval", "15s"), "指标周期可采");
 assert(isExecutableSource("Exporter", "smartctl"), "已知导出器 ID 可采");
 assert(isExecutableSource("Exporter", "dmesg:panic"), "已知导出器 + arg 可采");
+// W3：内核日志只走 journald。这份词表是契约的手抄件 —— 漏一个 ID，页面就会把
+// 「内核与系统」显示成未接，而 agent 那边其实采得到。
+assert(
+  isExecutableSource("Exporter", "journalctl-kernel"),
+  "内核日志导出器可采（与 wist-contracts 的 EXPORTER_IDS 同口径）",
+);
 assert(!isExecutableSource("Exporter", "last,lastb"), "未知导出器 ID 不算可采");
 assert(!isExecutableSource("UnifiedLogPredicate", "syspolicyd"), "统一日志谓词还没接");
 assert(isExplicitPath("/var/log/app.log"), "绝对路径无通配 = 显式路径");

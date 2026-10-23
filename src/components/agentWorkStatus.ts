@@ -311,6 +311,8 @@ export const EXPORTER_IDS = [
   "smartctl",
   "dmesg",
   "auditd-execve",
+  // 内核日志（W3）：有状态导出器（游标续读）；对页面而言仍是“可采来源”。
+  "journalctl-kernel",
 ] as const;
 
 /**
