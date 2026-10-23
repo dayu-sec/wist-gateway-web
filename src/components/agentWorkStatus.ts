@@ -1,5 +1,6 @@
 import { t } from "../i18n";
 import type {
+  ContainerFilters,
   ContentCatalogView,
   MachineClass,
   StandingWork,
@@ -228,17 +229,41 @@ export function sourceLabel(unit: WorkSpecUnit, index: number): string {
 }
 
 /**
- * 一条来源的可读写法（`kind target`）；与 [`sourceLabel`] 同一口径。
+ * 一条来源的可读写法（`kind target`，带选择层）；与 [`sourceLabel`] 同一口径。
  *
- * 文件族带了排除项时一并写出来：否则同一个 `*.log` 在页面上看起来是“采整个目录”，
- * 而实际上剔掉了几个 —— 运维对账时会以为“该有的没采”。
+ * 选择层（排除项 / 容器过滤器）不写出来的后果：同一个 `*.log` 在页面上看起来是
+ * “采整个目录/整个集群”，而实际上剔掉了几个 —— 运维对账时会以为“该有的没采”。
  */
 export function sourceText(source: WorkSpecSource): string {
-  const excluded =
-    source.excludeGlobs.length > 0
-      ? ` (exclude: ${source.excludeGlobs.join(", ")})`
-      : "";
-  return `${source.kind} ${source.target}${excluded}`;
+  const selection = selectionText(source);
+  return `${source.kind} ${source.target}${selection ? ` (${selection})` : ""}`;
+}
+
+/**
+ * 选择层（`excludeGlobs` + 容器过滤器）的可读写法；空则返回空串。
+ *
+ * 抽出来给两处共用：派活视图（`WorkSpecSource`）与目录视图（`ContentUnitSourceView`）。
+ * 两者字段同形，但以前只有前者写了排除项 —— 策展人在目录页看不到自己的选择。
+ */
+export function selectionText(source: {
+  excludeGlobs: string[];
+  filters: ContainerFilters;
+}): string {
+  const parts: string[] = [];
+  if (source.excludeGlobs.length > 0) {
+    parts.push(`exclude: ${source.excludeGlobs.join(", ")}`);
+  }
+  const filters: string[] = [];
+  if (source.filters.namespaceIn.length > 0) {
+    filters.push(`ns in [${source.filters.namespaceIn.join(", ")}]`);
+  }
+  if (source.filters.podNotIn.length > 0) {
+    filters.push(`pod not in [${source.filters.podNotIn.join(", ")}]`);
+  }
+  if (filters.length > 0) {
+    parts.push(filters.join("; "));
+  }
+  return parts.join("; ");
 }
 
 /** 目标里有没有通配元字符（与模型 `has_glob_meta` 同一口径：`* ? [`）。 */

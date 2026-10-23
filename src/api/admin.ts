@@ -16,6 +16,7 @@ import type {
   ContentTemplateView,
   ContentUnitSourceView,
   ContentUnitView,
+  ContainerFilters,
   FamilyReadinessView,
   MachineClass,
   OneShotWork,
@@ -528,6 +529,38 @@ function optionalStringArray(
   return requiredArray(record[key], fieldName).map((value, index) =>
     requiredString(value, `${fieldName}[${index}]`),
   );
+}
+
+/**
+ * 容器选源过滤器（W2）：字段缺失 = 空过滤器（网关上「空就不发」）。
+ *
+ * 与 `optionalStringArray` 同一口径：只存在于响应里就按契约解，形态不对就是漂移、
+ * 直接报错 —— 不能“变成空过滤器”静默吞掉（那会让页面以为 pod/ns 选好了）。
+ */
+function optionalContainerFilters(
+  record: Record<string, unknown>,
+  keys: string[],
+  fieldName: string,
+): ContainerFilters {
+  const key = keys.find((candidate) =>
+    Object.prototype.hasOwnProperty.call(record, candidate),
+  );
+  if (key === undefined || record[key] === null) {
+    return { namespaceIn: [], podNotIn: [] };
+  }
+  const filters = requiredRecord(record[key], fieldName);
+  return {
+    namespaceIn: optionalStringArray(
+      filters,
+      ["namespace_in", "namespaceIn"],
+      `${fieldName}.namespaceIn`,
+    ),
+    podNotIn: optionalStringArray(
+      filters,
+      ["pod_not_in", "podNotIn"],
+      `${fieldName}.podNotIn`,
+    ),
+  };
 }
 
 function normalizeAgentStatus(
@@ -2508,6 +2541,11 @@ export function parseWorkSpec(raw: string): WorkSpec {
                       ["exclude_globs", "excludeGlobs"],
                       `workSpec.units[${index}].sources[${sourceIndex}].excludeGlobs`,
                     ),
+                    filters: optionalContainerFilters(
+                      entry,
+                      ["filters"],
+                      `workSpec.units[${index}].sources[${sourceIndex}].filters`,
+                    ),
                   };
                 }),
         };
@@ -3147,6 +3185,7 @@ function normalizeContentUnitSource(payload: any, field: string): ContentUnitSou
       ["exclude_globs", "excludeGlobs"],
       `${field}.excludeGlobs`,
     ),
+    filters: optionalContainerFilters(record, ["filters"], `${field}.filters`),
     executable: requiredBoolean(record.executable, `${field}.executable`),
   };
 }

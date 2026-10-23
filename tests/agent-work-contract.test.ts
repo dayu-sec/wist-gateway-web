@@ -35,6 +35,7 @@ import {
   oneShotStatusLabel,
   parseIntervalSeconds,
   platformForMachineClass,
+  selectionText,
   specCounts,
   standingAckState,
   standingDrift,
@@ -837,6 +838,113 @@ assert(
 assert(
   !sourceText(withExcludes.units[0].sources[1]).includes("exclude:"),
   "没有排除项时不写这一段",
+);
+
+// W2：容器选源的结构化过滤器（空则不输出，缺失 = 空过滤器）。
+const withFilters = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          {
+            kind: "FileGlob",
+            target: "/var/log/containers/*.log",
+            filters: { namespace_in: ["prod", "kube-system"], pod_not_in: ["debug-pod"] },
+          },
+          { kind: "FileGlob", target: "/var/log/system.log" },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  withFilters.units[0].sources[0].filters.namespaceIn.join(",") === "prod,kube-system" &&
+    withFilters.units[0].sources[0].filters.podNotIn.join(",") === "debug-pod",
+  "filters 要解析成 namespaceIn / podNotIn",
+);
+assert(
+  withFilters.units[0].sources[1].filters.namespaceIn.length === 0 &&
+    withFilters.units[0].sources[1].filters.podNotIn.length === 0,
+  "没写 filters = 空过滤器",
+);
+// 页面上也要写出来：否则看到 `/var/log/containers/*.log` 会以为整个集群都在采。
+assert(
+  sourceText(withFilters.units[0].sources[0]).includes("ns in [prod, kube-system]") &&
+    sourceText(withFilters.units[0].sources[0]).includes("pod not in [debug-pod]"),
+  "来源文案要带容器过滤器",
+);
+assert(
+  !sourceText(withFilters.units[0].sources[1]).includes("ns in"),
+  "没有过滤器时不写这一段",
+);
+
+// 只给一半也要能解：另一侧默认空。
+const halfFilters = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          {
+            kind: "FileGlob",
+            target: "/var/log/containers/*.log",
+            filters: { namespace_in: ["prod"] },
+          },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  halfFilters.error === undefined || halfFilters.error === null,
+  `半不给的 filters 不应报错：${halfFilters.error}`,
+);
+assert(
+  halfFilters.units[0].sources[0].filters.namespaceIn.join(",") === "prod" &&
+    halfFilters.units[0].sources[0].filters.podNotIn.length === 0,
+  "缺失的那一侧 = 空",
+);
+
+// 形态不对 = 契约漂移，不能静默变成“空过滤器”（那会让页面以为选好了）。
+const badFilters = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          { kind: "FileGlob", target: "/var/log/containers/*.log", filters: "prod" },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  !badFilters.error === false,
+  "filters 不是对象时必须报错（不能静默当空）",
+);
+
+// 选择层文案：排除项与过滤器同时出现时都能写出来（目录页与派活页共用）。
+assert(
+  selectionText({
+    excludeGlobs: ["/var/log/containers/*_kube-system_*.log"],
+    filters: { namespaceIn: ["prod"], podNotIn: ["debug-pod"] },
+  }) ===
+    "exclude: /var/log/containers/*_kube-system_*.log; ns in [prod]; pod not in [debug-pod]",
+  "选择层文案要同时覆盖排除项与过滤器",
+);
+assert(
+  selectionText({ excludeGlobs: [], filters: { namespaceIn: [], podNotIn: [] } }) === "",
+  "什么都没选 = 空串（不污染来源行）",
 );
 
 // --- 7. 授权/暂停/恢复/撤回的请求形状 --------------------------------------

@@ -206,6 +206,21 @@ export interface WorkSpecSource {
    * 平台自身的 pod，不该把业务名写进 pattern 来避开。
    */
   excludeGlobs: string[];
+  /**
+   * 容器选源的结构化过滤器（W2；空 = 不过滤）。
+   *
+   * 比 `excludeGlobs` 稳的地方：它不依赖集群里 pod 名字的形态，只用文件名里已有的
+   * pod / namespace 两段；数据面/派活侧都不求值，**agentd 在发现阶段**求值。
+   */
+  filters: ContainerFilters;
+}
+
+/** 容器选源过滤器（与 `wist-contracts::work::ContainerFilters` 同形）。 */
+export interface ContainerFilters {
+  /** 只采这些 namespace（空 = 不限）。 */
+  namespaceIn: string[];
+  /** 这些 pod 不采（空 = 不排除）。 */
+  podNotIn: string[];
 }
 
 /** 工作参数里的一个**已物化**采集单元：agentd 拿着它就能直接采。 */
@@ -465,6 +480,8 @@ export interface ContentUnitSourceView {
   multiline: string;
   /** 选源排除项（空 = 不排除）。 */
   excludeGlobs: string[];
+  /** 容器选源过滤器（空 = 不过滤）；只对容器选源根下的来源有意义。 */
+  filters: ContainerFilters;
   /** 与网关派活闸门同一判据：`false` 的来源派下去会被 agentd 报 `unsupported`。 */
   executable: boolean;
 }

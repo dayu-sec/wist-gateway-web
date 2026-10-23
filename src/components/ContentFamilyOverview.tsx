@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ApiError } from "../api";
 import type { ContentCatalogView } from "../types/views";
 import { t } from "../i18n";
+import { selectionText } from "./agentWorkStatus";
 import { adminApiErrorMessage } from "./adminApiError";
 import { machineClassLabel } from "./SubsystemAgentPurposeView";
 import {
@@ -160,6 +161,9 @@ function UnitDetails({ row }: { row: FamilyOverviewRow }) {
                 <code className={styles.sourceTarget}>{source.target}</code>
                 {source.multiline !== "none" ? (
                   <span className={styles.sourceMeta}>{source.multiline}</span>
+                ) : null}
+                {selectionText(source) ? (
+                  <span className={styles.sourceMeta}>{selectionText(source)}</span>
                 ) : null}
                 {source.executable ? null : (
                   <span className={`${styles.badge} ${styles.toneWarn}`}>
