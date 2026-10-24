@@ -268,6 +268,14 @@ export function selectionText(source: {
   if (source.filters.podNotIn.length > 0) {
     filters.push(`pod not in [${source.filters.podNotIn.join(", ")}]`);
   }
+  // 容器名维度（M1.5）：k8s 与 Docker 两种载体都适用。文案用 `container` 而不是 `name`，
+  // 与 pod 名区分开 —— 两者同时出现时，读起来才不会把“哪个名字”搞混。
+  if (source.filters.nameIn.length > 0) {
+    filters.push(`container in [${source.filters.nameIn.join(", ")}]`);
+  }
+  if (source.filters.nameNotIn.length > 0) {
+    filters.push(`container not in [${source.filters.nameNotIn.join(", ")}]`);
+  }
   if (filters.length > 0) {
     parts.push(filters.join("; "));
   }

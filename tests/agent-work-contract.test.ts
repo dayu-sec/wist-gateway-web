@@ -873,6 +873,11 @@ assert(
   "filters 要解析成 namespaceIn / podNotIn",
 );
 assert(
+  withFilters.units[0].sources[0].filters.nameIn.length === 0 &&
+    withFilters.units[0].sources[0].filters.nameNotIn.length === 0,
+  "没写名字维度 = 空（不能当成“一个都不采”）",
+);
+assert(
   withFilters.units[0].sources[1].filters.namespaceIn.length === 0 &&
     withFilters.units[0].sources[1].filters.podNotIn.length === 0,
   "没写 filters = 空过滤器",
@@ -943,14 +948,60 @@ assert(
 assert(
   selectionText({
     excludeGlobs: ["/var/log/containers/*_kube-system_*.log"],
-    filters: { namespaceIn: ["prod"], podNotIn: ["debug-pod"] },
+    filters: { namespaceIn: ["prod"], podNotIn: ["debug-pod"], nameIn: [], nameNotIn: [] },
   }) ===
     "exclude: /var/log/containers/*_kube-system_*.log; ns in [prod]; pod not in [debug-pod]",
   "选择层文案要同时覆盖排除项与过滤器",
 );
 assert(
-  selectionText({ excludeGlobs: [], filters: { namespaceIn: [], podNotIn: [] } }) === "",
+  selectionText({
+    excludeGlobs: [],
+    filters: { namespaceIn: [], podNotIn: [], nameIn: [], nameNotIn: [] },
+  }) === "",
   "什么都没选 = 空串（不污染来源行）",
+);
+
+// M1.5：容器名维度（k8s 文件名第三段 / Docker config.v2.json 的 Name）也要解析与展示。
+const namedFilters = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          {
+            kind: "FileGlob",
+            target: "/var/lib/docker/containers/*/*-json.log*",
+            filters: { name_in: ["mysql"], name_not_in: ["fluent-bit"] },
+          },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  namedFilters.units[0].sources[0].filters.nameIn.join(",") === "mysql" &&
+    namedFilters.units[0].sources[0].filters.nameNotIn.join(",") === "fluent-bit",
+  "filters 要解析成 nameIn / nameNotIn",
+);
+assert(
+  namedFilters.units[0].sources[0].filters.namespaceIn.length === 0 &&
+    namedFilters.units[0].sources[0].filters.podNotIn.length === 0,
+  "只用名字维度时，k8s 两个维度为空（不报错）",
+);
+assert(
+  sourceText(namedFilters.units[0].sources[0]).includes("container in [mysql]") &&
+    sourceText(namedFilters.units[0].sources[0]).includes("container not in [fluent-bit]"),
+  "来源文案要带容器名过滤器",
+);
+assert(
+  selectionText({
+    excludeGlobs: [],
+    filters: { namespaceIn: [], podNotIn: [], nameIn: ["mysql"], nameNotIn: [] },
+  }) === "container in [mysql]",
+  "选择层文案要覆盖容器名维度",
 );
 
 // W4：噪音行丢弃 + 读法（空则不输出，缺失 = 空数组 / `none`）。
@@ -1009,7 +1060,7 @@ assert(
 assert(
   selectionText({
     excludeGlobs: [],
-    filters: { namespaceIn: [], podNotIn: [] },
+    filters: { namespaceIn: [], podNotIn: [], nameIn: [], nameNotIn: [] },
     dropIfContains: ["noise"],
   }) === "drop: noise",
   "选择层文案要覆盖噪音行丢弃",

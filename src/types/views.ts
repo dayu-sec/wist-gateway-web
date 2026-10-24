@@ -230,10 +230,22 @@ export interface WorkSpecSource {
 
 /** 容器选源过滤器（与 `wist-contracts::work::ContainerFilters` 同形）。 */
 export interface ContainerFilters {
-  /** 只采这些 namespace（空 = 不限）。 */
+  /** 只采这些 namespace（空 = 不限）。只对 k8s 命名有效。 */
   namespaceIn: string[];
-  /** 这些 pod 不采（空 = 不排除）。 */
+  /** 这些 pod 不采（空 = 不排除）。只对 k8s 命名有效。 */
   podNotIn: string[];
+  /**
+   * 只采这些容器名（空 = 不限）。k8s 取文件名第三段，Docker 取 `config.v2.json` 的 `Name`。
+   *
+   * 取不到身份时**不命中**（包含式要求“证明确实是它”）。
+   */
+  nameIn: string[];
+  /**
+   * 这些容器名不采（空 = 不排除）。同上两种载体。
+   *
+   * 与 `nameIn` 相反：取不到身份时**保留**（排除式不能因读不到配置就丢日志）。
+   */
+  nameNotIn: string[];
 }
 
 /** 工作参数里的一个**已物化**采集单元：agentd 拿着它就能直接采。 */

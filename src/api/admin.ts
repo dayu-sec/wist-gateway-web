@@ -546,7 +546,7 @@ function optionalContainerFilters(
     Object.prototype.hasOwnProperty.call(record, candidate),
   );
   if (key === undefined || record[key] === null) {
-    return { namespaceIn: [], podNotIn: [] };
+    return { namespaceIn: [], podNotIn: [], nameIn: [], nameNotIn: [] };
   }
   const filters = requiredRecord(record[key], fieldName);
   return {
@@ -559,6 +559,16 @@ function optionalContainerFilters(
       filters,
       ["pod_not_in", "podNotIn"],
       `${fieldName}.podNotIn`,
+    ),
+    nameIn: optionalStringArray(
+      filters,
+      ["name_in", "nameIn"],
+      `${fieldName}.nameIn`,
+    ),
+    nameNotIn: optionalStringArray(
+      filters,
+      ["name_not_in", "nameNotIn"],
+      `${fieldName}.nameNotIn`,
     ),
   };
 }
