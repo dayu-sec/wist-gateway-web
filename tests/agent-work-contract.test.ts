@@ -953,6 +953,89 @@ assert(
   "什么都没选 = 空串（不污染来源行）",
 );
 
+// W4：噪音行丢弃 + 读法（空则不输出，缺失 = 空数组 / `none`）。
+const withDrop = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          {
+            kind: "FileGlob",
+            target: "/var/log/auth.log",
+            multiline: "none",
+            drop_if_contains: ["pam_unix(cron:session)", "systemd-logind"],
+          },
+          {
+            kind: "FileGlob",
+            target: "/var/log/postgresql/postgresql-2026-10-24.csv",
+            multiline: "postgres_csv",
+          },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  withDrop.units[0].sources[0].dropIfContains.join(",") ===
+    "pam_unix(cron:session),systemd-logind",
+  "drop_if_contains 要解析成 dropIfContains",
+);
+assert(
+  withDrop.units[0].sources[1].dropIfContains.length === 0,
+  "没写 drop_if_contains = 空数组",
+);
+assert(
+  sourceText(withDrop.units[0].sources[0]).includes(
+    "drop: pam_unix(cron:session), systemd-logind",
+  ),
+  "来源文案要带噪音行丢弃",
+);
+assert(
+  !sourceText(withDrop.units[0].sources[1]).includes("drop:"),
+  "没有噪音行丢弃时不写这一段",
+);
+assert(
+  withDrop.units[0].sources[1].multiline === "postgres_csv",
+  "multiline 要透传（新读法在派活页也要可见）",
+);
+assert(
+  sourceText(withDrop.units[0].sources[1]).includes("read: postgres_csv"),
+  "来源文案要带非默认读法",
+);
+assert(
+  selectionText({
+    excludeGlobs: [],
+    filters: { namespaceIn: [], podNotIn: [] },
+    dropIfContains: ["noise"],
+  }) === "drop: noise",
+  "选择层文案要覆盖噪音行丢弃",
+);
+
+// 形态不对 = 契约漂移，不能静默变成“不丢”。
+const badDrop = parseWorkSpec(
+  JSON.stringify({
+    units: [
+      {
+        unit_id: "a",
+        capability: "collect_logs",
+        rule_ref: "r",
+        requires_privilege: "root",
+        sources: [
+          { kind: "FileGlob", target: "/var/log/auth.log", drop_if_contains: "noise" },
+        ],
+      },
+    ],
+  }),
+);
+assert(
+  !badDrop.error === false,
+  "drop_if_contains 不是数组时必须报错（不能静默当空）",
+);
+
 // --- 7. 授权/暂停/恢复/撤回的请求形状 --------------------------------------
 recorded = [];
 responder = () =>

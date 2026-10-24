@@ -62,6 +62,7 @@ const payload = {
           kind: "FileGlob",
           target: "/var/log/kern.log",
           multiline: "none",
+          drop_if_contains: ["noise"],
           executable: true,
         },
         {
@@ -93,6 +94,12 @@ assert(catalog.units[0].parseReady === false, "parse_ready → parseReady");
 assert(
   catalog.units[0].sources[1].executable === false,
   "来源级可执行标志要传下来",
+);
+// W4：噪音行丢弃空则不输出（旧网关的响应里缺这个字段）。
+assert(
+  catalog.units[0].sources[0].dropIfContains.join(",") === "noise" &&
+    catalog.units[0].sources[1].dropIfContains.length === 0,
+  "drop_if_contains → dropIfContains（缺失 = 空）",
 );
 
 const index = indexCollectionFamilies(catalog.families);

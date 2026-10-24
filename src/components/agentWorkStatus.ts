@@ -235,12 +235,18 @@ export function sourceLabel(unit: WorkSpecUnit, index: number): string {
  * “采整个目录/整个集群”，而实际上剔掉了几个 —— 运维对账时会以为“该有的没采”。
  */
 export function sourceText(source: WorkSpecSource): string {
+  const parts: string[] = [];
+  // 读法只在非默认时写：`none` 是绝大多数，写出来只是噪音。
+  if (source.multiline && source.multiline !== "none") {
+    parts.push(`read: ${source.multiline}`);
+  }
   const selection = selectionText(source);
-  return `${source.kind} ${source.target}${selection ? ` (${selection})` : ""}`;
+  if (selection) parts.push(selection);
+  return `${source.kind} ${source.target}${parts.length ? ` (${parts.join("; ")})` : ""}`;
 }
 
 /**
- * 选择层（`excludeGlobs` + 容器过滤器）的可读写法；空则返回空串。
+ * 选择层（`excludeGlobs` + 容器过滤器 + 噪音行丢弃）的可读写法；空则返回空串。
  *
  * 抽出来给两处共用：派活视图（`WorkSpecSource`）与目录视图（`ContentUnitSourceView`）。
  * 两者字段同形，但以前只有前者写了排除项 —— 策展人在目录页看不到自己的选择。
@@ -248,6 +254,8 @@ export function sourceText(source: WorkSpecSource): string {
 export function selectionText(source: {
   excludeGlobs: string[];
   filters: ContainerFilters;
+  /** 噪音行丢弃子串（W4）。旧数据里可能没有这个字段，所以是可选的。 */
+  dropIfContains?: string[];
 }): string {
   const parts: string[] = [];
   if (source.excludeGlobs.length > 0) {
@@ -262,6 +270,9 @@ export function selectionText(source: {
   }
   if (filters.length > 0) {
     parts.push(filters.join("; "));
+  }
+  if (source.dropIfContains && source.dropIfContains.length > 0) {
+    parts.push(`drop: ${source.dropIfContains.join(", ")}`);
   }
   return parts.join("; ");
 }

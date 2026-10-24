@@ -2536,6 +2536,10 @@ export function parseWorkSpec(raw: string): WorkSpec {
                       entry.target,
                       `workSpec.units[${index}].sources[${sourceIndex}].target`,
                     ),
+                    multiline: requiredString(
+                      entry.multiline ?? "none",
+                      `workSpec.units[${index}].sources[${sourceIndex}].multiline`,
+                    ),
                     excludeGlobs: optionalStringArray(
                       entry,
                       ["exclude_globs", "excludeGlobs"],
@@ -2545,6 +2549,11 @@ export function parseWorkSpec(raw: string): WorkSpec {
                       entry,
                       ["filters"],
                       `workSpec.units[${index}].sources[${sourceIndex}].filters`,
+                    ),
+                    dropIfContains: optionalStringArray(
+                      entry,
+                      ["drop_if_contains", "dropIfContains"],
+                      `workSpec.units[${index}].sources[${sourceIndex}].dropIfContains`,
                     ),
                   };
                 }),
@@ -3186,6 +3195,11 @@ function normalizeContentUnitSource(payload: any, field: string): ContentUnitSou
       `${field}.excludeGlobs`,
     ),
     filters: optionalContainerFilters(record, ["filters"], `${field}.filters`),
+    dropIfContains: optionalStringArray(
+      record,
+      ["drop_if_contains", "dropIfContains"],
+      `${field}.dropIfContains`,
+    ),
     executable: requiredBoolean(record.executable, `${field}.executable`),
   };
 }

@@ -200,6 +200,12 @@ export interface WorkSpecSource {
   /** 路径通配 / 导出器标识 / 谓词 / 周期。 */
   target: string;
   /**
+   * 读法（W4）：`none` | `indented` | `mysql_slow` | `postgres_csv`。
+   *
+   * 旧网关的 spec 里没有这个字段 → 可选；页面只在非 `none` 时展示。
+   */
+  multiline?: string;
+  /**
    * 文件族里不该采的绝对路径 glob（空 = 不排除）。
    *
    * 容器日志的选源就靠它：`/var/log/containers/*.log` 里同时有 init / sidecar /
@@ -213,6 +219,13 @@ export interface WorkSpecSource {
    * pod / namespace 两段；数据面/派活侧都不求值，**agentd 在发现阶段**求值。
    */
   filters: ContainerFilters;
+  /**
+   * 含这些子串的记录整条丢弃（W4；空 = 不丢）。
+   *
+   * 子串而不是正则：这是“噪音行”的白名单，不是解析。写出来是为了让“为什么少了”
+   * 能在页面上对账，而不是靠读目录。
+   */
+  dropIfContains: string[];
 }
 
 /** 容器选源过滤器（与 `wist-contracts::work::ContainerFilters` 同形）。 */
@@ -482,6 +495,8 @@ export interface ContentUnitSourceView {
   excludeGlobs: string[];
   /** 容器选源过滤器（空 = 不过滤）；只对容器选源根下的来源有意义。 */
   filters: ContainerFilters;
+  /** 含这些子串的记录整条丢弃（空 = 不丢）。 */
+  dropIfContains: string[];
   /** 与网关派活闸门同一判据：`false` 的来源派下去会被 agentd 报 `unsupported`。 */
   executable: boolean;
 }

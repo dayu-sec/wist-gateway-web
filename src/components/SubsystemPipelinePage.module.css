@@ -154,23 +154,27 @@
 
 /* 接入与输出：条目在卡片内**自动分栏**（用宽度换高度），不再限高 + 列内滚动 ——
    列内滚动会把分组从中间截断（现场反馈「反而不好」），而分栏后 9 个分组只占 2~3 行。
-   `align-items: start` 让展开的分组不被同行最高的那个拉高。 */
+
+   `align-items: stretch`（默认）：同一行的卡片拉平到这一行最高那张（现场反馈「卡片高度
+   参差」—— 以前是 start，短卡片的底边比邻居高一截，下面留洞，看起来像没排完）。多出来的
+   高度留在卡片内部的底部，而不是页面背景上；卡片自己的内容仍然顶对齐（见 .group 的
+   align-content: start），所以「名称 / 数字」不会因为变高而漂到中间。 */
 .boardPair .columnBody {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   align-content: start;
-  align-items: start;
+  align-items: stretch;
   max-height: none;
   overflow-y: visible;
 }
 
 /* 解析规则铺满宽度：规则卡片按可用宽度自动分栏，
-   规则多时不会拉成一条很长很窄的列表。 */
+   规则多时不会拉成一条很长很窄的列表。等高逻辑同 .boardPair。 */
 .boardSingle .columnBody {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   align-content: start;
-  align-items: start;
+  align-items: stretch;
   max-height: 42vh;
 }
 
@@ -387,6 +391,9 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  /* 同行等高（.columnBody 的 align-items: stretch）时，多出来的高度不能被自动行摊掉，
+     否则标题行 / 子项行会各自被撑高、内容在卡片里上下漂。固定顶对齐：空白只留在底部。 */
+  align-content: start;
   /* 关键：.columnBody 是限高 + overflow 的纵向 flex，而本卡片带 overflow:hidden，
      其自动最小尺寸会退化成 0 —— 于是卡片被「压扁」、内容被横切，而不是让列滚动。
      明确不允许收缩，超出的部分交给列的滚动条。 */

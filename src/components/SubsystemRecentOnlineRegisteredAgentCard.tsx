@@ -153,19 +153,19 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
           className={styles.metricsLink}
           to={`/agents/${encodeURIComponent(agent.agentId)}/metrics`}
         >
-          {t("查看主机指标 →", "View host metrics →")}
+          {t("主机指标 →", "Host metrics →")}
         </Link>
         <Link
           className={styles.purposeLink}
           to={`/agents/${encodeURIComponent(agent.agentId)}/work`}
         >
-          {t("查看采集工作 →", "View collection work →")}
+          {t("采集工作 →", "Collection work →")}
         </Link>
         <Link
           className={styles.purposeLink}
           to={`/agents/${encodeURIComponent(agent.agentId)}/purpose`}
         >
-          {t("查看用途 →", "View purpose →")}
+          {t("用途 →", "Purpose →")}
         </Link>
       </div>
     </article>
