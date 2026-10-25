@@ -31,8 +31,8 @@
   max-width: var(--prose-max);
 }
 
-/* 一张卡 = 一个设置项：卡头（标签/标题/说明）+ 当前生效值（只读）+ 可写表单。
-   对外地址那一张没有可写控件（由部署配置决定），第二张有。 */
+/* 一张卡 = 一段信息（当前配置 / 修改上送 / 接入上级）：
+   卡头只放「这是什么、由谁决定」，值在下方按列对齐 —— 值优先，说明随后。 */
 .card {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -46,106 +46,81 @@
 }
 
 .cardHead {
-  padding: 16px 20px;
+  padding: 15px 20px 14px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
 }
 
-.cardTag {
-  color: var(--accent-strong);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+/* 标题与「只读 / 可改 / 状态」同一行：读写属性是这张卡的第一条信息。 */
+.cardTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
-.cardHead h2 {
-  margin-top: 5px;
-  font-size: 18px;
+.cardTitleRow h2 {
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.35;
+  letter-spacing: -0.005em;
 }
 
-.cardHead p {
-  max-width: 680px;
-  margin-top: 5px;
+.cardChip {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.cardNote {
+  max-width: 780px;
+  margin-top: 6px;
   color: var(--text-3);
   font-size: 12.5px;
   line-height: 1.6;
 }
 
-/* 卡内指向其它页的链接（如 gwlinkd → 「接入代理」页）。 */
-.inlineCardLink {
-  color: var(--accent-strong);
-  font-weight: 700;
-  text-decoration: none;
-}
+/* ---------- 当前配置（只读表） ---------- */
 
-.inlineCardLink:hover {
-  text-decoration: underline;
-}
-
-/* 只读的当前值：卡片内通栏的行（不套第二层边框盒，避免「表里套表」）。
-   主值行给足字号并允许折行 —— 长 URL 要能一眼看全，不截断。 */
-.summaryList {
+/* 三列：名称 / 当前值 / 来源与修改时间。
+   值在第二列左对齐、时间贴右 —— 两个地址的「复制」按钮因此不会一个在左一个在右。 */
+.configList {
   margin: 0;
 }
 
-.summaryRow {
-  display: flex;
+.configRow {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 16px;
-  padding: 12px 20px;
+  gap: 4px 16px;
+  padding: 11px 20px;
 }
 
-.summaryRow:first-child {
-  padding-top: 14px;
-}
-
-.summaryRow:last-child {
-  padding-bottom: 14px;
-}
-
-.summaryRow + .summaryRow {
+.configRow + .configRow {
   border-top: 1px solid var(--border);
 }
 
-/* 主值行靠左侧 accent 色条锚定视线。用色条而不是边框，
-   避免又叠出第二层框线。 */
-.summaryRowPrimary {
-  position: relative;
-}
-
-.summaryRowPrimary::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-  background: var(--accent);
-}
-
-.summaryRow dt {
-  flex: 0 0 76px;
+.configRow dt {
   color: var(--text-2);
   font-size: 12.5px;
   font-weight: 600;
 }
 
-/* 值与复制按钮同一行块：值可压缩换行，按钮不参与换行，避免长 URL 把按钮
-   顶到第二行孤零零挂着。 */
-.summaryRow dd {
+.configValue {
   display: flex;
-  flex: 1;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px 10px;
+  gap: 4px 10px;
   min-width: 0;
 }
 
-/* 主值：这一项的主角，字号与亮度都要压过其余几行。 */
-.summaryValuePrimary {
-  flex: 1 1 auto;
+.configValueText {
   min-width: 0;
   color: var(--text);
   font-family: var(--font-mono);
@@ -155,41 +130,53 @@
   overflow-wrap: anywhere;
 }
 
-.summaryValueMono {
-  flex: 1 1 auto;
-  min-width: 0;
-  color: var(--text-2);
+.configValueEmpty {
+  color: var(--text-4);
   font-family: var(--font-mono);
-  font-size: 12.5px;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  font-size: 13px;
 }
 
-/* 「未设置」是状态而非普通文本：网关的对外基址取不出主机名（派不出上送目标）时才是这样。 */
-.summaryValueEmpty {
-  flex: 1 1 auto;
-  min-width: 0;
+/* 「未设置」是状态而非普通文本：没有上送目标时 Agent 完全不上送数据。 */
+.configValueWarn {
   color: var(--warn);
   font-size: 13px;
   font-weight: 600;
-  overflow-wrap: anywhere;
 }
 
-.summaryMeta {
+.switchState {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* 开关打开是全队生效的状态：用 ok 色标出来，别让它混在灰字里。 */
+.switchOn {
+  color: var(--ok);
+}
+
+.configMeta {
   color: var(--text-3);
-  font-family: var(--font-mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  text-align: right;
   white-space: nowrap;
+}
+
+/* ---------- 接入上级（gwlinkd 状态） ---------- */
+
+.linkdBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  padding: 14px 20px 16px;
 }
 
 /* gwlinkd 状态标签：随状态着色（与「链接上级」页同一套 `linkd_*` 色调键）。 */
 .linkdValue {
-  flex: 1 1 auto;
-  min-width: 0;
   font-size: 14px;
   font-weight: 700;
-  overflow-wrap: anywhere;
 }
 
 .linkd_idle {
@@ -202,6 +189,33 @@
 
 .linkd_crit {
   color: var(--crit);
+}
+
+.linkdDetail {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.linkdMeta {
+  color: var(--text-3);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* 往「网关状态」页的出口贴右：它是这张卡的下一步动作，不跟着值一起排。 */
+.linkdLink {
+  margin-left: auto;
+  color: var(--accent-strong);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.linkdLink:hover {
+  text-decoration: underline;
 }
 
 .inlineCopyButton {
@@ -228,8 +242,8 @@
   outline: none;
 }
 
-/* 当前值区里的状态提示（读取中 / 读失败 / 未设置）。 */
-.summaryNotices {
+/* 值区下方的状态提示（读取中 / 读失败 / 未设置）。 */
+.notices {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -257,7 +271,7 @@
 }
 
 /* 「未设置」不是错误、也不是中性提示：Agent 因此完全不上送数据，
-   用 warn 语义色把它与普通说明区分开。 */
+    用 warn 语义色把它与普通说明区分开。 */
 .noticeWarn {
   padding: 10px 12px;
   border: 1px solid var(--warn-border);
@@ -269,20 +283,22 @@
   line-height: 1.55;
 }
 
-/* 可写区：与当前值区隔一条线（上方是「现在是什么」，下方是「要改成什么」）。 */
+/* ---------- 修改上送设置（可写） ---------- */
+
 .form {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 18px 20px 20px;
-  border-top: 1px solid var(--border);
 }
 
-/* 主机与端口同排：它们同属「目标」这一个概念，拆成两行会让端口看起来像另一个设置项。 */
+/* 主机与端口同排：它们同属「目标」这一个概念，拆成两行会让端口看起来像另一个设置项。
+   不给满宽：主机名用不到 500px，拉满反而像两个不相干的字段。 */
 .fieldRow {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
+  max-width: 760px;
 }
 
 .field {
@@ -314,8 +330,7 @@
   outline: none;
 }
 
-.field small,
-.checkRow small {
+.field small {
   display: block;
   margin-top: 3px;
   color: var(--text-3);
@@ -378,13 +393,6 @@
   cursor: not-allowed;
 }
 
-.actionHint {
-  flex: 1 1 240px;
-  color: var(--text-4);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .formHint {
   padding: 9px 12px;
   border: 1px solid var(--warn-border);
@@ -418,13 +426,24 @@
   line-height: 1.55;
 }
 
+@media (max-width: 700px) {
+  .configRow {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .configMeta {
+    text-align: left;
+  }
+}
+
 @media (max-width: 560px) {
   .main {
     padding: 22px 16px 40px;
   }
 
   .cardHead,
-  .summaryNotices {
+  .notices {
     padding-left: 16px;
     padding-right: 16px;
   }
@@ -434,14 +453,8 @@
     padding-right: 16px;
   }
 
-  .summaryRow {
-    flex-direction: column;
-    gap: 4px;
+  .configRow {
     padding-left: 16px;
     padding-right: 16px;
-  }
-
-  .summaryRow dt {
-    flex-basis: auto;
   }
 }
