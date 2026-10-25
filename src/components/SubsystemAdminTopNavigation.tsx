@@ -53,7 +53,7 @@ function IconPipeline() {
  * 链接上级：本机向上接入上级控制中心 —— 上面那圈是**上级侧的插槽**（开口朝下），
  * 下面实心圆点是本网关，中间一截须把两者接上。
  *
- * 为什么不用箭头：运维组已有「Agent 升级 ↑」、设置组已有「安装 Agent ↓」，
+ * 为什么不用箭头：运维组已有「Agent 升级 ↑」与「安装 Agent ↓」，
  * 再加一支向上的箭头，三项在 15px 下会读成同一个东西。所以这里只留「凹槽 + 节点」
  * （2026-09-26 先试过带箭头的版本，就是被这条否掉的，见产物目录里的候选对照图）。
  * 此前用的电源符号（IconInit）是历史遗留：那图形的语义是「通电/开关」，
@@ -259,6 +259,10 @@ function navGroups(): { label: string; items: NavItem[] }[] {
       { to: "/software", label: t("资产清单", "Software inventory"), icon: <IconSoftware /> },
       { to: "/pipeline", label: t("数据采集", "Data pipeline"), icon: <IconPipeline /> },
       { to: "/logs", label: t("采集日志", "Collection logs"), icon: <IconLogs /> },
+      // gwlinkd（宿主侧常驻）专用观测页：一页看清网关两层 —— 「网关容器」与「接入代理 gwlinkd」
+      // 的运行状态。它回答的是「现在活着吗」，与上面几页同属**观测**，所以放在监控组末尾；
+      // 「接入成没成」仍归「链接上级」页。
+      { to: "/gwlinkd", label: t("网关状态", "Gateway status"), icon: <IconGwlinkd /> },
     ],
   },
   {
@@ -269,6 +273,13 @@ function navGroups(): { label: string; items: NavItem[] }[] {
       // 被按 agent_id 封锁的一批机器（拒绝名单）：机队页看「在册」，这里看「被封」。
       { to: "/revocations", label: t("吊销名单", "Revocations"), icon: <IconRevocation /> },
       { to: "/upgrade", label: t("Agent 升级", "Agent upgrade"), icon: <IconUpgrade /> },
+      // 接入一台新机器（装 Agent）、给网关配从哪取件、往机器端推策展内容 —— 这三件都是
+      // 「往机队里加/改东西」的运维动作，与「机队 / 升级」同一组；它们不是网关自身的设置。
+      { to: "/install", label: t("安装 Agent", "Install agent"), icon: <IconInstall /> },
+      // 取包来源单独一页（从 Gateway 信息页拆回）：配网关从哪取件 + 看已录入的包历史。
+      { to: "/install-package", label: t("安装包", "Install packages"), icon: <IconPackage /> },
+      // 策展内容（知识库）单独一页：录入包 + 切生效版本 + 看谁还锁在旧版目录。
+      { to: "/knowledge", label: t("知识库", "Knowledge base"), icon: <IconKnowledge /> },
     ],
   },
   {
@@ -276,16 +287,8 @@ function navGroups(): { label: string; items: NavItem[] }[] {
     items: [
       // 「链接上级」= 把本网关接入**上级控制中心**（Center 那一侧）—— 页名点明动作与对象。
       { to: "/link-upstream", label: t("链接上级", "Link upstream"), icon: <IconLinkUpstream /> },
-      // gwlinkd（宿主侧常驻）专用观测页：一页看清网关两层 —— 「网关容器」与「接入代理 gwlinkd」
-      // 的运行状态。「接入成没成」在链接上级页，「谁活着」归这里。
-      { to: "/gwlinkd", label: t("网关状态", "Gateway status"), icon: <IconGwlinkd /> },
       // 网关对外地址（只读，由部署配置派生）与数据面上送目标 + 启用开关（可改）合成一页。
       { to: "/gateway-info", label: t("Gateway 信息", "Gateway info"), icon: <IconGatewayInfo /> },
-      // 取包来源单独一页（从该页拆回）：配网关从哪取件 + 看已录入的包历史。
-      { to: "/install-package", label: t("安装包", "Install packages"), icon: <IconPackage /> },
-      // 策展内容（知识库）单独一页：录入包 + 切生效版本 + 看谁还锁在旧版目录。
-      { to: "/knowledge", label: t("知识库", "Knowledge base"), icon: <IconKnowledge /> },
-      { to: "/install", label: t("安装 Agent", "Install agent"), icon: <IconInstall /> },
     ],
   },
   ];

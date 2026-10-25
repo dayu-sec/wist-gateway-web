@@ -73,9 +73,11 @@
   margin: 0;
 }
 
+/* 一行 = 一台机器：主机名主位、agent_id 与 IP 次位（左侧两行），右侧是去工作清单的入口。
+   以前只印 agent_id，现场读不出「这是哪台机器」（2026-10-25）。 */
 .agentLink {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 9px 12px;
@@ -90,11 +92,44 @@
   border-color: var(--border-strong);
 }
 
-.agentId {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 12.5px;
+.agentIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.agentName {
+  overflow-wrap: anywhere;
   color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.agentMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agentId {
+  overflow-wrap: anywhere;
+  color: var(--text-3);
+}
+
+.agentSep {
+  color: var(--text-4);
+}
+
+/* IP 比 agent_id 更常用（对现场说「哪台」时念的就是它），给一档更亮的前景色。 */
+.agentAddress {
+  color: var(--text-2);
   overflow-wrap: anywhere;
 }
 

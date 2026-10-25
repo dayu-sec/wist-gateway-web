@@ -74,24 +74,24 @@ function describeRoute(pathname: string): RouteMeta {
     case "/revocations":
       return { section: "ops", crumbs: [t("吊销名单", "Revocations")] };
     case "/install":
-      return { section: "settings", crumbs: [t("安装 Agent", "Install agent")] };
+      return { section: "ops", crumbs: [t("安装 Agent", "Install agent")] };
     case "/gateway-info":
       return { section: "settings", crumbs: [t("Gateway 信息", "Gateway info")] };
     case "/gwlinkd":
-      // 与侧边栏「设置」组一致：这一页看的是「网关两层谁活着」，不是监控组的采集流水。
-      return { section: "settings", crumbs: [t("网关状态", "Gateway status")] };
+      // 与侧边栏「监控」组一致：这一页看的是「网关两层谁活着」，属于观测。
+      return { section: "monitoring", crumbs: [t("网关状态", "Gateway status")] };
     case "/install-package":
-      return { section: "settings", crumbs: [t("安装包管理", "Install packages")] };
+      return { section: "ops", crumbs: [t("安装包管理", "Install packages")] };
     case "/install-package/add":
       return {
-        section: "settings",
+        section: "ops",
         crumbs: [
           t("安装包管理", "Install packages"),
           t("安装包录入", "Install package entry"),
         ],
       };
     case "/knowledge":
-      return { section: "settings", crumbs: [t("知识库", "Knowledge base")] };
+      return { section: "ops", crumbs: [t("知识库", "Knowledge base")] };
     case "/link-upstream":
       return { section: "settings", crumbs: [t("链接上级", "Link upstream")] };
     case "/":

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useRegisteredAgents } from "../hooks";
 import { t } from "../i18n";
+import { summarizeAddresses } from "../lib/format";
 import styles from "./SubsystemWorkListPage.module.css";
 
 /**
@@ -16,8 +17,11 @@ import styles from "./SubsystemWorkListPage.module.css";
  */
 export function SubsystemWorkListPage() {
   const agents = useRegisteredAgents();
-  const agentIds = useMemo(
-    () => (agents.data ?? []).map((agent) => agent.agentId).sort(),
+  // 整条记录都留着：这一页是「选哪台机器」的索引，只有 agent_id 时得靠它去别处对主机名
+  // 与 IP —— 现场反馈「不清楚对谁来采集的」（2026-10-25）。排序仍按 agent_id（稳定、
+  // 与网关返回顺序无关），展示把主机名放主位。
+  const rows = useMemo(
+    () => (agents.data ?? []).slice().sort((a, b) => a.agentId.localeCompare(b.agentId)),
     [agents.data],
   );
 
@@ -42,7 +46,7 @@ export function SubsystemWorkListPage() {
             {agents.isLoading
               ? t("正在读取机队…", "Reading fleet…")
               : t("共 {n} 台（已注册的 Agent）", "{n} machines (registered Agents)", {
-                  n: agentIds.length,
+                  n: rows.length,
                 })}
           </span>
         </header>
@@ -56,28 +60,58 @@ export function SubsystemWorkListPage() {
           </div>
         ) : null}
 
-        {!agents.isLoading && !agents.isError && agentIds.length === 0 ? (
+        {!agents.isLoading && !agents.isError && rows.length === 0 ? (
           <div className={styles.empty}>
             {t("机队里还没有已注册的 Agent。", "There are no registered Agents in the fleet yet.")}
           </div>
         ) : null}
 
-        {agentIds.length > 0 ? (
+        {rows.length > 0 ? (
           <ul className={styles.agentList}>
-            {agentIds.map((agentId) => (
-              <li key={agentId} className={styles.agentItem}>
-                <Link
-                  className={styles.agentLink}
-                  to={`/agents/${encodeURIComponent(agentId)}/work`}
-                >
-                  <span className={styles.agentId}>{agentId}</span>
-                  <span className={styles.agentAction}>
-                    {t("工作清单", "Work list")}
-                    <span aria-hidden="true">→</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
+            {rows.map((agent) => {
+              const hostname = agent.hostname.trim();
+              const address = summarizeAddresses(agent.ipAddresses);
+              return (
+                <li key={agent.agentId} className={styles.agentItem}>
+                  <Link
+                    className={styles.agentLink}
+                    to={`/agents/${encodeURIComponent(agent.agentId)}/work`}
+                  >
+                    <span className={styles.agentIdentity}>
+                      {/* 主机名是「这是哪台机器」的答案；没上报过才退回 agent_id，
+                          而不是拿 id 冒充主机名。 */}
+                      <span className={styles.agentName}>
+                        {hostname || agent.agentId}
+                      </span>
+                      <span className={styles.agentMeta}>
+                        {hostname ? (
+                          <>
+                            <span className={styles.agentId}>{agent.agentId}</span>
+                            <span className={styles.agentSep} aria-hidden="true">
+                              ·
+                            </span>
+                          </>
+                        ) : null}
+                        <span
+                          className={styles.agentAddress}
+                          title={address.full || undefined}
+                        >
+                          {address.primary
+                            ? address.others > 0
+                              ? `${address.primary} +${address.others}`
+                              : address.primary
+                            : t("IP 未上报", "IP not reported")}
+                        </span>
+                      </span>
+                    </span>
+                    <span className={styles.agentAction}>
+                      {t("工作清单", "Work list")}
+                      <span aria-hidden="true">→</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
       </section>

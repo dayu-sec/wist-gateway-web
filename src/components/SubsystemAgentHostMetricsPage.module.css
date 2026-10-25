@@ -85,6 +85,13 @@
   color: var(--accent-strong);
 }
 
+/* 「采集工作 →」与「用途 →」之间的分隔：两个各带箭头的入口挨着写，不加线会被读成一条链。 */
+.crossDivider {
+  width: 1px;
+  height: 12px;
+  background: var(--border-strong);
+}
+
 @keyframes breathe {
   0%,
   100% {
