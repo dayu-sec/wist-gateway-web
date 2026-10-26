@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
+  useAgentCollectionPreflights,
   useAgentFactRefreshes,
   useAgentPurposes,
   useAgentWorks,
@@ -9,9 +10,14 @@ import {
   useGrantStandingWorkBatch,
   useRegisteredAgents,
   useRequestAgentFactRefresh,
+  useRunAgentCollectionPreflights,
   type BatchGrantOutcome,
 } from "../hooks";
-import type { AgentFactRefreshCommand, AgentListEntryView } from "../api";
+import type {
+  AgentFactRefreshCommand,
+  AgentListEntryView,
+  CollectionPreflightView,
+} from "../api";
 import type { FamilyState } from "./familyOverviewRows";
 import { t } from "../i18n";
 import { summarizeAddresses } from "../lib/format";
@@ -42,6 +48,19 @@ import {
   summarizeFactRefresh,
   type FactRefreshTone,
 } from "./factRefreshState";
+import {
+  preflightEvidenceLabel,
+  preflightFamily,
+  preflightFamilyStateLabel,
+  preflightFamilyStateTone,
+  preflightNeedsProbe,
+  preflightPendingTimedOut,
+  preflightReason,
+  preflightSummaryParts,
+  preflightUndeterminedLabel,
+  summarizePreflight,
+  type PreflightTone,
+} from "./collectionPreflightState";
 import styles from "./SubsystemCollectionGrantPage.module.css";
 
 /**
@@ -151,16 +170,30 @@ function hostStateClass(state: HostGrantState): string {
 /** 重采徽标的色调 → 样式类（色调定义在 `factRefreshState.ts`）。 */
 function refreshToneClass(tone: FactRefreshTone): string {
   switch (tone) {
-    case "pending":
-      return styles.refreshPending;
     case "ok":
       return styles.refreshOk;
     case "warn":
       return styles.refreshWarn;
     case "crit":
       return styles.refreshCrit;
+    case "pending":
+      return styles.refreshPending;
     case "muted":
       return styles.refreshMuted;
+  }
+}
+
+/** 预检徽标的色调 → 样式类（色调定义在 `collectionPreflightState.ts`）。 */
+function preflightToneClass(tone: PreflightTone): string {
+  switch (tone) {
+    case "ok":
+      return styles.preflightOk;
+    case "warn":
+      return styles.preflightWarn;
+    case "crit":
+      return styles.preflightCrit;
+    case "muted":
+      return styles.preflightMuted;
   }
 }
 
@@ -349,6 +382,12 @@ export function SubsystemCollectionGrantPage() {
   const [refreshErrors, setRefreshErrors] = useState<Record<string, unknown>>(
     {},
   );
+  // 「预检」跟踪：同样是**已发起过**的 agent。与重采分开两份：两者的问题不同
+  // （重采是“重新报事实”，预检是“跑一趟本机实测并回答能不能授”）。
+  const [preflightIds, setPreflightIds] = useState<string[]>([]);
+  const [preflightErrors, setPreflightErrors] = useState<
+    Record<string, unknown>
+  >({});
 
   const selectedRow = useMemo(
     () => familyRows.find((row) => row.family.id === selectedFamily) ?? null,
@@ -363,6 +402,9 @@ export function SubsystemCollectionGrantPage() {
   const requestFactRefresh = useRequestAgentFactRefresh();
   // 只对已发起的主机开轮询（终端/超时后由 refetchInterval 自己停）。
   const refreshQueries = useAgentFactRefreshes(refreshIds);
+  const runPreflight = useRunAgentCollectionPreflights();
+  // 预检结果：`probe.pending` 为真时自己转（“机器自己探”最多几秒）。
+  const preflightQueries = useAgentCollectionPreflights(preflightIds);
 
   const checkedIndex = useMemo(
     () => new Map(checkedIds.map((id, index) => [id, index])),
@@ -536,6 +578,66 @@ export function SubsystemCollectionGrantPage() {
     });
   }
 
+  // 已发起预检的主机 → 最新视图（批量查询按 preflightIds 顺序返回）。
+  const preflightByAgent = new Map<string, CollectionPreflightView>();
+  preflightQueries.forEach((query, index) => {
+    const agentId = preflightIds[index];
+    if (agentId && query.data) preflightByAgent.set(agentId, query.data);
+  });
+  const preflightViews = preflightIds.map((agentId) =>
+    Object.prototype.hasOwnProperty.call(preflightErrors, agentId)
+      ? { error: preflightErrors[agentId] }
+      : preflightByAgent.get(agentId),
+  );
+  const preflightSummary = summarizePreflight(preflightViews, selectedFamily);
+  const preflightParts = preflightSummaryParts(preflightSummary);
+  const preflightTargets = (
+    selectedHosts.size > 0 ? selectedVisible : visibleHosts
+  )
+    .map((agent) => agent.agentId)
+    .slice(0, HOST_LIMIT);
+  const preflightPending = runPreflight.isPending;
+
+  /**
+   * 让主机**自己**再探一次。
+   *
+   * 不需要任何人登录客户机：命令走 agentd 的状态上报回执（≤3s），探完由 agentd
+   * 把实测回传到网关。页面只需轮询 `GET` 直到 `probe.pending` 变 `false`。
+   */
+  function preflightHosts(agentIds: readonly string[]) {
+    if (agentIds.length === 0 || preflightPending) return;
+    runPreflight.mutate(agentIds, {
+      onSuccess: (results) => {
+        // 最新一批排在最前：提示条只列前几台，刚发起的不能被旧的终态挤掉。
+        setPreflightIds((current) => {
+          const requested = results.map((entry) => entry.agentId);
+          const rest = current.filter((id) => !requested.includes(id));
+          return Array.from(new Set([...requested, ...rest]));
+        });
+        setPreflightErrors((current) => {
+          const next = { ...current };
+          for (const entry of results) {
+            if (entry.ok) delete next[entry.agentId];
+            else next[entry.agentId] = entry.error;
+          }
+          return next;
+        });
+      },
+    });
+  }
+
+  /**
+   * 只跟踪、不发起：授权被 409 拒时**网关自己**已入队了探测命令
+   * （`enqueue_if_evidence_missing`），这里再 POST 一条会把它取代掉。
+   * 跟踪后查询一次，看到 `probe.pending = true` 就自己轮询到结果。
+   */
+  function trackPreflight(agentIds: readonly string[]) {
+    if (agentIds.length === 0) return;
+    setPreflightIds((current) =>
+      Array.from(new Set([...agentIds, ...current])),
+    );
+  }
+
   function resetSelection() {
     setSelectedHosts(new Set());
     setConfirming(false);
@@ -602,6 +704,11 @@ export function SubsystemCollectionGrantPage() {
           setOutcomes(results);
           setConfirming(false);
           setSelectedHosts(new Set());
+          // 被拒的机器：网关已经替我们下发了探测，这里只开始跟踪并轮询 ——
+          // 「授权失败」到「知道为什么」之间不该再要人点一次。
+          trackPreflight(
+            results.filter((entry) => !entry.ok).map((entry) => entry.agentId),
+          );
         },
       },
     );
@@ -1033,6 +1140,32 @@ export function SubsystemCollectionGrantPage() {
                       ? t("重新检查当前筛选", "Re-check current filter")
                       : t("检查当前筛选", "Check current filter")}
                   </button>
+                  {/* 「预检」与「检查」是两件事：后者读网关已有的用途/授权，
+                      前者让**机器自己**再探一次 —— 后者能回答「为什么不可授权」。 */}
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    disabled={
+                      !selectedFamily ||
+                      preflightTargets.length === 0 ||
+                      preflightPending
+                    }
+                    title={t(
+                      "让机器自己探一次路径（不需要登录主机，约 3 秒出结果）。",
+                      "Let each host probe its own paths (no login needed; a few seconds).",
+                    )}
+                    onClick={() => preflightHosts(preflightTargets)}
+                  >
+                    {preflightPending
+                      ? t("正在下发…", "Dispatching…")
+                      : selectedHosts.size > 0
+                        ? t("预检（{n} 台）", "Preflight ({n} hosts)", {
+                            n: preflightTargets.length,
+                          })
+                        : t("预检当前筛选（{n} 台）", "Preflight filter ({n})", {
+                            n: preflightTargets.length,
+                          })}
+                  </button>
                   <span className={styles.toolbarInfo}>
                     {t("匹配 {n} 台", "{n} hosts match", {
                       n: filteredHosts.length,
@@ -1046,6 +1179,29 @@ export function SubsystemCollectionGrantPage() {
                       : ""}
                   </span>
                 </div>
+
+                {preflightParts.length > 0 || preflightSummary.pending > 0 ? (
+                  <div className={styles.preflightBar}>
+                    <span className={styles.preflightLead}>
+                      {t("预检结果", "Preflight")}
+                    </span>
+                    {preflightSummary.pending > 0 ? (
+                      <span className={styles.preflightPending}>
+                        {t("探测中 {n} 台", "{n} probing", {
+                          n: preflightSummary.pending,
+                        })}
+                      </span>
+                    ) : null}
+                    {preflightParts.map((part) => (
+                      <span
+                        key={part.state}
+                        className={`${styles.preflightChip} ${preflightToneClass(preflightFamilyStateTone(part.state))}`}
+                      >
+                        {preflightFamilyStateLabel(part.state)} {part.count}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 {agentsQuery.isError ? (
                   <div className={styles.inlineError} role="alert">
@@ -1170,6 +1326,24 @@ export function SubsystemCollectionGrantPage() {
                         const refreshCommand =
                           refreshByAgent.get(agent.agentId) ?? null;
                         const refreshStatus = factRefreshStatus(refreshCommand);
+                        const preflightView =
+                          preflightByAgent.get(agent.agentId) ?? null;
+                        const preflightError =
+                          preflightErrors[agent.agentId];
+                        const preflightFailed =
+                          Object.prototype.hasOwnProperty.call(
+                            preflightErrors,
+                            agent.agentId,
+                          );
+                        const preflightEntry = preflightFamily(
+                          preflightView,
+                          selectedFamily,
+                        );
+                        const preflightWhy = preflightReason(preflightEntry);
+                        // 探测等到超时（机器大概率离线）：徽标不能永远停在「探测中」。
+                        const preflightOverdue = preflightPendingTimedOut(
+                          preflightView,
+                        );
                         return (
                           <li
                             key={agent.agentId}
@@ -1304,6 +1478,74 @@ export function SubsystemCollectionGrantPage() {
                                   {factRefreshStatusLabel(refreshStatus)}
                                 </span>
                               ) : null}
+                              {/* 预检：这一版的结论 + 为什么（网关已经把它写成一句话了）。 */}
+                              {preflightFailed ? (
+                                <span
+                                  className={`${styles.refreshBadge} ${styles.refreshCrit}`}
+                                  title={adminApiErrorMessage(preflightError)}
+                                >
+                                  {t(
+                                    "预检 · 发起失败",
+                                    "Preflight · request failed",
+                                  )}
+                                </span>
+                              ) : preflightView ? (
+                                <span
+                                  className={`${styles.preflightBadge} ${preflightToneClass(
+                                    preflightOverdue
+                                      ? "warn"
+                                      : preflightFamilyStateTone(
+                                          preflightEntry?.state ?? "unprobed",
+                                        ),
+                                  )}`}
+                                  title={preflightEvidenceLabel(
+                                    preflightView.probe,
+                                  )}
+                                >
+                                  {preflightView.probe.pending
+                                    ? preflightOverdue
+                                      ? t(
+                                          "预检 · 探测超时",
+                                          "Preflight · probe timed out",
+                                        )
+                                      : t("预检 · 探测中", "Preflight · probing")
+                                    : preflightView.verdict === "undetermined"
+                                      ? t("预检 · 无法判断", "Preflight · undetermined")
+                                      : preflightEntry
+                                        ? `${t("预检", "Preflight")} · ${preflightFamilyStateLabel(
+                                            preflightEntry.state,
+                                          )}`
+                                        : t("预检 · 无此面", "Preflight · not in scope")}
+                                </span>
+                              ) : null}
+                              {preflightWhy && preflightView ? (
+                                <span
+                                  className={styles.stateReason}
+                                  title={`${preflightWhy} · ${preflightEvidenceLabel(
+                                    preflightView.probe,
+                                  )}`}
+                                >
+                                  {preflightWhy}
+                                </span>
+                              ) : null}
+                              {/* 证据不全（没实测 / 过期 / 目录多出没探的路径）：直接说出来，
+                                  否则人会拿一份旧账当成“刚查过”。 */}
+                              {preflightView &&
+                              !preflightView.probe.pending &&
+                              preflightNeedsProbe(preflightView) ? (
+                                <span className={styles.stateMeta}>
+                                  {preflightEvidenceLabel(preflightView.probe)} ·{" "}
+                                  {t("建议再探", "probe again")}
+                                </span>
+                              ) : null}
+                              {preflightView?.verdict === "undetermined" &&
+                              preflightView.undeterminedReason ? (
+                                <span className={styles.stateReason}>
+                                  {preflightUndeterminedLabel(
+                                    preflightView.undeterminedReason,
+                                  )}
+                                </span>
+                              ) : null}
                             </div>
                             <div className={styles.hostAction}>
                               {state?.kind === "granted" ||
@@ -1318,7 +1560,24 @@ export function SubsystemCollectionGrantPage() {
                                 <span className={styles.actionHint}>
                                   {t("勾选后批量授权", "Select to grant")}
                                 </span>
-                              ) : null}
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={styles.preflightButton}
+                                  disabled={preflightPending}
+                                  title={t(
+                                    "让这台机器自己探一次路径（不需要登录主机）。",
+                                    "Let this host probe its own paths (no login needed).",
+                                  )}
+                                  onClick={() =>
+                                    preflightHosts([agent.agentId])
+                                  }
+                                >
+                                  {preflightView
+                                    ? t("再探一次", "Probe again")
+                                    : t("预检", "Preflight")}
+                                </button>
+                              )}
                             </div>
                           </li>
                         );
@@ -1349,6 +1608,14 @@ export function SubsystemCollectionGrantPage() {
                         },
                       )}
                     </p>
+                    {outcomes.some((entry) => !entry.ok) ? (
+                      <p className={styles.outcomeHint}>
+                        {t(
+                          "被拒的机器已自动开始本机探测（约 3 秒），原因会显示在主机行上。",
+                          "Rejected hosts started probing themselves (a few seconds); the reason appears on each host row.",
+                        )}
+                      </p>
+                    ) : null}
                     <ul className={styles.outcomeList}>
                       {outcomes.map((entry) => {
                         const agent = agentsById.get(entry.agentId);

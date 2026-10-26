@@ -1,7 +1,7 @@
 {
   "name": "wist-gateway-web",
   "private": true,
-  "version": "0.16.2",
+  "version": "0.17.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -43,6 +43,7 @@
     "test:uplink-form": "tsx tests/uplink-form.test.ts",
     "test:discovery-snapshot": "tsx tests/discovery-snapshot-contract.test.ts",
     "test:fact-refresh": "tsx tests/fact-refresh-contract.test.ts",
+    "test:collection-preflight": "tsx tests/collection-preflight-contract.test.ts",
     "test:advertise-url": "tsx tests/advertise-url-contract.test.ts",
     "preview": "vite preview",
     "test:agent-work": "tsx tests/agent-work-contract.test.ts",

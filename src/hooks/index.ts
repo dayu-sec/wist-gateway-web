@@ -19,6 +19,7 @@ import {
   createRolloutPlan,
   deleteAgent,
   fetchAgentAdvertiseUrl,
+  fetchAgentCollectionPreflight,
   fetchAgentFactRefresh,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
@@ -51,6 +52,7 @@ import {
   pauseWork,
   recordKnowledgePackage,
   requestAgentFactRefresh,
+  runAgentCollectionPreflight,
   resolveCosPath,
   resolveGitHubRelease,
   resumeWork,
@@ -70,6 +72,7 @@ import {
   viewGatewaySelfStateHistory,
   type ActivateKnowledgePackageCommand,
   type AgentFactRefreshCommand,
+  type CollectionPreflightView,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
@@ -82,6 +85,7 @@ import {
   type SetGatewayLinkRequestCommand,
 } from "../api";
 import type { WorkReceipt } from "../types";
+import { preflightRefetchInterval } from "../components/collectionPreflightState";
 
 export function useAgentOverview() {
   // Re-render when the admin token changes so the query can transition from
@@ -969,6 +973,91 @@ export function useRequestAgentFactRefresh() {
       for (const agentId of variables) {
         void queryClient.invalidateQueries({
           queryKey: ["agent-fact-refresh", agentId],
+        });
+      }
+    },
+  });
+}
+
+/**
+ * 某台 Agent 的采集预检结论。
+ *
+ * `enabled` 由调用方控制（只对正在跟踪的主机开）；`probe.pending` 为真时轮询，
+ * 停条件见 `collectionPreflightState.ts::preflightRefetchInterval`。
+ */
+export function useAgentCollectionPreflight(agentId: string, enabled = false) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["agent-collection-preflight", agentId],
+    queryFn: () => fetchAgentCollectionPreflight(agentId),
+    enabled: authenticated && enabled && Boolean(agentId),
+    refetchInterval: (query) =>
+      preflightRefetchInterval(query.state.data as CollectionPreflightView | undefined),
+    retry: factRefreshRetry,
+  });
+}
+
+/**
+ * 批量版 `useAgentCollectionPreflight`（同一套 queryKey 与轮询策略）。
+ *
+ * 页面跟踪的是「一次发起的一批主机」，逐个在渲染里调 hook 会破坏 hooks 规则；
+ * 与 `useAgentFactRefreshes` 同一写法。
+ */
+export function useAgentCollectionPreflights(agentIds: readonly string[]) {
+  const authenticated = useAdminQueryEnabled();
+  return useQueries({
+    queries: agentIds.map((agentId) => ({
+      queryKey: ["agent-collection-preflight", agentId],
+      queryFn: () => fetchAgentCollectionPreflight(agentId),
+      enabled: authenticated && Boolean(agentId),
+      refetchInterval: (query: { state: { data?: CollectionPreflightView } }) =>
+        preflightRefetchInterval(query.state.data),
+      retry: factRefreshRetry,
+    })),
+  });
+}
+
+/** 批量预检结果：每台一条，单台失败不影响其它台。 */
+export interface BatchPreflightOutcome {
+  agentId: string;
+  ok: boolean;
+  view?: CollectionPreflightView;
+  error?: unknown;
+}
+
+/**
+ * 让一批主机**自己**再探一次（最多 4 个并发）。
+ *
+ * POST 的返回值直接种进对应 query 缓存：页面不必等第一次 GET 才知道「已经发起」。
+ * 之后仍要失效一次 —— 让已经在轮询的主机立即拉一条最新状态。
+ *
+ * 全程不需要任何人登录客户机：命令走 agentd 的状态上报回执，探完由 agentd 回传。
+ */
+export function useRunAgentCollectionPreflights() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      agentIds: readonly string[],
+    ): Promise<BatchPreflightOutcome[]> => {
+      const settled = await settleWithConcurrency(agentIds, 4, (agentId) =>
+        runAgentCollectionPreflight(agentId),
+      );
+      return agentIds.map((agentId, index) => {
+        const result = settled[index];
+        if (result.status === "fulfilled") {
+          queryClient.setQueryData(
+            ["agent-collection-preflight", agentId],
+            result.value,
+          );
+          return { agentId, ok: true, view: result.value };
+        }
+        return { agentId, ok: false, error: result.reason };
+      });
+    },
+    onSettled: (_outcomes, _error, variables) => {
+      for (const agentId of variables) {
+        void queryClient.invalidateQueries({
+          queryKey: ["agent-collection-preflight", agentId],
         });
       }
     },

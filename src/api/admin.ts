@@ -1780,6 +1780,396 @@ export async function requestAgentFactRefresh(
   return normalizeAgentFactRefresh(payload);
 }
 
+/**
+ * 采集预检（collection preflight）：回答「这台机器为什么授权不了」。
+ *
+ * 两种用途，同一个形状：
+ *   · `fetchAgentCollectionPreflight` 只读结论；
+ *   · `runAgentCollectionPreflight` 让**机器自己**再探一次（命令入队，agentd 在下一个
+ *     状态上报里认领 → 回传实测）。返回的视图里 `probe.pending = true`，
+ *     页面轮询 `fetch` 直到它变 `false`。
+ *
+ * 为什么不是“让人去机器上跑个命令”：agentd 装在客户主机上，登录成本极高。
+ */
+export type CollectionPreflightVerdict =
+  | "grantable"
+  | "partial"
+  | "blocked"
+  | "undetermined";
+
+/** `verdict = undetermined` 时才有：平台侧答不了的原因（决定页面给哪个 CTA）。 */
+export type CollectionPreflightUndeterminedReason =
+  | "no_content"
+  | "unclassified"
+  | "no_template"
+  | "no_facts"
+  | "catalog_error";
+
+/**
+ * 一个采集面在这台机器上的**结论**。
+ *
+ * 五个值就是五种处置：能授 / 机器确实没有 / 还没探 / 探不了（要权限）/ 策展没就绪。
+ */
+export type CollectionPreflightFamilyState =
+  | "grantable"
+  | "absent"
+  | "unprobed"
+  | "unreadable"
+  | "not_ready";
+
+export type CollectionPreflightUnitResult =
+  | "selected"
+  | "match_unsatisfied"
+  | "fact_not_collected"
+  | "unreadable"
+  | "collect_not_ready";
+
+export type CollectionPreflightPathState =
+  | "present"
+  | "absent"
+  | "unreadable"
+  | "unprobed";
+
+/** 证据从哪来：本机实测 / 事实摘要里的路径 / 都没有。 */
+export type CollectionPreflightProbeSource = "probe" | "reported" | "none";
+
+export interface CollectionPreflightPathFact {
+  path: string;
+  state: CollectionPreflightPathState;
+}
+
+export interface CollectionPreflightUnit {
+  unitId: string;
+  result: CollectionPreflightUnitResult;
+  matchExpr: string;
+  paths: CollectionPreflightPathFact[];
+}
+
+export interface CollectionPreflightFamily {
+  family: string;
+  state: CollectionPreflightFamilyState;
+  /** 支撑该状态的一句话；`grantable` 时没有。 */
+  reason: string | null;
+  selectedUnits: string[];
+  units: CollectionPreflightUnit[];
+}
+
+export interface CollectionPreflightUnreadablePath {
+  path: string;
+  error: string;
+}
+
+export interface CollectionPreflightProbe {
+  source: CollectionPreflightProbeSource;
+  observedAt: string | null;
+  /** 超过网关的 10 分钟门槛：证据可能已经不符合现状。 */
+  stale: boolean;
+  /** 已下发探测命令、agent 还没回传（页面据此轮询）。 */
+  pending: boolean;
+  /** 命令入队时间：算「已经等了多久」—— 等 10 分钟就是机器/agentd 没在跑。 */
+  pendingSince: string | null;
+  probedPaths: string[];
+  presentPaths: string[];
+  unreadablePaths: CollectionPreflightUnreadablePath[];
+  /** 目录要求探、但这次没探到的路径（非空 = 证据不完整）。 */
+  notProbedPaths: string[];
+}
+
+export interface CollectionPreflightView {
+  agentId: string;
+  machineClass: MachineClass | null;
+  platform: string | null;
+  catalogVersion: number | null;
+  verdict: CollectionPreflightVerdict;
+  undeterminedReason: CollectionPreflightUndeterminedReason | null;
+  /** 一句中文结论，可直接贴进工单。 */
+  summary: string;
+  probe: CollectionPreflightProbe;
+  families: CollectionPreflightFamily[];
+  generatedAt: string;
+}
+
+/** 闭合取值：认不出来就是契约漂移，不静默成「未知」。 */
+function requiredClosedValue<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fieldName: string,
+): T {
+  if (typeof value === "string" && (allowed as readonly string[]).includes(value)) {
+    return value as T;
+  }
+  throw new Error(`Invalid API response: invalid ${fieldName}`);
+}
+
+const PREFLIGHT_VERDICTS: readonly CollectionPreflightVerdict[] = [
+  "grantable",
+  "partial",
+  "blocked",
+  "undetermined",
+];
+const PREFLIGHT_UNDETERMINED: readonly CollectionPreflightUndeterminedReason[] = [
+  "no_content",
+  "unclassified",
+  "no_template",
+  "no_facts",
+  "catalog_error",
+];
+const PREFLIGHT_FAMILY_STATES: readonly CollectionPreflightFamilyState[] = [
+  "grantable",
+  "absent",
+  "unprobed",
+  "unreadable",
+  "not_ready",
+];
+const PREFLIGHT_UNIT_RESULTS: readonly CollectionPreflightUnitResult[] = [
+  "selected",
+  "match_unsatisfied",
+  "fact_not_collected",
+  "unreadable",
+  "collect_not_ready",
+];
+const PREFLIGHT_PATH_STATES: readonly CollectionPreflightPathState[] = [
+  "present",
+  "absent",
+  "unreadable",
+  "unprobed",
+];
+const PREFLIGHT_PROBE_SOURCES: readonly CollectionPreflightProbeSource[] = [
+  "probe",
+  "reported",
+  "none",
+];
+
+function requiredArrayOf<T>(
+  value: unknown,
+  fieldName: string,
+  element: (item: unknown, itemField: string) => T,
+): T[] {
+  return requiredArray(value, fieldName).map((item, index) =>
+    element(item, `${fieldName}[${index}]`),
+  );
+}
+
+function normalizePreflightPathFact(
+  value: unknown,
+  fieldName: string,
+): CollectionPreflightPathFact {
+  const record = requiredRecord(value, fieldName);
+  return {
+    path: requiredString(record.path, `${fieldName}.path`),
+    state: requiredClosedValue(
+      record.state,
+      PREFLIGHT_PATH_STATES,
+      `${fieldName}.state`,
+    ),
+  };
+}
+
+function normalizePreflightUnit(
+  value: unknown,
+  fieldName: string,
+): CollectionPreflightUnit {
+  const record = requiredRecord(value, fieldName);
+  return {
+    unitId: requiredString(
+      record.unit_id ?? record.unitId,
+      `${fieldName}.unitId`,
+    ),
+    result: requiredClosedValue(
+      record.result,
+      PREFLIGHT_UNIT_RESULTS,
+      `${fieldName}.result`,
+    ),
+    matchExpr: requiredString(
+      record.match_expr ?? record.matchExpr,
+      `${fieldName}.matchExpr`,
+    ),
+    // `paths` 空就不发（只对 `path_exists` / `not_path_exists` 条件出现）。
+    paths: (record.paths === undefined || record.paths === null
+      ? []
+      : requiredArrayOf(
+          record.paths,
+          `${fieldName}.paths`,
+          normalizePreflightPathFact,
+        )),
+  };
+}
+
+function normalizePreflightFamily(
+  value: unknown,
+  fieldName: string,
+): CollectionPreflightFamily {
+  const record = requiredRecord(value, fieldName);
+  const units = record.units;
+  return {
+    family: requiredString(record.family, `${fieldName}.family`),
+    state: requiredClosedValue(
+      record.state,
+      PREFLIGHT_FAMILY_STATES,
+      `${fieldName}.state`,
+    ),
+    // `grantable` 时网关不下发 `reason`。
+    reason: optionalStringField(record, ["reason"], `${fieldName}.reason`),
+    selectedUnits:
+      record.selected_units === undefined || record.selected_units === null
+        ? []
+        : requiredStringArray(
+            record.selected_units,
+            `${fieldName}.selectedUnits`,
+          ),
+    units:
+      units === undefined || units === null
+        ? []
+        : requiredArrayOf(units, `${fieldName}.units`, normalizePreflightUnit),
+  };
+}
+
+function normalizePreflightProbe(
+  value: unknown,
+  fieldName: string,
+): CollectionPreflightProbe {
+  const record = requiredRecord(value, fieldName);
+  const unreadable = record.unreadable_paths;
+  return {
+    source: requiredClosedValue(
+      record.source,
+      PREFLIGHT_PROBE_SOURCES,
+      `${fieldName}.source`,
+    ),
+    observedAt: optionalStringField(
+      record,
+      ["observed_at", "observedAt"],
+      `${fieldName}.observedAt`,
+    ),
+    stale: requiredBoolean(record.stale, `${fieldName}.stale`),
+    pending: requiredBoolean(record.pending, `${fieldName}.pending`),
+    pendingSince: optionalStringField(
+      record,
+      ["pending_since", "pendingSince"],
+      `${fieldName}.pendingSince`,
+    ),
+    probedPaths: optionalStringArray(
+      record,
+      ["probed_paths", "probedPaths"],
+      `${fieldName}.probedPaths`,
+    ),
+    presentPaths: optionalStringArray(
+      record,
+      ["present_paths", "presentPaths"],
+      `${fieldName}.presentPaths`,
+    ),
+    unreadablePaths:
+      unreadable === undefined || unreadable === null
+        ? []
+        : requiredArrayOf(
+            unreadable,
+            `${fieldName}.unreadablePaths`,
+            (item, itemField) => {
+              const itemRecord = requiredRecord(item, itemField);
+              return {
+                path: requiredString(itemRecord.path, `${itemField}.path`),
+                error: requiredString(itemRecord.error, `${itemField}.error`),
+              };
+            },
+          ),
+    notProbedPaths: optionalStringArray(
+      record,
+      ["not_probed_paths", "notProbedPaths"],
+      `${fieldName}.notProbedPaths`,
+    ),
+  };
+}
+
+export function normalizeCollectionPreflightView(
+  payload: unknown,
+): CollectionPreflightView {
+  const record = requiredRecord(payload, "collectionPreflight");
+  const families = record.families;
+  return {
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "collectionPreflight.agentId",
+    ),
+    machineClass:
+      record.machine_class === undefined || record.machine_class === null
+        ? null
+        : requiredMachineClass(
+            record.machine_class,
+            "collectionPreflight.machineClass",
+          ),
+    platform: optionalStringField(
+      record,
+      ["platform"],
+      "collectionPreflight.platform",
+    ),
+    catalogVersion:
+      record.catalog_version === undefined || record.catalog_version === null
+        ? null
+        : requiredNumber(
+            record.catalog_version,
+            "collectionPreflight.catalogVersion",
+          ),
+    verdict: requiredClosedValue(
+      record.verdict,
+      PREFLIGHT_VERDICTS,
+      "collectionPreflight.verdict",
+    ),
+    // 只在 `verdict = undetermined` 时出现。
+    undeterminedReason:
+      record.undetermined_reason === undefined ||
+      record.undetermined_reason === null
+        ? null
+        : requiredClosedValue(
+            record.undetermined_reason,
+            PREFLIGHT_UNDETERMINED,
+            "collectionPreflight.undeterminedReason",
+          ),
+    summary: requiredString(record.summary, "collectionPreflight.summary"),
+    probe: normalizePreflightProbe(
+      record.probe,
+      "collectionPreflight.probe",
+    ),
+    families:
+      families === undefined || families === null
+        ? []
+        : requiredArrayOf(
+            families,
+            "collectionPreflight.families",
+            normalizePreflightFamily,
+          ),
+    generatedAt: requiredString(
+      record.generated_at ?? record.generatedAt,
+      "collectionPreflight.generatedAt",
+    ),
+  };
+}
+
+/** 读一台主机的采集预检结论（只读，不触发探测）。 */
+export async function fetchAgentCollectionPreflight(
+  agentId: string,
+): Promise<CollectionPreflightView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/collection-preflight`,
+  );
+  return normalizeCollectionPreflightView(payload);
+}
+
+/**
+ * 让**机器自己**再探一次（不需要任何人登录客户机）。
+ *
+ * 命令不直接推送：agentd 在下一个状态上报的回执里认领（≤3s），探完回传到网关。
+ * 返回值里 `probe.pending` 为 `true`，调用方轮询 `fetch` 直到它变 `false`。
+ */
+export async function runAgentCollectionPreflight(
+  agentId: string,
+): Promise<CollectionPreflightView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/collection-preflight`,
+    { method: "POST" },
+  );
+  return normalizeCollectionPreflightView(payload);
+}
+
 export async function fetchAgentAdvertiseUrl(): Promise<AgentAdvertiseUrl> {
   const payload = await requestJson<unknown>(
     "/api/v1/admin/agent/advertise-url",

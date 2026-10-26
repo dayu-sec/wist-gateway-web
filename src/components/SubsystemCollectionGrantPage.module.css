@@ -901,6 +901,108 @@
   color: var(--text-3);
 }
 
+/* ---------- 采集预检（让机器自己探） ---------- */
+
+/* 行内徽标与重采同形但不同色：两件事会被并列看到，不能靠颜色混成一件。 */
+.preflightBadge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px dashed transparent;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.preflightOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.preflightWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.preflightCrit {
+  border-color: var(--border-strong);
+  background: var(--unknown-soft);
+  color: var(--text-3);
+}
+
+.preflightMuted {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+/* 批次汇总条：左边“预检结果”，右边一排计数（与重采提示条同一视觉层级）。 */
+.preflightBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 7px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.preflightLead {
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.preflightPending {
+  color: var(--accent-strong);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+
+.preflightChip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+/* 行尾动作：与「查看工作」链接同一位置，但它是动作不是跳转。 */
+.preflightButton {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.preflightButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.preflightButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 /* ---------- 批量确认与结果 ---------- */
 
 .confirmBackdrop {
@@ -1134,6 +1236,13 @@
   margin: 4px 0 8px;
   color: var(--text-3);
   font-size: 11px;
+  line-height: 1.5;
+}
+
+.outcomeHint {
+  margin: -4px 0 8px;
+  color: var(--text-4);
+  font-size: 10.5px;
   line-height: 1.5;
 }
 
