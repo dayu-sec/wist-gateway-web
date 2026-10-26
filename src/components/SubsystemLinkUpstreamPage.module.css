@@ -149,7 +149,7 @@
 
 .field input:focus {
   border-color: var(--accent);
-  outline: 3px solid rgba(99, 102, 241, 0.28);
+  outline: 3px solid rgba(139, 92, 246, 0.32);
 }
 
 .field textarea {
@@ -169,7 +169,7 @@
 
 .field textarea:focus {
   border-color: var(--accent);
-  outline: 3px solid rgba(99, 102, 241, 0.28);
+  outline: 3px solid rgba(139, 92, 246, 0.32);
 }
 
 .fieldError {

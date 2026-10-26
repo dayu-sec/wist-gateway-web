@@ -8,49 +8,49 @@
 
 :root {
   /* ---------- 表面分层（由深到浅，表达层级而非装饰） ----------
-     深色不等于压抑：这一组整体比"纯正黑"亮一档，页面底亮度约为
-     #0b1120 的 1.8 倍。原来的取值在长时间盯屏下整体发灰发暗。 */
-  --bg: #101a2e;
-  --bg-elevated: #16223a;
-  --surface: #1c2a45;
-  --surface-2: #24334f;
-  --surface-3: #2c3d5c;
-  --border: #3d4e72;
-  --border-strong: #566a94;
+     深色以 wist-atlas 的深海军蓝为底（#0a1220），卡片比页面底亮一档
+     （#0f1a2c）；主色从靛蓝换成紫罗兰 #8b5cf6，与拓扑可视化同一套观感。 */
+  --bg: #0a1220;
+  --bg-elevated: #0d1728;
+  --surface: #0f1a2c;
+  --surface-2: #132035;
+  --surface-3: #182741;
+  --border: #1d2c44;
+  --border-strong: #2a3c58;
   /* 代码块是「凹陷」的表面：比页面底再暗一档，但不能是纯黑 —— 纯黑在
      提亮后的页面里会变成一块黑洞。 */
-  --code-bg: #0d1828;
+  --code-bg: #070f1b;
   --code-text: #dbe6f7;
 
   /* ---------- 文本 ----------
      全部对齐 WCAG AA（正文 4.5:1）。--text-4 原来只有 2.9~3.3:1，
      而 KPI 口径说明、计数、图表轴标签都用它 —— 这是"看起来暗淡"的主因。 */
-  --text: #f4f7fc;
-  --text-2: #c9d4e6;
-  --text-3: #a3b1c9;
-  --text-4: #8693ab;
+  --text: #e7eef9;
+  --text-2: #c9d6e8;
+  --text-3: #9aabc2;
+  --text-4: #7f90a8;
 
   /* ---------- 品牌 / 交互 ---------- */
-  --accent: #6366f1;
-  --accent-hover: #7c7ff5;
-  --accent-strong: #a5b4fc;
-  --accent-soft: rgba(99, 102, 241, 0.14);
-  --accent-border: #818cf8;
+  --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-strong: #c4b5fd;
+  --accent-soft: rgba(139, 92, 246, 0.16);
+  --accent-border: #7c5cd6;
 
   /* ---------- 语义状态（采集/健康语义，非涨跌语义） ---------- */
   --ok: #34d399;
   --ok-soft: rgba(52, 211, 153, 0.14);
-  --ok-border: rgba(52, 211, 153, 0.4);
+  --ok-border: rgba(52, 211, 153, 0.38);
   --warn: #fbbf24;
   --warn-soft: rgba(251, 191, 36, 0.14);
-  --warn-border: rgba(251, 191, 36, 0.4);
+  --warn-border: rgba(251, 191, 36, 0.38);
   --crit: #f87171;
   --crit-soft: rgba(248, 113, 113, 0.14);
-  --crit-border: rgba(248, 113, 113, 0.4);
-  --info: #60a5fa;
-  --info-soft: rgba(96, 165, 250, 0.14);
-  --unknown: #64748b;
-  --unknown-soft: rgba(100, 116, 139, 0.16);
+  --crit-border: rgba(248, 113, 113, 0.38);
+  --info: #38bdf8;
+  --info-soft: rgba(56, 189, 248, 0.14);
+  --unknown: #7f90a8;
+  --unknown-soft: rgba(127, 144, 168, 0.16);
 
   /* 兼容旧命名 */
   --success: var(--ok);
@@ -79,40 +79,40 @@
   --series-3: #34d399;
   --series-4: #fbbf24;
   --series-5: #fb7185;
-  --grid: rgba(148, 163, 184, 0.2);
-  --grid-strong: rgba(148, 163, 184, 0.34);
+  --grid: rgba(148, 163, 184, 0.16);
+  --grid-strong: rgba(148, 163, 184, 0.28);
 
   /* ---------- 侧边栏 ---------- */
-  --sidebar-bg: #0c1626;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-text: #a3b1c9;
-  --sidebar-text-active: #ffffff;
-  --sidebar-hover: rgba(255, 255, 255, 0.055);
-  --sidebar-active: rgba(99, 102, 241, 0.16);
+  --sidebar-bg: #080f1b;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-text: #9aabc2;
+  --sidebar-text-active: #f5f8ff;
+  --sidebar-hover: rgba(255, 255, 255, 0.05);
+  --sidebar-active: rgba(139, 92, 246, 0.16);
 
   /* ---------- 主题相关的叠加层 / 浮层 ----------
      组件里那些「比背景亮一档」的悬停高亮、贴顶状态条的半透明底、弹层与遮罩，深色下是白/深蓝
      半透明，浅色下必须换成黑/白半透明 —— 抽成 token，两套主题各给一组，组件里不再写字面量。 */
   --overlay-soft: rgba(255, 255, 255, 0.04);
   --overlay: rgba(255, 255, 255, 0.07);
-  --overlay-border: rgba(255, 255, 255, 0.14);
-  --bar-bg: rgba(11, 17, 32, 0.82);
-  --panel-solid: rgba(15, 23, 42, 0.96);
-  --panel-translucent: rgba(38, 52, 77, 0.6);
-  --scrim: rgba(8, 12, 20, 0.55);
-  --scrollbar-thumb: rgba(148, 163, 184, 0.28);
-  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.45);
+  --overlay-border: rgba(255, 255, 255, 0.12);
+  --bar-bg: rgba(8, 15, 27, 0.86);
+  --panel-solid: rgba(10, 18, 32, 0.97);
+  --panel-translucent: rgba(19, 32, 53, 0.65);
+  --scrim: rgba(2, 6, 12, 0.6);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.24);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.4);
 
   /* ---------- 尺度 ---------- */
-  --radius-lg: 14px;
+  --radius-lg: 12px;
   --radius: 10px;
-  --radius-sm: 7px;
-  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-xs: 6px;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow: 0 2px 6px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.28);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
-  --ring: 0 0 0 3px rgba(99, 102, 241, 0.32);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 18px 48px rgba(0, 0, 0, 0.6);
+  --ring: 0 0 0 3px rgba(139, 92, 246, 0.32);
   --ring-crit: 0 0 0 3px rgba(248, 113, 113, 0.3);
 
   --font:
@@ -132,8 +132,8 @@
      这五个值收成 token，页面只引用、不再写数字。 */
   --page-pad-x: 24px;
   --page-pad-top: 26px;
-  --page-title: 24px;
-  --page-summary: 13.5px;
+  --page-title: 22px;
+  --page-summary: 13px;
   /* 正文单行长度上限（CJK 约 60 字）：技术说明再长也要换行，否则眼睛回到行首会串行。 */
   --prose-max: 820px;
 }
@@ -145,28 +145,28 @@
    `npm run test:theme` 会检查这件事。 */
 :root[data-theme="light"] {
   /* 表面分层：白 → 灰，层级靠边框与极浅的底差表达（浅色下堆阴影会显脏）。 */
-  --bg: #f5f7fb;
+  --bg: #f7f8fa;
   --bg-elevated: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f1f4fa;
-  --surface-3: #e5ebf5;
-  --border: #dbe2ee;
-  --border-strong: #b8c4d9;
-  --code-bg: #f2f5fa;
+  --surface-2: #f9fafb;
+  --surface-3: #f2f4f7;
+  --border: #eaecf0;
+  --border-strong: #d0d5dd;
+  --code-bg: #f8fafc;
   --code-text: #1e293b;
 
   /* 文本：正文 #111a2e on #ffffff ≈ 16:1；--text-4 也保持在 4.5:1 以上。 */
-  --text: #111a2e;
-  --text-2: #33405c;
-  --text-3: #586a8c;
-  --text-4: #5f6b83;
+  --text: #101828;
+  --text-2: #344054;
+  --text-3: #475467;
+  --text-4: #667085;
 
   /* 品牌：底色浅，强调色要压深一档才够对比。 */
-  --accent: #5b5ef0;
-  --accent-hover: #4f46e5;
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
   --accent-strong: #4338ca;
-  --accent-soft: rgba(99, 102, 241, 0.1);
-  --accent-border: #818cf8;
+  --accent-soft: rgba(79, 70, 229, 0.09);
+  --accent-border: #c7d2fe;
 
   /* 语义状态：深色下的亮色在浅底上会「发光」，统一压深。 */
   --ok: #047857;
@@ -180,8 +180,8 @@
   --crit-border: rgba(192, 38, 38, 0.32);
   --info: #1d4ed8;
   --info-soft: rgba(29, 78, 216, 0.1);
-  --unknown: #64748b;
-  --unknown-soft: rgba(100, 116, 139, 0.12);
+  --unknown: #667085;
+  --unknown-soft: rgba(102, 112, 133, 0.12);
 
   /* 图表：分类色板在浅底上整体降一档亮度，网格线改成深色半透明。 */
   /* 语法着色：浅底上要压深，且保持与深色主题同一套「色相语义」。 */
@@ -199,33 +199,33 @@
   --series-3: #047857;
   --series-4: #b45309;
   --series-5: #be123c;
-  --grid: rgba(15, 23, 42, 0.1);
-  --grid-strong: rgba(15, 23, 42, 0.2);
+  --grid: rgba(16, 24, 40, 0.08);
+  --grid-strong: rgba(16, 24, 40, 0.16);
 
   /* 侧边栏：浅色版整条亮起来，靠右边框与背景做区分。 */
   --sidebar-bg: #ffffff;
-  --sidebar-border: rgba(15, 23, 42, 0.08);
-  --sidebar-text: #4c5c7a;
-  --sidebar-text-active: #111a2e;
-  --sidebar-hover: rgba(15, 23, 42, 0.045);
-  --sidebar-active: rgba(99, 102, 241, 0.12);
+  --sidebar-border: #eaecf0;
+  --sidebar-text: #667085;
+  --sidebar-text-active: #101828;
+  --sidebar-hover: rgba(16, 24, 40, 0.04);
+  --sidebar-active: rgba(79, 70, 229, 0.09);
 
   /* 叠加层 / 浮层：深色下是白半透明，浅色下换成黑半透明。 */
-  --overlay-soft: rgba(15, 23, 42, 0.03);
-  --overlay: rgba(15, 23, 42, 0.06);
-  --overlay-border: rgba(15, 23, 42, 0.12);
-  --bar-bg: rgba(255, 255, 255, 0.86);
+  --overlay-soft: rgba(16, 24, 40, 0.03);
+  --overlay: rgba(16, 24, 40, 0.06);
+  --overlay-border: rgba(16, 24, 40, 0.1);
+  --bar-bg: rgba(255, 255, 255, 0.88);
   --panel-solid: #ffffff;
   --panel-translucent: rgba(255, 255, 255, 0.92);
-  --scrim: rgba(15, 23, 42, 0.35);
-  --scrollbar-thumb: rgba(100, 116, 139, 0.35);
-  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.55);
+  --scrim: rgba(16, 24, 40, 0.32);
+  --scrollbar-thumb: rgba(102, 112, 133, 0.35);
+  --scrollbar-thumb-hover: rgba(102, 112, 133, 0.55);
 
   /* 阴影：浅色下要更轻更散，否则每个卡片都像浮起来。 */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow: 0 2px 8px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-lg: 0 18px 44px rgba(15, 23, 42, 0.18);
-  --ring: 0 0 0 3px rgba(99, 102, 241, 0.28);
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow: 0 4px 12px -4px rgba(16, 24, 40, 0.12), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-lg: 0 18px 44px rgba(16, 24, 40, 0.16);
+  --ring: 0 0 0 3px rgba(79, 70, 229, 0.28);
   --ring-crit: 0 0 0 3px rgba(192, 38, 38, 0.25);
 
   /* 原生控件（下拉、滚动条、日期选择器）跟着走，否则浅色页面里会露出深色控件。 */

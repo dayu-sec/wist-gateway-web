@@ -306,7 +306,9 @@
 /* 活跃 / 静默：跟在标题与计数后面（同一行），再往右是「全部展开 / 全部收起」。 */
 .activityTabs {
   display: flex;
-  flex: 0 1 auto;
+  /* 不许被挤：以前是 `0 1 auto`，列头里标题一长它就被压缩，两个 tab 的文字被折成
+     「活 / 跃」两行（现场截图）。放不下时让 .columnHead 整行换行，而不是把词掰断。 */
+  flex: 0 0 auto;
   gap: 2px;
   margin-left: 4px;
   padding: 2px;
@@ -319,10 +321,13 @@
 .activityTab,
 .activityTabActive {
   display: flex;
-  flex: 1 1 0;
+  /* 宽度由内容决定（两边只差一个数字的宽度），不靠 0 弹性基数撑开 —— 基数 0 时
+     容器一收缩，中文就被折成竖排。 */
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 5px;
+  white-space: nowrap;
   padding: 4px 6px;
   border: none;
   border-radius: var(--radius-xs);

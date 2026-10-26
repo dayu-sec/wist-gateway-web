@@ -56,7 +56,7 @@ function apply(theme: AppTheme, notify: boolean): void {
     // 移动端地址栏 / 状态栏的底色：跟着主题走，否则浅色页面顶上会挂一条深色。
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) {
-      meta.setAttribute("content", theme === "light" ? "#f5f7fb" : "#101a2e");
+      meta.setAttribute("content", theme === "light" ? "#f7f8fa" : "#0a1220");
     }
   }
   if (notify) {
