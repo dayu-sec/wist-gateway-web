@@ -8,6 +8,7 @@ import {
   type AgentFactRefreshOutcome,
 } from "../src/api/admin";
 import {
+  factRefreshDetail,
   factRefreshStatus,
   factRefreshStatusLabel,
   factRefreshSummaryParts,
@@ -155,6 +156,22 @@ assert(
 );
 assert(factRefreshStatus(null) === "idle", "null 命令也是 idle");
 assert(factRefreshStatus(undefined) === "idle", "undefined 命令也是 idle");
+
+// ── ③b “为什么失败”必须能拿出来（不能只活在前端的 title 悬浮里） ────────
+assert(
+  factRefreshDetail(null) === null,
+  "没有命令时不应该编造原因",
+);
+assert(
+  factRefreshDetail(command({ outcome: "failed" })) === null,
+  "detail 为空时返回 null（用空串会在页面上多出一个孤立的分隔符）",
+);
+assert(
+  factRefreshDetail(
+    command({ outcome: "failed", detail: "  事实摘要上送失败: timeout  " }),
+  ) === "事实摘要上送失败: timeout",
+  "detail 必须去掉首尾空白后原样展示",
+);
 
 // ── ④ 生命周期：等待认领 → 重采中 → 终态 ──────────────────────────────────
 assert(

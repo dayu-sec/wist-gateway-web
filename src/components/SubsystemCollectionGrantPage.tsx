@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError } from "../api";
 import {
@@ -34,6 +34,7 @@ import {
   type HostGrantState,
 } from "./collectionGrantState";
 import {
+  factRefreshDetail,
   factRefreshStatus,
   factRefreshStatusLabel,
   factRefreshSummaryParts,
@@ -60,10 +61,35 @@ const HOST_LIMIT = 40;
 /** 页面上的主机状态比纯判定多一个「还没检查」。 */
 type RowState = HostGrantState | null;
 
-function familyStateLabel(state: FamilyState): string {
+type FamilyBadgeState = FamilyState | "partial";
+
+/**
+ * 面级「就绪」是**跨平台聚合**：只要有一个平台有 active 单元就是 ready。
+ * 但对某台主机来说，它所在平台没就绪就是不能授权。这里把「部分平台就绪」
+ * 显式标出来，避免出现「面显示已就绪，主机却全不可授权」的错愕。
+ */
+function familyBadgeState(row: FamilyOverviewRow): FamilyBadgeState {
+  if (row.state !== "ready") return row.state;
+  const readyPlatforms = new Set(
+    row.perPlatform
+      .filter((entry) => entry.activeUnits > 0)
+      .map((entry) => entry.platform),
+  );
+  const expected =
+    row.family.platforms.length > 0
+      ? row.family.platforms
+      : row.perPlatform.map((entry) => entry.platform);
+  return expected.some((platform) => !readyPlatforms.has(platform))
+    ? "partial"
+    : "ready";
+}
+
+function familyStateLabel(state: FamilyBadgeState): string {
   switch (state) {
     case "ready":
       return t("已就绪", "Ready");
+    case "partial":
+      return t("部分就绪", "Partially ready");
     case "draft":
       return t("未就绪", "Not ready");
     case "unconfigured":
@@ -71,10 +97,12 @@ function familyStateLabel(state: FamilyState): string {
   }
 }
 
-function familyStateClass(state: FamilyState): string {
+function familyStateClass(state: FamilyBadgeState): string {
   switch (state) {
     case "ready":
       return styles.familyReady;
+    case "partial":
+      return styles.familyPartial;
     case "draft":
       return styles.familyDraft;
     case "unconfigured":
@@ -326,6 +354,7 @@ export function SubsystemCollectionGrantPage() {
     () => familyRows.find((row) => row.family.id === selectedFamily) ?? null,
     [familyRows, selectedFamily],
   );
+  const selectedBadge = selectedRow ? familyBadgeState(selectedRow) : null;
 
   const checkedIds = checkRequest?.ids ?? [];
   const purposes = useAgentPurposes(checkedIds);
@@ -478,7 +507,9 @@ export function SubsystemCollectionGrantPage() {
   // 为什么不是只挑「可授权」：事实过期恰恰是主机被判成「不可授权 / 未判定用途」的常见原因
   // —— 只对已可授权的重采，最该重采的那批反而永远点不到（按钮会变成 0 台且不可点），
   // 正好把这个入口存在的理由抵消掉。
-  const refreshTargets = (selectedHosts.size > 0 ? selectedVisible : visibleHosts)
+  const refreshTargets = (
+    selectedHosts.size > 0 ? selectedVisible : visibleHosts
+  )
     .map((agent) => agent.agentId)
     .slice(0, HOST_LIMIT);
   const refreshPending = requestFactRefresh.isPending;
@@ -585,6 +616,18 @@ export function SubsystemCollectionGrantPage() {
     selectedFamily !== null &&
     checkRequest?.family === selectedFamily &&
     checkedVisible.length > 0;
+
+  useEffect(() => {
+    if (!confirming) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !grantBatch.isPending) {
+        event.stopPropagation();
+        setConfirming(false);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [confirming, grantBatch.isPending]);
 
   return (
     <div className={styles.container}>
@@ -696,6 +739,7 @@ export function SubsystemCollectionGrantPage() {
                 {filteredFamilies.map((row) => {
                   const active = row.family.id === selectedFamily;
                   const name = collectionFamilyName(row.family.id, familyText);
+                  const badge = familyBadgeState(row);
                   const platform = platformText(row);
                   const classes =
                     row.machineClasses.length === 0
@@ -713,9 +757,9 @@ export function SubsystemCollectionGrantPage() {
                     >
                       <span
                         className={`${styles.familyDot} ${
-                          row.state === "ready"
+                          badge === "ready"
                             ? styles.familyDotReady
-                            : row.state === "draft"
+                            : badge === "partial" || badge === "draft"
                               ? styles.familyDotDraft
                               : styles.familyDotIdle
                         }`}
@@ -723,7 +767,7 @@ export function SubsystemCollectionGrantPage() {
                       />
                       <span className={styles.familyChipName}>{name}</span>
                       <span className={styles.familyChipState}>
-                        {familyStateLabel(row.state)}
+                        {familyStateLabel(badge)}
                       </span>
                     </button>
                   );
@@ -785,34 +829,49 @@ export function SubsystemCollectionGrantPage() {
                 ) : null}
                 {refreshEntries.length > 0 ? (
                   <ul className={styles.refreshList}>
-                    {refreshEntries.slice(0, 8).map((entry) => (
-                      <li
-                        key={entry.agentId}
-                        className={styles.refreshEntry}
-                        title={
-                          entry.failed
-                            ? adminApiErrorMessage(entry.error)
-                            : entry.command?.detail || undefined
-                        }
-                      >
-                        <span className={styles.refreshHost}>
-                          {entry.label}
-                        </span>
-                        <span
-                          className={styles.refreshSep}
-                          aria-hidden="true"
+                    {refreshEntries.slice(0, 8).map((entry) => {
+                      // “为什么失败”与“失败了”必须同行：只放在 title 里 = 触屏/截图都看不到。
+                      const reason = entry.failed
+                        ? adminApiErrorMessage(entry.error)
+                        : factRefreshDetail(entry.command);
+                      return (
+                        <li
+                          key={entry.agentId}
+                          className={styles.refreshEntry}
+                          title={reason ?? undefined}
                         >
-                          ·
-                        </span>
-                        <span>
-                          {entry.failed
-                            ? t("发起失败", "Request failed")
-                            : factRefreshStatusLabel(
-                                factRefreshStatus(entry.command),
-                              )}
-                        </span>
-                      </li>
-                    ))}
+                          <span className={styles.refreshHost}>
+                            {entry.label}
+                          </span>
+                          <span
+                            className={styles.refreshSep}
+                            aria-hidden="true"
+                          >
+                            ·
+                          </span>
+                          <span>
+                            {entry.failed
+                              ? t("发起失败", "Request failed")
+                              : factRefreshStatusLabel(
+                                  factRefreshStatus(entry.command),
+                                )}
+                          </span>
+                          {reason ? (
+                            <>
+                              <span
+                                className={styles.refreshSep}
+                                aria-hidden="true"
+                              >
+                                ·
+                              </span>
+                              <span className={styles.refreshReason}>
+                                {reason}
+                              </span>
+                            </>
+                          ) : null}
+                        </li>
+                      );
+                    })}
                     {refreshEntries.length > 8 ? (
                       <li className={styles.refreshEntry}>
                         {t("等 {n} 台", "and {n} more", {
@@ -832,11 +891,9 @@ export function SubsystemCollectionGrantPage() {
                 {refreshPending
                   ? t("正在发起…", "Requesting…")
                   : selectedHosts.size > 0
-                    ? t(
-                        "重采事实（{n} 台）",
-                        "Refresh facts ({n} hosts)",
-                        { n: refreshTargets.length },
-                      )
+                    ? t("重采事实（{n} 台）", "Refresh facts ({n} hosts)", {
+                        n: refreshTargets.length,
+                      })
                     : t(
                         "重采当前筛选（{n} 台）",
                         "Refresh filter ({n} hosts)",
@@ -898,9 +955,9 @@ export function SubsystemCollectionGrantPage() {
                       </h2>
                     </div>
                     <span
-                      className={`${styles.familyState} ${familyStateClass(selectedRow.state)}`}
+                      className={`${styles.familyState} ${selectedBadge ? familyStateClass(selectedBadge) : ""}`}
                     >
-                      {familyStateLabel(selectedRow.state)}
+                      {selectedBadge ? familyStateLabel(selectedBadge) : ""}
                     </span>
                   </div>
                   {collectionFamilySummary(
@@ -931,12 +988,18 @@ export function SubsystemCollectionGrantPage() {
                       {visibleHosts.length}
                     </span>
                   </div>
-                  {selectedRow.state !== "ready" ? (
+                  {selectedBadge && selectedBadge !== "ready" ? (
                     <div className={styles.familyWarning}>
-                      {t(
-                        "这个采集面当前没有采集就绪的单元（status = active），不能授权；先到知识库补齐内容并切换生效版本。",
-                        "This family has no collection-ready unit (status = active), so it cannot be granted. Add content in the knowledge base and activate a version first.",
-                      )}
+                      {selectedBadge === "partial"
+                        ? t(
+                            "这个采集面只在部分平台就绪（{readiness}）；未就绪平台的主机会在下面显示为不可授权。",
+                            "This family is ready on some platforms only ({readiness}); hosts on unready platforms are blocked below.",
+                            { readiness: platformText(selectedRow) },
+                          )
+                        : t(
+                            "这个采集面当前没有采集就绪的单元（status = active），不能授权；先到知识库补齐内容并切换生效版本。",
+                            "This family has no collection-ready unit (status = active), so it cannot be granted. Add content in the knowledge base and activate a version first.",
+                          )}
                     </div>
                   ) : null}
                 </header>
@@ -1227,14 +1290,15 @@ export function SubsystemCollectionGrantPage() {
                                   className={`${styles.refreshBadge} ${styles.refreshCrit}`}
                                   title={adminApiErrorMessage(refreshError)}
                                 >
-                                  {t("重采 · 发起失败", "Refresh · request failed")}
+                                  {t(
+                                    "重采 · 发起失败",
+                                    "Refresh · request failed",
+                                  )}
                                 </span>
                               ) : refreshStatus !== "idle" ? (
                                 <span
                                   className={`${styles.refreshBadge} ${refreshToneClass(factRefreshTone(refreshStatus))}`}
-                                  title={
-                                    refreshCommand?.detail || undefined
-                                  }
+                                  title={refreshCommand?.detail || undefined}
                                 >
                                   {t("重采", "Refresh")} ·{" "}
                                   {factRefreshStatusLabel(refreshStatus)}
@@ -1322,54 +1386,6 @@ export function SubsystemCollectionGrantPage() {
                   </div>
                 ) : null}
 
-                {confirming && selectedVisible.length > 0 ? (
-                  <div
-                    className={styles.confirm}
-                    role="alertdialog"
-                    aria-labelledby="grant-confirm-title"
-                  >
-                    <div>
-                      <strong id="grant-confirm-title">
-                        {t("确认授权 {n} 台主机？", "Grant to {n} hosts?", {
-                          n: selectedVisible.length,
-                        })}
-                      </strong>
-                      <p>
-                        {t(
-                          "将给这些主机各下发一份「{family}」常驻工作；Agent 下次拉快照（≤30 秒）后应用。这些主机上其它采集面的工作不受影响。",
-                          "One “{family}” standing work will be dispatched to each host; Agents apply it on their next snapshot (≤30 seconds). Work for other collection families on these hosts is untouched.",
-                          {
-                            family: collectionFamilyName(
-                              selectedRow.family.id,
-                              familyText,
-                            ),
-                          },
-                        )}
-                      </p>
-                    </div>
-                    <div className={styles.confirmActions}>
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        disabled={grantBatch.isPending}
-                        onClick={() => setConfirming(false)}
-                      >
-                        {t("取消", "Cancel")}
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.primaryButton}
-                        disabled={grantBatch.isPending}
-                        onClick={submitBatch}
-                      >
-                        {grantBatch.isPending
-                          ? t("授权中…", "Granting…")
-                          : t("确认授权", "Confirm grant")}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
                 <div className={styles.batchBar}>
                   <div className={styles.batchCount}>
                     {selectedHosts.size > 0 ? (
@@ -1421,6 +1437,103 @@ export function SubsystemCollectionGrantPage() {
           </section>
         </>
       )}
+
+      {confirming && selectedRow && selectedVisible.length > 0 ? (
+        <div
+          className={styles.confirmBackdrop}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !grantBatch.isPending) {
+              setConfirming(false);
+            }
+          }}
+        >
+          <div
+            className={styles.confirmPanel}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="grant-confirm-title"
+            aria-describedby="grant-confirm-desc"
+          >
+            <header className={styles.confirmHeader}>
+              <div>
+                <h2 className={styles.confirmTitle} id="grant-confirm-title">
+                  {t("确认授权 {n} 台主机？", "Grant to {n} hosts?", {
+                    n: selectedVisible.length,
+                  })}
+                </h2>
+                <p className={styles.confirmFamily}>
+                  {collectionFamilyName(selectedRow.family.id, familyText)}
+                </p>
+              </div>
+              <button
+                type="button"
+                className={styles.confirmClose}
+                aria-label={t("关闭", "Close")}
+                disabled={grantBatch.isPending}
+                onClick={() => setConfirming(false)}
+              >
+                ×
+              </button>
+            </header>
+            <div className={styles.confirmBody} id="grant-confirm-desc">
+              <p>
+                {t(
+                  "将向以下主机各下发一份「{family}」常驻工作；Agent 下次拉快照（≤30 秒）后应用。这些主机上其它采集面的工作不受影响。",
+                  "One “{family}” standing work will be dispatched to each host below; Agents apply it on their next snapshot (≤30 seconds). Work for other collection families on these hosts is untouched.",
+                  {
+                    family: collectionFamilyName(
+                      selectedRow.family.id,
+                      familyText,
+                    ),
+                  },
+                )}
+              </p>
+              <ul className={styles.confirmHosts}>
+                {selectedVisible.slice(0, 6).map((agent) => (
+                  <li key={agent.agentId} className={styles.confirmHost}>
+                    <span className={styles.confirmHostName}>
+                      {agent.hostname.trim() || agent.agentId}
+                    </span>
+                    <span className={styles.confirmHostId}>
+                      {agent.agentId}
+                    </span>
+                  </li>
+                ))}
+                {selectedVisible.length > 6 ? (
+                  <li className={styles.confirmMore}>
+                    {t("还有 {n} 台未列出…", "and {n} more not listed…", {
+                      n: selectedVisible.length - 6,
+                    })}
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+            <footer className={styles.confirmActions}>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                autoFocus
+                disabled={grantBatch.isPending}
+                onClick={() => setConfirming(false)}
+              >
+                {t("取消", "Cancel")}
+              </button>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={grantBatch.isPending}
+                onClick={submitBatch}
+              >
+                {grantBatch.isPending
+                  ? t("授权中…", "Granting…")
+                  : t("确认授权（{n}）", "Confirm grant ({n})", {
+                      n: selectedVisible.length,
+                    })}
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

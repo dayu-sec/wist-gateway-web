@@ -244,7 +244,8 @@
   color: var(--ok);
 }
 
-.familyDraft {
+.familyDraft,
+.familyPartial {
   border-color: var(--warn-border);
   background: var(--warn-soft);
   color: var(--warn);
@@ -843,6 +844,15 @@
   text-overflow: ellipsis;
 }
 
+/* 失败/异常的原因：与状态同行，过长截断（完整文本仍在 title 里）。 */
+.refreshReason {
+  overflow: hidden;
+  max-width: 340px;
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .refreshSep {
   color: var(--text-4);
 }
@@ -893,36 +903,135 @@
 
 /* ---------- 批量确认与结果 ---------- */
 
-.confirm {
+.confirmBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+}
+
+.confirmPanel {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  width: min(540px, 100%);
+  max-height: min(78vh, 680px);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.confirmHeader {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  flex-wrap: wrap;
   gap: 12px;
-  margin: 12px 18px;
-  padding: 11px 13px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
+  padding: 16px 18px 10px;
 }
 
-.confirm strong {
+.confirmTitle {
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
-.confirm p {
-  max-width: 620px;
-  margin: 4px 0 0;
+.confirmFamily {
+  margin-top: 3px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+
+.confirmClose {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-4);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.confirmClose:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.confirmBody {
+  padding: 0 18px 14px;
+  overflow-y: auto;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.confirmBody p {
+  margin: 0;
+}
+
+.confirmHosts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 150px;
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  list-style: none;
+}
+
+.confirmHost {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.confirmHostName {
+  overflow: hidden;
   color: var(--text-2);
   font-size: 11.5px;
-  line-height: 1.55;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.confirmHostId {
+  overflow: hidden;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.confirmMore {
+  color: var(--text-4);
+  font-size: 10.5px;
 }
 
 .confirmActions {
   display: flex;
-  flex: 0 0 auto;
-  gap: 7px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .primaryButton {
@@ -1259,5 +1368,15 @@
 @media (max-width: 420px) {
   .familyStrip {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .confirmBackdrop {
+    padding: 12px;
+  }
+
+  .confirmPanel {
+    max-height: 86vh;
   }
 }

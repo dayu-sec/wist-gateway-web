@@ -26,6 +26,21 @@ export type FactRefreshStatus =
   | "expired";
 
 /**
+ * 失败/异常时给人看的**原因**（后端 `detail`）。
+ *
+ * 为什么单独抽出来：以前页面只把它放在 `title` 悬浮里 —— 触屏、截图、录屏都看不到，
+ * 现场只会说「全都显示失败，看不到原因」。把“为什么失败”和“失败了”放在同一行才是可用的。
+ *
+ * 返回 `null` 表示没有可展示的细节（不用空字符串占位）。
+ */
+export function factRefreshDetail(
+  command: AgentFactRefreshCommand | null | undefined,
+): string | null {
+  const detail = (command?.detail ?? "").trim();
+  return detail.length > 0 ? detail : null;
+}
+
+/**
  * 一条命令 → 页面状态。优先级是**命令生命周期**决定的：
  * 没请求过 → 等待认领 → 已认领（重采中）→ 终态（outcome）。
  */
