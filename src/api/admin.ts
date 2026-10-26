@@ -440,7 +440,13 @@ export const clearAdminApiToken = adminAuth.clearAdminApiToken;
 // `ApiError` 在导入时就别名好了（实为共享包的 `AdminApiError`），各页面沿用原导出名。
 export { ApiError, isRateLimitedError, isUnauthorizedError };
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * 发一次管理面请求并把非 2xx 统一翻译成 `ApiError`（含 401 清 token、429 读 `Retry-After`）。
+ *
+ * 与「怎么读响应体」分开，是因为 `DELETE` 走 204：`response.json()` 在空 body 上会抛
+ * `SyntaxError`，而错误映射必须与普通请求**逐字一致**（同一个 token 失效/限流语义）。
+ */
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const adminToken = getAdminApiToken();
   const response = await fetch(path, {
     ...init,
@@ -472,7 +478,20 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(response.status, path, { code, detail });
   }
+  return response;
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await request(path, init);
   return (await response.json()) as T;
+}
+
+/** `DELETE` 的响应体是 204（没有 body），所以只走错误映射、不解析 JSON。 */
+async function requestNoContent(
+  path: string,
+  init?: RequestInit,
+): Promise<void> {
+  await request(path, init);
 }
 
 function requiredString(value: unknown, fieldName: string): string {
@@ -1424,6 +1443,341 @@ export async function setAgentUplink(
     }),
   });
   return normalizeAgentUplink(payload);
+}
+
+/**
+ * 原文快照（DSNAP）的一层设置：全局默认或某台 Agent 的单机覆盖。
+ *
+ * 它只说「控制面要求什么」，**不保证机器已经在这么做** —— 实际生效值在
+ * `DiscoverySnapshotApplied`，两者放在同一行比较，才能发现「配了 1 小时、实际还是 5 分钟」。
+ */
+export interface DiscoverySnapshotSetting {
+  enabled: boolean;
+  /** 上送周期（秒）。后端已夹到 `min_interval_seconds` 以上。 */
+  intervalSeconds: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/** Agent 回传的**实际生效**配置（搭在 poll 请求上，不是一次独立上报）。 */
+export interface DiscoverySnapshotApplied {
+  enabled: boolean;
+  intervalSeconds: number;
+  /** `control_plane`（按网关下发）或 `local_config`（本机 `[discovery]`）。 */
+  source: string;
+  /**
+   * 这个生效值自何时起就是它（值不变不写库）。
+   * 与 `updatedAt` 的「最后改设置的时间」不是一回事，所以单独命名成 `since`。
+   */
+  since: string;
+}
+
+/** 表里的一台机器：单机覆盖（可为空）+ 实际生效值（可为空）。 */
+export interface DiscoverySnapshotAgentRow {
+  agentId: string;
+  /** `null` = 没有单机覆盖，继承全局（全局也没有则用本机配置）。 */
+  overrideSetting: DiscoverySnapshotSetting | null;
+  /** `null` = 这台还没回传过生效值（旧 agentd / 未入网 / 还没拉取）。 */
+  applied: DiscoverySnapshotApplied | null;
+}
+
+/** `GET /api/v1/admin/discovery/snapshot` 的整页视图。 */
+export interface DiscoverySnapshotView {
+  /** `null` = 从没设过全局：所有机器按各自本机配置跑。 */
+  global: DiscoverySnapshotSetting | null;
+  agents: DiscoverySnapshotAgentRow[];
+  /** 周期下限（秒）：与后端拒绝 `interval_seconds < 60` 的口径同源。 */
+  minIntervalSeconds: number;
+  generatedAt: string;
+}
+
+export interface SetDiscoverySnapshotCommand {
+  enabled: boolean;
+  intervalSeconds: number;
+  requestedBy?: string;
+}
+
+function normalizeDiscoverySnapshotSetting(
+  payload: unknown,
+  at: string,
+): DiscoverySnapshotSetting {
+  const record = requiredRecord(payload, at);
+  return {
+    enabled: requiredBoolean(record.enabled, `${at}.enabled`),
+    intervalSeconds: requiredNumber(
+      record.interval_seconds ?? record.intervalSeconds,
+      `${at}.intervalSeconds`,
+    ),
+    updatedBy: requiredString(
+      record.updated_by ?? record.updatedBy,
+      `${at}.updatedBy`,
+    ),
+    // 设置对象是「存过就一定有 updated_at」：null 只出现在「没这一层设置」
+    // （外层字段为 null），所以这里必须是非空字符串。
+    updatedAt: requiredString(
+      record.updated_at ?? record.updatedAt,
+      `${at}.updatedAt`,
+    ),
+  };
+}
+
+function normalizeDiscoverySnapshotApplied(
+  payload: unknown,
+  at: string,
+): DiscoverySnapshotApplied {
+  const record = requiredRecord(payload, at);
+  return {
+    enabled: requiredBoolean(record.enabled, `${at}.enabled`),
+    intervalSeconds: requiredNumber(
+      record.interval_seconds ?? record.intervalSeconds,
+      `${at}.intervalSeconds`,
+    ),
+    // `source` 是开放的两值集合：认不出的来源由页面原样显示，不在这里编一个值
+    // （编错会让人以为机器在用控制面下发）。
+    source: requiredString(record.source, `${at}.source`),
+    since: requiredString(record.since, `${at}.since`),
+  };
+}
+
+function normalizeDiscoverySnapshotAgentRow(
+  payload: unknown,
+  index: number,
+): DiscoverySnapshotAgentRow {
+  const at = `discoverySnapshot.agents[${index}]`;
+  const record = requiredRecord(payload, at);
+  // 键必须存在：`null` 是契约里的真实语义（没有覆盖 / 还没回传），
+  // 缺失则是响应漂移 —— 不能把两者混成一个「空」字。
+  const overrideSetting = presentField(
+    record,
+    ["override_setting", "overrideSetting"],
+    `${at}.overrideSetting`,
+  );
+  const applied = presentField(record, ["applied"], `${at}.applied`);
+  return {
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      `${at}.agentId`,
+    ),
+    overrideSetting:
+      overrideSetting === null
+        ? null
+        : normalizeDiscoverySnapshotSetting(
+            overrideSetting,
+            `${at}.overrideSetting`,
+          ),
+    applied:
+      applied === null
+        ? null
+        : normalizeDiscoverySnapshotApplied(applied, `${at}.applied`),
+  };
+}
+
+export function normalizeDiscoverySnapshot(
+  payload: unknown,
+): DiscoverySnapshotView {
+  const record = requiredRecord(payload, "discoverySnapshot");
+  const global = presentField(record, ["global"], "discoverySnapshot.global");
+  return {
+    global:
+      global === null
+        ? null
+        : normalizeDiscoverySnapshotSetting(
+            global,
+            "discoverySnapshot.global",
+          ),
+    agents: requiredArray(record.agents, "discoverySnapshot.agents").map(
+      normalizeDiscoverySnapshotAgentRow,
+    ),
+    minIntervalSeconds: requiredNumber(
+      record.min_interval_seconds ?? record.minIntervalSeconds,
+      "discoverySnapshot.minIntervalSeconds",
+    ),
+    generatedAt: requiredString(
+      record.generated_at ?? record.generatedAt,
+      "discoverySnapshot.generatedAt",
+    ),
+  };
+}
+
+/**
+ * 原文快照上送的整页视图（全局 + 每台机器的覆盖 / 实际生效）。
+ *
+ * 一次拉全表、不分页：这一屏要看的是「哪些机器与配置不一致」，漏一页就是漏一批机器。
+ */
+export async function fetchDiscoverySnapshot(): Promise<DiscoverySnapshotView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/discovery/snapshot",
+  );
+  return normalizeDiscoverySnapshot(payload);
+}
+
+function discoverySnapshotBody(
+  command: SetDiscoverySnapshotCommand,
+): string {
+  return JSON.stringify({
+    enabled: command.enabled,
+    interval_seconds: command.intervalSeconds,
+    requested_by: command.requestedBy,
+  });
+}
+
+/** 设置全局的原文快照上送（本网关所有 Agent 的默认）。 */
+export async function setDiscoverySnapshotGlobal(
+  command: SetDiscoverySnapshotCommand,
+): Promise<DiscoverySnapshotSetting> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/discovery/snapshot",
+    { method: "POST", body: discoverySnapshotBody(command) },
+  );
+  return normalizeDiscoverySnapshotSetting(payload, "discoverySnapshot.global");
+}
+
+/** 清除全局设置：之后网关对该项不再下发，Agent 回落本机配置。 */
+export async function clearDiscoverySnapshotGlobal(): Promise<void> {
+  await requestNoContent("/api/v1/admin/discovery/snapshot", {
+    method: "DELETE",
+  });
+}
+
+/** 设置单台 Agent 的覆盖值（优先于全局）。 */
+export async function setAgentDiscoverySnapshot(
+  agentId: string,
+  command: SetDiscoverySnapshotCommand,
+): Promise<DiscoverySnapshotSetting> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/discovery/snapshot`,
+    { method: "POST", body: discoverySnapshotBody(command) },
+  );
+  return normalizeDiscoverySnapshotSetting(
+    payload,
+    `discoverySnapshot.agents.${agentId}`,
+  );
+}
+
+/** 清除单机覆盖：回落到全局设置（没有全局则回落本机配置）。 */
+export async function clearAgentDiscoverySnapshot(
+  agentId: string,
+): Promise<void> {
+  await requestNoContent(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/discovery/snapshot`,
+    { method: "DELETE" },
+  );
+}
+
+/**
+ * 「重采 + 重报事实」命令的终态取值（网关与 agentd 共用的闭合集合）。
+ *
+ * 终态才是结果；`null` 代表命令还在路上或已认领未完成（见 `AgentFactRefreshCommand`）。
+ */
+export type AgentFactRefreshOutcome =
+  | "succeeded"
+  | "failed"
+  | "no_uplink"
+  | "throttled"
+  | "stale"
+  | "unsupported"
+  | "superseded"
+  | "expired";
+
+/**
+ * 某台 Agent 的最近一条 `refresh_facts` 命令（`GET` / `POST …/fact-refresh` 同形）。
+ *
+ * 为什么字段全是 `| null`：**`null` 在这里是语义**，不能和「缺字段」混为一谈 ——
+ *   · `commandId === null` → 从没请过；
+ *   · `acknowledgedAt === null`（而 `commandId` 非空）→ 已下发、等待认领；
+ *   · `outcome === null` → 还没有结果（等待认领或已认领正在重采）；
+ *   · `detail` → 给运维看的原因（失败 / 节流 / 不支持…），可能为空。
+ */
+export interface AgentFactRefreshCommand {
+  agentId: string;
+  commandId: string | null;
+  kind: string | null;
+  requestedAt: string | null;
+  acknowledgedAt: string | null;
+  outcome: AgentFactRefreshOutcome | null;
+  detail: string | null;
+}
+
+function requiredAgentFactRefreshOutcome(
+  value: unknown,
+  fieldName: string,
+): AgentFactRefreshOutcome {
+  switch (value) {
+    case "succeeded":
+    case "failed":
+    case "no_uplink":
+    case "throttled":
+    case "stale":
+    case "unsupported":
+    case "superseded":
+    case "expired":
+      return value;
+  }
+  // 终态是闭合集合：认不出来就是契约漂移，不能静默成一个「未知结果」。
+  throw new Error(`Invalid API response: invalid ${fieldName}`);
+}
+
+export function normalizeAgentFactRefresh(
+  payload: unknown,
+): AgentFactRefreshCommand {
+  const record = requiredRecord(payload, "agentFactRefresh");
+  const outcome = presentField(record, ["outcome"], "agentFactRefresh.outcome");
+  return {
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "agentFactRefresh.agentId",
+    ),
+    commandId: nullableStringField(
+      record,
+      ["command_id", "commandId"],
+      "agentFactRefresh.commandId",
+    ),
+    kind: nullableStringField(record, ["kind"], "agentFactRefresh.kind"),
+    requestedAt: nullableStringField(
+      record,
+      ["requested_at", "requestedAt"],
+      "agentFactRefresh.requestedAt",
+    ),
+    acknowledgedAt: nullableStringField(
+      record,
+      ["acknowledged_at", "acknowledgedAt"],
+      "agentFactRefresh.acknowledgedAt",
+    ),
+    outcome:
+      outcome === null
+        ? null
+        : requiredAgentFactRefreshOutcome(
+            outcome,
+            "agentFactRefresh.outcome",
+          ),
+    detail: nullableStringField(record, ["detail"], "agentFactRefresh.detail"),
+  };
+}
+
+/** 某台 Agent 最近一条「重采事实」命令（页面轮询用）。 */
+export async function fetchAgentFactRefresh(
+  agentId: string,
+): Promise<AgentFactRefreshCommand> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/fact-refresh`,
+  );
+  return normalizeAgentFactRefresh(payload);
+}
+
+/**
+ * 发起一次「重采 + 重报事实」。
+ *
+ * 命令**不是立刻推送**：agent 没有入站通道，它在下一个状态上报的回执里认领
+ * （上报间隔 3s 级）。所以这里的返回值只代表「命令已入队」。
+ */
+export async function requestAgentFactRefresh(
+  agentId: string,
+): Promise<AgentFactRefreshCommand> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/fact-refresh`,
+    { method: "POST" },
+  );
+  return normalizeAgentFactRefresh(payload);
 }
 
 export async function fetchAgentAdvertiseUrl(): Promise<AgentAdvertiseUrl> {

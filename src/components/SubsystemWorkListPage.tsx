@@ -35,6 +35,9 @@ export function SubsystemWorkListPage() {
             "Each Agent reports the work it holds itself: pick one on this page to see which files it collects and which standing and one-shot work it holds. The grant side (what the gateway expects it to do) is on the same page, so the two can be compared.",
           )}
         </p>
+        <Link className={styles.crossLink} to="/collection-grants">
+          {t("按采集面授权", "Grant by collection family")} <span aria-hidden="true">→</span>
+        </Link>
       </header>
 
       <section className={styles.panel} aria-labelledby="work-fleet-title">

@@ -66,7 +66,8 @@ npm run preview  # 预览构建产物
 ```bash
 npm run test:bundle              # 校验 admin token 等敏感信息未泄漏进产物
 npm run test:i18n                # 校验双语取词：默认 zh、双向切换、占位符、与共享口径同源
-npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读那一项 + 可写那一项、旧路名有重定向）
+npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读那一项 + 可写那一项、旧路名有重定向、采集授权入口）
+npm run test:collection-grants    # 校验「按采集面授权」主机状态判定（现有授权优先 / 用途 / 模板 / 就绪度）
 npm run test:gateway-initialize  # 校验网关初始化材料（initial-config）接口契约
 ```
 
@@ -123,6 +124,8 @@ React Query 缓存里，不会重新拉。
 | `/software` | 资产清单 |
 | `/pipeline` | 数据采集管线 |
 | `/logs` | 采集日志 |
+| `/work` | 采集工作（按主机查看在采什么、授权/暂停/撤回） |
+| `/collection-grants` | 采集授权（按采集面选主机，批量授权） |
 | `/fleet` | Agent 机队（在册 Agent，含离线；删除离线机器，不可恢复） |
 | `/upgrade` | Agent 升级（灰度发布计划） |
 | `/upgrade/:planId` | 升级计划详情 |

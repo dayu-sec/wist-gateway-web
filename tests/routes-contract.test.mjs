@@ -118,6 +118,21 @@ check(
   "README 路由表缺少 /knowledge",
 );
 
+// ── ⑤b 采集授权：从「面」出发的批量授权入口，四处都要一致 ───────────────────
+check(
+  app.includes('path="/collection-grants"') &&
+    app.includes("<SubsystemCollectionGrantPage />"),
+  "App.tsx 未把 /collection-grants 挂到 SubsystemCollectionGrantPage",
+);
+check(
+  nav.includes('to: "/collection-grants"'),
+  "侧边栏未指向 /collection-grants（按采集面授权就没有入口）",
+);
+check(
+  readme.includes("`/collection-grants`"),
+  "README 路由表缺少 /collection-grants",
+);
+
 // ── ⑥ 侧边栏每一项都要有面包屑：漏一条就落到 default 的「未知页面」 ─────────────
 // 之前是逐条手写 check（/gateway-info、/knowledge 各一条），新加页面时照样会漏 ——
 // /gwlinkd、/revocations 就是这样在状态条上写着「监控 / 未知页面」的。这里改成从导航

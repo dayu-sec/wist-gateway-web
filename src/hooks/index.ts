@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   type QueryClient,
   useMutation,
+  useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -13,9 +14,12 @@ import {
   approveRolloutPlan,
   retryRolloutPlan,
   classifyAgentPurpose,
+  clearAgentDiscoverySnapshot,
+  clearDiscoverySnapshotGlobal,
   createRolloutPlan,
   deleteAgent,
   fetchAgentAdvertiseUrl,
+  fetchAgentFactRefresh,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
   fetchAgentInstallPackage,
@@ -29,6 +33,7 @@ import {
   fetchAllAgentsHostMetrics,
   fetchBackendVersion,
   fetchContentCatalog,
+  fetchDiscoverySnapshot,
   fetchInstallPackages,
   fetchKnowledge,
   fetchKnowledgeLocks,
@@ -45,14 +50,17 @@ import {
   liftAgentRevocation,
   pauseWork,
   recordKnowledgePackage,
+  requestAgentFactRefresh,
   resolveCosPath,
   resolveGitHubRelease,
   resumeWork,
   revokeAgent,
   revokeWork,
   setAgentAdvertiseUrl,
+  setAgentDiscoverySnapshot,
   setAgentInstallPackage,
   setAgentUplink,
+  setDiscoverySnapshotGlobal,
   setGatewayLinkRequest,
   viewAgentLogs,
   viewGatewayLinkRequest,
@@ -61,6 +69,7 @@ import {
   viewGatewaySelfState,
   viewGatewaySelfStateHistory,
   type ActivateKnowledgePackageCommand,
+  type AgentFactRefreshCommand,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
@@ -69,8 +78,10 @@ import {
   type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
   type SetAgentUplinkCommand,
+  type SetDiscoverySnapshotCommand,
   type SetGatewayLinkRequestCommand,
 } from "../api";
+import type { WorkReceipt } from "../types";
 
 export function useAgentOverview() {
   // Re-render when the admin token changes so the query can transition from
@@ -261,7 +272,9 @@ export function useSetAgentInstallPackage() {
     mutationFn: (command: SetAgentInstallPackageCommand) =>
       setAgentInstallPackage(command),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["agent-install-package"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-install-package"],
+      });
     },
   });
 }
@@ -318,6 +331,85 @@ export function useSetAgentUplink() {
     void queryClient.invalidateQueries({ queryKey: ["agent-uplink"] });
   return useMutation({
     mutationFn: (command: SetAgentUplinkCommand) => setAgentUplink(command),
+    onSuccess: refresh,
+    onError: refresh,
+  });
+}
+
+/**
+ * 原文快照上送（DSNAP）的整页视图：全局设置 + 每台机器的覆盖与实际生效值。
+ *
+ * **要轮询**（与其他管理面设置不同）：`applied` 是 Agent 在 poll 时搭车上报的，
+ * 改完设置后它要等下一个轮询（≤30s）才变 —— 不轮询的话「实际生效」会永远停在旧值，
+ * 而这一屏的核心恰恰是「配置与生效是否一致」。
+ */
+export function useDiscoverySnapshot() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["discovery-snapshot"],
+    queryFn: fetchDiscoverySnapshot,
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  });
+}
+
+function invalidateDiscoverySnapshot(queryClient: QueryClient): void {
+  void queryClient.invalidateQueries({ queryKey: ["discovery-snapshot"] });
+}
+
+/**
+ * 保存全局设置。**失败也刷新**：理由同 `useSetAgentUplink` —— 服务端可能已经写了、
+ * 只是响应不合契约，页面必须以服务端为准，不能把「写失败」误当成「没写」。
+ */
+export function useSetDiscoverySnapshotGlobal() {
+  const queryClient = useQueryClient();
+  const refresh = () => invalidateDiscoverySnapshot(queryClient);
+  return useMutation({
+    mutationFn: (command: SetDiscoverySnapshotCommand) =>
+      setDiscoverySnapshotGlobal(command),
+    onSuccess: refresh,
+    onError: refresh,
+  });
+}
+
+/** 清除全局设置（之后所有机器回落到各自本机配置）。 */
+export function useClearDiscoverySnapshotGlobal() {
+  const queryClient = useQueryClient();
+  const refresh = () => invalidateDiscoverySnapshot(queryClient);
+  return useMutation({
+    mutationFn: () => clearDiscoverySnapshotGlobal(),
+    onSuccess: refresh,
+    onError: refresh,
+  });
+}
+
+/** 保存单台 Agent 的覆盖值（优先于全局）。 */
+export function useSetAgentDiscoverySnapshot() {
+  const queryClient = useQueryClient();
+  const refresh = () => invalidateDiscoverySnapshot(queryClient);
+  return useMutation({
+    mutationFn: (variables: {
+      agentId: string;
+      command: SetDiscoverySnapshotCommand;
+    }) => setAgentDiscoverySnapshot(variables.agentId, variables.command),
+    onSuccess: refresh,
+    onError: refresh,
+  });
+}
+
+/** 清除单机覆盖（回落到全局；没有全局则回落本机配置）。 */
+export function useClearAgentDiscoverySnapshot() {
+  const queryClient = useQueryClient();
+  const refresh = () => invalidateDiscoverySnapshot(queryClient);
+  return useMutation({
+    mutationFn: (agentId: string) => clearAgentDiscoverySnapshot(agentId),
     onSuccess: refresh,
     onError: refresh,
   });
@@ -594,6 +686,296 @@ export function useAgentWork(agentId: string) {
 }
 
 /**
+ * 批量读取一组 Agent 的用途（机队页「按采集面授权」用）。
+ *
+ * 与 `useAgentPurpose` 同一个 queryKey：单台页已经取过的结果直接命中缓存。
+ * **只对调用方传入的 agentId 发请求** —— 页面在选中采集面时检查当前筛选的前 N 台
+ * （搜索后可「重新检查」），不做「一进页面就替整支机队扇出」。
+ */
+export function useAgentPurposes(agentIds: readonly string[]) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQueries({
+    queries: agentIds.map((agentId) => ({
+      queryKey: ["agent-purpose", agentId],
+      queryFn: () => fetchAgentPurpose(agentId),
+      enabled: enabled && Boolean(agentId),
+      retry: (failureCount: number, error: unknown) => {
+        if (
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 404)
+        ) {
+          return false;
+        }
+        return failureCount < 3;
+      },
+    })),
+  });
+}
+
+/** 批量读取一组 Agent 的当前工作（与 `useAgentWork` 共用缓存键）。 */
+export function useAgentWorks(agentIds: readonly string[]) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQueries({
+    queries: agentIds.map((agentId) => ({
+      queryKey: ["agent-work", agentId],
+      queryFn: () => fetchAgentWork(agentId),
+      enabled: enabled && Boolean(agentId),
+      retry: (failureCount: number, error: unknown) => {
+        if (
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 404)
+        ) {
+          return false;
+        }
+        return failureCount < 3;
+      },
+    })),
+  });
+}
+
+/** 批量授权结果：每台一条，不让整批因为一台冲突而全部报成一个错。 */
+export interface BatchGrantOutcome {
+  agentId: string;
+  ok: boolean;
+  receipt?: WorkReceipt;
+  error?: unknown;
+}
+
+/**
+ * 与 `Promise.allSettled` 同形，但限制同时进行的请求数。
+ *
+ * 批量授权的选择可能有几十台；一次性全打给网关既没有必要，也会让本地限流/日志更难读。
+ * 4 个并发足够快，也把峰值压住；每台的成败仍然独立收集。
+ */
+async function settleWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  if (items.length === 0) return results;
+  let cursor = 0;
+  const workers = Math.max(1, Math.min(limit, items.length));
+  async function run(): Promise<void> {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      try {
+        results[index] = {
+          status: "fulfilled",
+          value: await worker(items[index]),
+        };
+      } catch (reason) {
+        results[index] = { status: "rejected", reason };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: workers }, () => run()));
+  return results;
+}
+
+/**
+ * 一次给多台主机授权**同一个采集面**（每台一份常驻工作）。
+ *
+ * 逐台收口（最多 4 个并发）：网关对单台可能回 409（已授权/模板不含此面），
+ * 一台失败不能把其它成功的主机说成失败。成功后按 agent 失效工作查询，
+ * 页面上「已授权」标签会自己转过来（Agent 的确认随后才到）。
+ */
+export function useGrantStandingWorkBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      agentIds,
+      family,
+    }: {
+      agentIds: readonly string[];
+      family: string;
+    }): Promise<BatchGrantOutcome[]> => {
+      const settled = await settleWithConcurrency(agentIds, 4, (agentId) =>
+        grantStandingWork(agentId, { family }),
+      );
+      return agentIds.map((agentId, index) => {
+        const result = settled[index];
+        return result.status === "fulfilled"
+          ? { agentId, ok: true, receipt: result.value }
+          : { agentId, ok: false, error: result.reason };
+      });
+    },
+    onSettled: (_outcomes, _error, variables) => {
+      for (const agentId of variables.agentIds) {
+        void queryClient.invalidateQueries({
+          queryKey: ["agent-work", agentId],
+        });
+      }
+    },
+  });
+}
+
+/**
+ * 「重采事实」命令的轮询：认领靠 agent 的状态上报（3s 级），3s 一次足够。
+ *
+ * 三个停轮询的条件（都不影响页面继续展示已有状态）：
+ *   ① `outcome` 非 null —— 终态；
+ *   ② 已认领且超过 `FACT_REFRESH_ACK_TIMEOUT_MS` —— 全量重采通常秒级，
+ *      再久就不是"快好了"而是结果不会再来了；
+ *   ③ 一直没被认领且超过 `FACT_REFRESH_PENDING_TIMEOUT_MS` —— 网关侧要 1 小时
+ *      才判 `expired`，页面不能陪一台离线机器每 3s 打一小时。超时后运维可再发起
+ *      （新命令会取代旧的），轮询会随新的 `requested_at` 重新开始。
+ */
+const FACT_REFRESH_POLL_MS = 3_000;
+const FACT_REFRESH_ACK_TIMEOUT_MS = 60_000;
+const FACT_REFRESH_PENDING_TIMEOUT_MS = 5 * 60_000;
+
+function factRefreshRefetchInterval(
+  command: AgentFactRefreshCommand | undefined,
+): number | false {
+  if (!command || command.commandId === null) return false;
+  if (command.outcome !== null) return false;
+  const now = Date.now();
+  if (command.acknowledgedAt !== null) {
+    const acknowledgedAt = Date.parse(command.acknowledgedAt);
+    if (
+      Number.isFinite(acknowledgedAt) &&
+      now - acknowledgedAt >= FACT_REFRESH_ACK_TIMEOUT_MS
+    ) {
+      return false;
+    }
+  } else if (command.requestedAt !== null) {
+    const requestedAt = Date.parse(command.requestedAt);
+    if (
+      Number.isFinite(requestedAt) &&
+      now - requestedAt >= FACT_REFRESH_PENDING_TIMEOUT_MS
+    ) {
+      return false;
+    }
+  }
+  return FACT_REFRESH_POLL_MS;
+}
+
+/** 401（token 无效）/ 404（未知 Agent）是确定性错误，重试只是白撞同一个错误。 */
+function factRefreshRetry(failureCount: number, error: Error): boolean {
+  if (
+    error instanceof ApiError &&
+    (error.status === 401 || error.status === 404)
+  ) {
+    return false;
+  }
+  return failureCount < 3;
+}
+
+/**
+ * 管理 token 变化时重渲染，并把「有没有 token」交给 query 的 `enabled`。
+ * 新加的几个事实重采钩子共用（老的钩子保留各自的写法，不做无谓重构）。
+ */
+function useAdminQueryEnabled(): boolean {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  return Boolean(getAdminApiToken());
+}
+
+/**
+ * 某台 Agent 最近一条「重采事实」命令。
+ *
+ * `enabled` 由调用方控制（只对正在跟踪的主机开）；轮询到终态 / 超时即停，
+ * 停条件见 `factRefreshRefetchInterval`。
+ */
+export function useAgentFactRefresh(agentId: string, enabled = false) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["agent-fact-refresh", agentId],
+    queryFn: () => fetchAgentFactRefresh(agentId),
+    enabled: authenticated && enabled && Boolean(agentId),
+    refetchInterval: (query) => factRefreshRefetchInterval(query.state.data),
+    retry: factRefreshRetry,
+  });
+}
+
+/**
+ * 批量版 `useAgentFactRefresh`（同一套 queryKey 与轮询策略）。
+ *
+ * 页面跟踪的是「一次发起的一批主机」，逐个在渲染里调 hook 会破坏 hooks 规则；
+ * 与 `useAgentPurposes` / `useAgentWorks` 同一写法。
+ */
+export function useAgentFactRefreshes(agentIds: readonly string[]) {
+  const authenticated = useAdminQueryEnabled();
+  return useQueries({
+    queries: agentIds.map((agentId) => ({
+      queryKey: ["agent-fact-refresh", agentId],
+      queryFn: () => fetchAgentFactRefresh(agentId),
+      enabled: authenticated && Boolean(agentId),
+      refetchInterval: (query: {
+        state: { data?: AgentFactRefreshCommand };
+      }) => factRefreshRefetchInterval(query.state.data),
+      retry: factRefreshRetry,
+    })),
+  });
+}
+
+/** 批量重采结果：每台一条，单台失败不影响其它台。 */
+export interface BatchFactRefreshOutcome {
+  agentId: string;
+  ok: boolean;
+  command?: AgentFactRefreshCommand;
+  error?: unknown;
+}
+
+/**
+ * 发起一批「重采事实」（最多 4 个并发，逐台收口）。
+ *
+ * POST 的返回值直接种进对应 query 缓存：页面不必等第一次 GET 才知道「已经发起」。
+ * 之后仍要失效一次 —— 让已经在轮询的主机立刻拉一条最新状态。
+ */
+export function useRequestAgentFactRefresh() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      agentIds: readonly string[],
+    ): Promise<BatchFactRefreshOutcome[]> => {
+      const settled = await settleWithConcurrency(agentIds, 4, (agentId) =>
+        requestAgentFactRefresh(agentId),
+      );
+      return agentIds.map((agentId, index) => {
+        const result = settled[index];
+        if (result.status === "fulfilled") {
+          queryClient.setQueryData(
+            ["agent-fact-refresh", agentId],
+            result.value,
+          );
+          return { agentId, ok: true, command: result.value };
+        }
+        return { agentId, ok: false, error: result.reason };
+      });
+    },
+    onSettled: (_outcomes, _error, variables) => {
+      for (const agentId of variables) {
+        void queryClient.invalidateQueries({
+          queryKey: ["agent-fact-refresh", agentId],
+        });
+      }
+    },
+  });
+}
+
+/**
  * 单台 Agent 的运行态（含**实际生效**的数据面上送状态）。
  *
  * 与工作页其它查询同一口径：401（token 无效）与 404（未知 Agent）是确定性的，不重试。
@@ -812,7 +1194,9 @@ export function useClassifyAgentPurpose(agentId: string) {
     mutationFn: (command: ClassifyAgentPurposeCommand) =>
       classifyAgentPurpose(agentId, command),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["agent-purpose", agentId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-purpose", agentId],
+      });
       // 判定是派活的前置：判完这台机器「能不能派活」就变了，一并刷新。
       void queryClient.invalidateQueries({ queryKey: ["agent-work", agentId] });
     },
@@ -877,7 +1261,8 @@ export function useRolloutPlan(planId: string) {
 export function useCreateRolloutPlan() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (command: CreateRolloutPlanCommand) => createRolloutPlan(command),
+    mutationFn: (command: CreateRolloutPlanCommand) =>
+      createRolloutPlan(command),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["rollout-plans"] });
     },

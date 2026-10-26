@@ -1,0 +1,601 @@
+/* 「原文快照上送」卡：卡片外壳与 Gateway 信息页其它卡同一套视觉。
+   外壳样式在本模块内自带一份（而不是从页面模块里 import），
+   这样组件挪位置/被复用时不依赖父页面的样式表。 */
+
+.card {
+  /* 父页面的卡片间距是 `.card + .card`（同一个 CSS Module 内的类名），跨模块匹配不到 ——
+     这张卡自带上下的纵向间距，插在两张卡之间时与它们对齐。 */
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.cardHead {
+  padding: 15px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.cardTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.cardTitleRow h2 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.cardChip {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.cardNote {
+  max-width: 780px;
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 优先级是这一页的**规则说明**，不是普通注释：单机覆盖会压掉全局，
+   而全局又会压掉本机 toml —— 用左侧色条让它从卡头说明里站起来。 */
+.priorityNote {
+  max-width: 780px;
+  margin-top: 8px;
+  padding-left: 9px;
+  border-left: 2px solid var(--accent-border);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px 20px;
+}
+
+/* ---------- 提示条 ---------- */
+
+.notice,
+.noticeDanger {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.notice {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+}
+
+.noticeDanger {
+  border: 1px solid var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-weight: 600;
+}
+
+.formHint {
+  padding: 9px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.errorBanner {
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.formNotice {
+  padding: 10px 12px;
+  border: 1px solid var(--ok-border);
+  border-radius: var(--radius-sm);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+/* ---------- 区块（全局设置 / 按机器） ---------- */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.panelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.panelTitle {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.panelMeta {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.panelMetaMuted {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+/* ---------- 全局设置表单 ---------- */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.checkRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.checkRow input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* 预设按钮与「自定义」同排：选周期是一件「挑一个」的动作，
+   下拉框会把当前值藏起来，这一屏需要一眼看到所有常见周期。 */
+.intervalRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.intervalLabel {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.presetGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.presetButton,
+.presetActive {
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.presetButton:hover {
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+
+.presetActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.presetButton:focus-visible,
+.presetActive:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 自定义周期与行内编辑里的数字输入共用：标签在上、说明在下。 */
+.customField {
+  display: flex;
+  flex: 0 1 220px;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.customField input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.customField input:focus {
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.customField input[aria-invalid="true"] {
+  border-color: var(--warn-border);
+}
+
+.customField small {
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+}
+
+.primaryButton {
+  min-height: 34px;
+  padding: 0 15px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primaryButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.primaryButton:disabled {
+  border-color: var(--border-strong);
+  background: var(--border-strong);
+  cursor: not-allowed;
+}
+
+.ghostButton,
+.dangerButton,
+.dangerGhostButton {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ghostButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* 「清除」是不可逆动作：常态给描边警示，确认态给实心底。 */
+.dangerGhostButton {
+  border-color: var(--crit-border);
+  color: var(--crit);
+}
+
+.dangerGhostButton:hover:not(:disabled) {
+  background: var(--crit-soft);
+}
+
+.dangerButton {
+  border-color: var(--crit);
+  background: var(--crit);
+  color: #ffffff;
+}
+
+.dangerButton:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.ghostButton:disabled,
+.dangerButton:disabled,
+.dangerGhostButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ghostButton:focus-visible,
+.dangerButton:focus-visible,
+.dangerGhostButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.inlineConfirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------- 按机器表格 ---------- */
+
+.tableScroll {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.row:hover td {
+  background: var(--overlay-soft);
+}
+
+/* 分叉行是这一屏的核心信号：用警示底色 + 左侧色条，让人扫一眼就能找到
+   「配了没生效」的机器。放在 hover 规则之后，保证悬停不会把它盖掉。 */
+.rowDivergent td {
+  background: var(--warn-soft);
+}
+
+.rowDivergent td:first-child {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.rowDivergent:hover td {
+  background: var(--warn-soft);
+}
+
+.actionsHead,
+.actionsCell {
+  width: 84px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.agentCell {
+  max-width: 240px;
+}
+
+.agentId {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.valuePrimary {
+  display: block;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* 分叉行里的「实际生效」值：用警示色标出来，并与 title 里的解释对照。 */
+.valueDivergent {
+  display: block;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.valueMuted {
+  display: block;
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.valueMeta {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-4);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.sourceLabel {
+  display: block;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.textButton {
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.textButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.textButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.textButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 就地编辑：编辑区挂在原行下方（跨满整行），保留表头与相邻行，
+   这样「正在改哪一台」不会因为弹层而失去上下文。 */
+.editorRow td {
+  padding: 0;
+  background: var(--surface-2);
+}
+
+.rowEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 12px 14px 14px;
+  border-left: 2px solid var(--accent-border);
+}
+
+.rowEditorHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.rowEditorTitle {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.rowEditorHint {
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.rowEditorControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 18px;
+}
+
+.empty {
+  padding: 22px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 12px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .body {
+    padding: 14px 16px 16px;
+  }
+
+  .panel {
+    padding: 12px 12px 14px;
+  }
+
+  .tableScroll {
+    max-height: 360px;
+  }
+}

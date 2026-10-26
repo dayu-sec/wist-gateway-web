@@ -15,6 +15,7 @@ import { SubsystemAgentHostListPage } from "./components/SubsystemAgentHostListP
 import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareInventoryPage";
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
+import { SubsystemCollectionGrantPage } from "./components/SubsystemCollectionGrantPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
 import { SubsystemAgentFleetPage } from "./components/SubsystemAgentFleetPage";
@@ -56,6 +57,7 @@ export function App() {
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route path="/logs" element={<SubsystemAgentLogsPage />} />
         <Route path="/work" element={<SubsystemWorkListPage />} />
+        <Route path="/collection-grants" element={<SubsystemCollectionGrantPage />} />
         <Route path="/upgrade" element={<SubsystemAgentUpgradePage />} />
         <Route path="/fleet" element={<SubsystemAgentFleetPage />} />
         <Route path="/revocations" element={<SubsystemAgentRevocationPage />} />

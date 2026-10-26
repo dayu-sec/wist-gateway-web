@@ -19,6 +19,7 @@ import {
   uplinkDraftPort,
   uplinkFormState,
 } from "./uplinkForm";
+import { SubsystemDiscoverySnapshotSection } from "./SubsystemDiscoverySnapshotSection";
 import styles from "./SubsystemGatewayInfoPage.module.css";
 
 /** 关于「未设置」：不是「用默认值」，而是压根没有上送目标。
@@ -144,7 +145,8 @@ function LoadNotice({
  *    「Agent 连哪、数据送哪」，分开成两张卡只会让读者来回对照。
  * ② 修改上送设置（可写）—— 只有上送目标与开关；对外地址由部署配置决定
  *    （`server.public_base_url`，改它要换域名与证书），管理面没有录入入口。
- * ③ 接入上级（只读状态）—— 宿主侧常驻 gwlinkd 由心跳环回推状态，纯观测。
+ * ③ 原文快照上送（可写）—— 全局周期 + 按机器的单机覆盖，并把「配了但没生效」标出来。
+ * ④ 接入上级（只读状态）—— 宿主侧常驻 gwlinkd 由心跳环回推状态，纯观测。
  *
  * 文本分工（改这一页时别再往回加）：卡头只留一句「这项是什么/由谁决定」，
  * 「两道并集」「≤30s 生效」这类机制说明各自只出现一次 —— 上送机制在上送卡，
@@ -324,6 +326,8 @@ export function SubsystemGatewayInfoPage() {
             />
           </section>
         ) : null}
+
+        <SubsystemDiscoverySnapshotSection />
 
         <section className={styles.card} aria-labelledby="gateway-info-linkd">
           <header className={styles.cardHead}>

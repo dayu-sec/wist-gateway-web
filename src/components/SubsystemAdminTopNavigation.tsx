@@ -167,6 +167,16 @@ function IconWork() {
   );
 }
 
+/** 采集授权：盾牌 + 勾 —— 「从一个采集面给多台主机放行」。 */
+function IconGrant() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path d="M8 1.9 13.4 4v4.1c0 3.2-2.2 5.7-5.4 6.9-3.2-1.2-5.4-3.7-5.4-6.9V4Z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="m5.7 7.8 1.6 1.6 3.1-3.2" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Agent 机队：三节点网格 —— 注册在册的一批机器（含离线）。 */
 function IconFleet() {
   return (
@@ -256,6 +266,7 @@ function navGroups(): { label: string; items: NavItem[] }[] {
       { to: "/", label: t("Agent 总览", "Agent overview"), icon: <IconOverview />, end: true },
       { to: "/hosts", label: t("主机指标", "Host metrics"), icon: <IconHost /> },
       { to: "/work", label: t("采集工作", "Collection work"), icon: <IconWork /> },
+      { to: "/collection-grants", label: t("采集授权", "Collection grants"), icon: <IconGrant /> },
       { to: "/software", label: t("资产清单", "Software inventory"), icon: <IconSoftware /> },
       { to: "/pipeline", label: t("数据采集", "Data pipeline"), icon: <IconPipeline /> },
       { to: "/logs", label: t("采集日志", "Collection logs"), icon: <IconLogs /> },

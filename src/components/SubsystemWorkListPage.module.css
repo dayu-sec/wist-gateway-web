@@ -31,6 +31,19 @@
   line-height: 1.65;
 }
 
+.crossLink {
+  align-self: flex-start;
+  margin-top: 2px;
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.crossLink:hover {
+  text-decoration: underline;
+}
+
 .panel {
   display: flex;
   flex-direction: column;
