@@ -736,6 +736,115 @@ export function SubsystemCollectionGrantPage() {
             className={styles.detail}
             aria-label={t("授权主机", "Grant hosts")}
           >
+            {/* 授权前先重采：事实摘要决定了「用途」与「能不能授权」，
+                拿过期事实做判断会把主机误判成不可授权（或反过来）。 */}
+            <div className={styles.refreshBar}>
+              <div className={styles.refreshCopy}>
+                <p className={styles.refreshLead}>
+                  {t(
+                    "授权前先重采事实：用途与可授权判定来自事实摘要。",
+                    "Refresh facts before granting: purpose and grantability come from the fact summary.",
+                  )}
+                </p>
+                {refreshSummaryParts.length > 0 ||
+                refreshRequestFailures > 0 ? (
+                  <p className={styles.refreshSummary}>
+                    {refreshSummaryParts.map((part) => (
+                      <span
+                        key={part.status}
+                        className={styles.refreshSummaryItem}
+                      >
+                        {factRefreshStatusLabel(part.status)} {part.count}
+                      </span>
+                    ))}
+                    {refreshRequestFailures > 0 ? (
+                      <span className={styles.refreshSummaryItem}>
+                        {t("发起失败", "Request failed")}{" "}
+                        {refreshRequestFailures}
+                      </span>
+                    ) : null}
+                  </p>
+                ) : null}
+                {refreshSummary.counts.no_uplink > 0 ? (
+                  <p className={styles.refreshHint}>
+                    {t(
+                      "有 {n} 台没有上送通道：先到「Gateway 信息」页把数据面上送开起来。",
+                      "{n} host(s) have no uplink: turn on data plane reporting on the Gateway info page first.",
+                      { n: refreshSummary.counts.no_uplink },
+                    )}
+                  </p>
+                ) : null}
+                {refreshSummary.counts.unsupported > 0 ? (
+                  <p className={styles.refreshHint}>
+                    {t(
+                      "有 {n} 台的 agentd 还不支持这个命令：升级 agentd 后再试。",
+                      "{n} host(s) run an agentd that does not support this command: upgrade agentd and retry.",
+                      { n: refreshSummary.counts.unsupported },
+                    )}
+                  </p>
+                ) : null}
+                {refreshEntries.length > 0 ? (
+                  <ul className={styles.refreshList}>
+                    {refreshEntries.slice(0, 8).map((entry) => (
+                      <li
+                        key={entry.agentId}
+                        className={styles.refreshEntry}
+                        title={
+                          entry.failed
+                            ? adminApiErrorMessage(entry.error)
+                            : entry.command?.detail || undefined
+                        }
+                      >
+                        <span className={styles.refreshHost}>
+                          {entry.label}
+                        </span>
+                        <span
+                          className={styles.refreshSep}
+                          aria-hidden="true"
+                        >
+                          ·
+                        </span>
+                        <span>
+                          {entry.failed
+                            ? t("发起失败", "Request failed")
+                            : factRefreshStatusLabel(
+                                factRefreshStatus(entry.command),
+                              )}
+                        </span>
+                      </li>
+                    ))}
+                    {refreshEntries.length > 8 ? (
+                      <li className={styles.refreshEntry}>
+                        {t("等 {n} 台", "and {n} more", {
+                          n: refreshEntries.length - 8,
+                        })}
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={refreshTargets.length === 0 || refreshPending}
+                onClick={refreshFacts}
+              >
+                {refreshPending
+                  ? t("正在发起…", "Requesting…")
+                  : selectedHosts.size > 0
+                    ? t(
+                        "重采事实（{n} 台）",
+                        "Refresh facts ({n} hosts)",
+                        { n: refreshTargets.length },
+                      )
+                    : t(
+                        "重采当前筛选（{n} 台）",
+                        "Refresh filter ({n} hosts)",
+                        { n: refreshTargets.length },
+                      )}
+              </button>
+            </div>
+
             {!selectedRow ? (
               <div className={styles.welcome}>
                 <span className={styles.welcomeMark} aria-hidden="true">
@@ -831,115 +940,6 @@ export function SubsystemCollectionGrantPage() {
                     </div>
                   ) : null}
                 </header>
-
-                {/* 授权前先重采：事实摘要决定了「用途」与「能不能授权」，
-                    拿过期事实做判断会把主机误判成不可授权（或反过来）。 */}
-                <div className={styles.refreshBar}>
-                  <div className={styles.refreshCopy}>
-                    <p className={styles.refreshLead}>
-                      {t(
-                        "授权前先重采事实：用途与可授权判定来自事实摘要。",
-                        "Refresh facts before granting: purpose and grantability come from the fact summary.",
-                      )}
-                    </p>
-                    {refreshSummaryParts.length > 0 ||
-                    refreshRequestFailures > 0 ? (
-                      <p className={styles.refreshSummary}>
-                        {refreshSummaryParts.map((part) => (
-                          <span
-                            key={part.status}
-                            className={styles.refreshSummaryItem}
-                          >
-                            {factRefreshStatusLabel(part.status)} {part.count}
-                          </span>
-                        ))}
-                        {refreshRequestFailures > 0 ? (
-                          <span className={styles.refreshSummaryItem}>
-                            {t("发起失败", "Request failed")}{" "}
-                            {refreshRequestFailures}
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : null}
-                    {refreshSummary.counts.no_uplink > 0 ? (
-                      <p className={styles.refreshHint}>
-                        {t(
-                          "有 {n} 台没有上送通道：先到「Gateway 信息」页把数据面上送开起来。",
-                          "{n} host(s) have no uplink: turn on data plane reporting on the Gateway info page first.",
-                          { n: refreshSummary.counts.no_uplink },
-                        )}
-                      </p>
-                    ) : null}
-                    {refreshSummary.counts.unsupported > 0 ? (
-                      <p className={styles.refreshHint}>
-                        {t(
-                          "有 {n} 台的 agentd 还不支持这个命令：升级 agentd 后再试。",
-                          "{n} host(s) run an agentd that does not support this command: upgrade agentd and retry.",
-                          { n: refreshSummary.counts.unsupported },
-                        )}
-                      </p>
-                    ) : null}
-                    {refreshEntries.length > 0 ? (
-                      <ul className={styles.refreshList}>
-                        {refreshEntries.slice(0, 8).map((entry) => (
-                          <li
-                            key={entry.agentId}
-                            className={styles.refreshEntry}
-                            title={
-                              entry.failed
-                                ? adminApiErrorMessage(entry.error)
-                                : entry.command?.detail || undefined
-                            }
-                          >
-                            <span className={styles.refreshHost}>
-                              {entry.label}
-                            </span>
-                            <span
-                              className={styles.refreshSep}
-                              aria-hidden="true"
-                            >
-                              ·
-                            </span>
-                            <span>
-                              {entry.failed
-                                ? t("发起失败", "Request failed")
-                                : factRefreshStatusLabel(
-                                    factRefreshStatus(entry.command),
-                                  )}
-                            </span>
-                          </li>
-                        ))}
-                        {refreshEntries.length > 8 ? (
-                          <li className={styles.refreshEntry}>
-                            {t("等 {n} 台", "and {n} more", {
-                              n: refreshEntries.length - 8,
-                            })}
-                          </li>
-                        ) : null}
-                      </ul>
-                    ) : null}
-                  </div>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    disabled={refreshTargets.length === 0 || refreshPending}
-                    onClick={refreshFacts}
-                  >
-                    {refreshPending
-                      ? t("正在发起…", "Requesting…")
-                      : selectedHosts.size > 0
-                        ? t(
-                            "重采事实（{n} 台）",
-                            "Refresh facts ({n} hosts)",
-                            { n: refreshTargets.length },
-                          )
-                        : t(
-                            "重采当前筛选（{n} 台）",
-                            "Refresh filter ({n} hosts)",
-                            { n: refreshTargets.length },
-                          )}
-                  </button>
-                </div>
 
                 <div className={styles.toolbar}>
                   <input

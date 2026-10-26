@@ -144,21 +144,20 @@
   font-size: 12px;
 }
 
+/* 每行最多 5 个，超出换行；窄屏按断点降列，不横向滚动。 */
 .familyStrip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
   margin-top: 10px;
-  padding-bottom: 2px;
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
 .familyChip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
   height: 30px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -209,11 +208,14 @@
 
 .familyChipName {
   overflow: hidden;
-  max-width: 240px;
+  flex: 1 1 auto;
+  min-width: 0;
   text-overflow: ellipsis;
 }
 
 .familyChipState {
+  flex: 0 0 auto;
+  margin-left: auto;
   color: var(--text-4);
   font-size: 10px;
   font-weight: 600;
@@ -1164,6 +1166,10 @@
 }
 
 @media (max-width: 1080px) {
+  .familyStrip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .hostRow {
     grid-template-columns: 20px minmax(0, 1.55fr) minmax(0, 1.2fr) 96px;
   }
@@ -1174,6 +1180,10 @@
 }
 
 @media (max-width: 860px) {
+  .familyStrip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .pageHeader {
     flex-direction: column;
     gap: 8px;
@@ -1237,5 +1247,17 @@
   .hostMeta {
     flex-wrap: wrap;
     white-space: normal;
+  }
+}
+
+@media (max-width: 640px) {
+  .familyStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .familyStrip {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
