@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, type AgentCertificateStatusView } from "../api";
 import { useLiftAgentRevocation, useRevokeAgent } from "../hooks";
@@ -160,6 +160,29 @@ export function SubsystemAgentIdentityPanel({
   const lift = useLiftAgentRevocation();
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const [reason, setReason] = useState("");
+  // 有效/临近到期正常收成一行；已过期、临近到期、读取失败默认展开。
+  const defaultExpanded =
+    headline.tone === "crit" || headline.tone === "warn" || Boolean(loadError);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  useEffect(() => {
+    if (defaultExpanded) setExpanded(true);
+  }, [defaultExpanded]);
+
+  const pill = loadError
+    ? t("读取失败", "Load failed")
+    : loading
+      ? t("读取中", "Loading")
+      : headline.pill;
+  const summary = loadError
+    ? t("读取失败，展开查看原因", "Load failed; expand for the reason")
+    : loading
+      ? t("正在读取…", "Loading…")
+      : headline.tone === "ok" && certificateStatus
+        ? t("{title} · 剩余 {remaining}", "{title} · {remaining} left", {
+            title: headline.title,
+            remaining: formatRemaining(certificateStatus.remainingSeconds),
+          })
+        : headline.title;
 
   // 「需重装」的两种表现：证书已过期（agent 本地自检得出），或 agentd 上次续签就报了
   // `needs_reinstall`。被吊销时不给这个入口 —— 那张证书再换也没用，得先在网关解除吊销（§5.6）。
@@ -175,132 +198,157 @@ export function SubsystemAgentIdentityPanel({
       className={`${styles.container} ${styles[headline.tone]}`}
       aria-label={t("Agent 身份与证书", "Agent identity and certificate")}
     >
-      <div className={styles.header}>
-        <h2 className={styles.title}>{t("身份与证书", "Identity and certificate")}</h2>
-        <span className={styles.pill}>{headline.pill}</span>
-      </div>
+      <button
+        type="button"
+        className={styles.header}
+        aria-expanded={expanded}
+        aria-controls="agent-identity-details"
+        title={summary}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span className={styles.title} role="heading" aria-level={2}>
+          {t("身份与证书", "Identity and certificate")}
+        </span>
+        <span className={styles.pill}>{pill}</span>
+        <span className={styles.summary}>{summary}</span>
+        <span className={styles.chevron} aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
+      </button>
 
-      {loadError ? (
-        <p className={styles.error}>{loadError}</p>
-      ) : loading ? (
-        <p className={styles.muted}>{t("正在读取…", "Loading…")}</p>
-      ) : (
-        <>
-          <p className={styles.headline}>{headline.title}</p>
-          <p className={styles.detail}>{headline.detail}</p>
+      {expanded ? (
+        <div className={styles.details} id="agent-identity-details">
+          {loadError ? (
+            <p className={styles.error}>{loadError}</p>
+          ) : loading ? (
+            <p className={styles.muted}>{t("正在读取…", "Loading…")}</p>
+          ) : (
+            <>
+              <p className={styles.detail}>{headline.detail}</p>
 
-          {certificateStatus ? (
-            <dl className={styles.facts}>
-              <div className={styles.fact}>
-                <dt>{t("状态", "Status")}</dt>
-                <dd>{certificateStatus.state}</dd>
-              </div>
-              <div className={styles.fact}>
-                <dt>{t("到期", "Expires")}</dt>
-                <dd>{formatTimestamp(certificateStatus.notAfter)}</dd>
-              </div>
-              <div className={styles.fact}>
-                <dt>{t("剩余", "Remaining")}</dt>
-                <dd>{formatRemaining(certificateStatus.remainingSeconds)}</dd>
-              </div>
-              {certificateStatus.lastRenewal ? (
-                <div className={styles.fact}>
-                  <dt>{t("上次续签", "Last renewal")}</dt>
-                  <dd>
-                    {renewalLabel(certificateStatus.lastRenewal.outcome)} ·{" "}
-                    {formatTimestamp(certificateStatus.lastRenewal.checkedAt)}
-                  </dd>
-                </div>
+              {certificateStatus ? (
+                <dl className={styles.facts}>
+                  <div className={styles.fact}>
+                    <dt>{t("状态", "Status")}</dt>
+                    <dd>{certificateStatus.state}</dd>
+                  </div>
+                  <div className={styles.fact}>
+                    <dt>{t("到期", "Expires")}</dt>
+                    <dd>{formatTimestamp(certificateStatus.notAfter)}</dd>
+                  </div>
+                  <div className={styles.fact}>
+                    <dt>{t("剩余", "Remaining")}</dt>
+                    <dd>
+                      {formatRemaining(certificateStatus.remainingSeconds)}
+                    </dd>
+                  </div>
+                  {certificateStatus.lastRenewal ? (
+                    <div className={styles.fact}>
+                      <dt>{t("上次续签", "Last renewal")}</dt>
+                      <dd>
+                        {renewalLabel(certificateStatus.lastRenewal.outcome)} ·{" "}
+                        {formatTimestamp(
+                          certificateStatus.lastRenewal.checkedAt,
+                        )}
+                      </dd>
+                    </div>
+                  ) : null}
+                </dl>
               ) : null}
-            </dl>
-          ) : null}
 
-          {certificateStatus?.lastRenewal?.detail ? (
-            <p className={styles.detail}>
-              {t("上次续签：{detail}", "Last renewal: {detail}", {
-                detail: certificateStatus.lastRenewal.detail,
-              })}
-            </p>
-          ) : null}
+              {certificateStatus?.lastRenewal?.detail ? (
+                <p className={styles.detail}>
+                  {t("上次续签：{detail}", "Last renewal: {detail}", {
+                    detail: certificateStatus.lastRenewal.detail,
+                  })}
+                </p>
+              ) : null}
 
-          {actionError ? (
-            <p className={styles.error}>{actionErrorMessage(actionError)}</p>
-          ) : null}
+              {actionError ? (
+                <p className={styles.error}>
+                  {actionErrorMessage(actionError)}
+                </p>
+              ) : null}
 
-          <div className={styles.actions}>
-            {needsReinstall && !revoked ? (
-              <Link className={styles.reinstallLink} to={REINSTALL_PAGE_PATH}>
-                {t("打开重装命令", "Open the reinstall command")}
-              </Link>
-            ) : null}
-            {revoked ? (
-              <button
-                type="button"
-                className={styles.primaryButton}
-                disabled={pending || !agentId}
-                onClick={() => lift.mutate(agentId)}
-              >
-                {lift.isPending
-                  ? t("解除中…", "Lifting…")
-                  : t("解除吊销", "Lift revocation")}
-              </button>
-            ) : confirmingRevoke ? (
-              <>
-                <input
-                  className={styles.input}
-                  value={reason}
-                  placeholder={t(
-                    "吊销原因（留痕，可空）",
-                    "Revocation reason (logged, optional)",
-                  )}
-                  disabled={pending}
-                  onChange={(event) => setReason(event.target.value)}
-                />
-                <button
-                  type="button"
-                  className={styles.dangerButton}
-                  disabled={pending || !agentId}
-                  onClick={() =>
-                    revoke.mutate(
-                      { agentId, reasonCode: reason.trim() },
-                      {
-                        onSuccess: () => {
-                          setConfirmingRevoke(false);
-                          setReason("");
-                        },
-                      },
-                    )
-                  }
-                >
-                  {revoke.isPending
-                    ? t("吊销中…", "Revoking…")
-                    : t("确认吊销", "Confirm revocation")}
-                </button>
-                <button
-                  type="button"
-                  className={styles.ghostButton}
-                  disabled={pending}
-                  onClick={() => {
-                    setConfirmingRevoke(false);
-                    setReason("");
-                  }}
-                >
-                  {t("取消", "Cancel")}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                className={styles.dangerButton}
-                disabled={pending || !agentId}
-                onClick={() => setConfirmingRevoke(true)}
-              >
-                {t("吊销", "Revoke")}
-              </button>
-            )}
-          </div>
-        </>
-      )}
+              <div className={styles.actions}>
+                {needsReinstall && !revoked ? (
+                  <Link
+                    className={styles.reinstallLink}
+                    to={REINSTALL_PAGE_PATH}
+                  >
+                    {t("打开重装命令", "Open the reinstall command")}
+                  </Link>
+                ) : null}
+                {revoked ? (
+                  <button
+                    type="button"
+                    className={styles.primaryButton}
+                    disabled={pending || !agentId}
+                    onClick={() => lift.mutate(agentId)}
+                  >
+                    {lift.isPending
+                      ? t("解除中…", "Lifting…")
+                      : t("解除吊销", "Lift revocation")}
+                  </button>
+                ) : confirmingRevoke ? (
+                  <>
+                    <input
+                      className={styles.input}
+                      value={reason}
+                      placeholder={t(
+                        "吊销原因（留痕，可空）",
+                        "Revocation reason (logged, optional)",
+                      )}
+                      disabled={pending}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className={styles.dangerButton}
+                      disabled={pending || !agentId}
+                      onClick={() =>
+                        revoke.mutate(
+                          { agentId, reasonCode: reason.trim() },
+                          {
+                            onSuccess: () => {
+                              setConfirmingRevoke(false);
+                              setReason("");
+                            },
+                          },
+                        )
+                      }
+                    >
+                      {revoke.isPending
+                        ? t("吊销中…", "Revoking…")
+                        : t("确认吊销", "Confirm revocation")}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.ghostButton}
+                      disabled={pending}
+                      onClick={() => {
+                        setConfirmingRevoke(false);
+                        setReason("");
+                      }}
+                    >
+                      {t("取消", "Cancel")}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.dangerButton}
+                    disabled={pending || !agentId}
+                    onClick={() => setConfirmingRevoke(true)}
+                  >
+                    {t("吊销", "Revoke")}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -314,23 +362,34 @@ function actionErrorMessage(error: unknown): string {
         {
           detail:
             error.detail ??
-            t("请刷新后按当前状态重试。", "Refresh and retry based on the current state."),
+            t(
+              "请刷新后按当前状态重试。",
+              "Refresh and retry based on the current state.",
+            ),
         },
       );
     if (error.status === 404)
       return error.detail
-        ? t("目标不存在（HTTP 404）：{detail}", "Target not found (HTTP 404): {detail}", {
-            detail: error.detail,
-          })
+        ? t(
+            "目标不存在（HTTP 404）：{detail}",
+            "Target not found (HTTP 404): {detail}",
+            {
+              detail: error.detail,
+            },
+          )
         : t(
             "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
             "The gateway has no such endpoint (HTTP 404): the running gateway is likely an old build. Rebuild and restart the gateway, then retry.",
           );
     return error.detail
-      ? t("操作失败（HTTP {status}）：{detail}", "Operation failed (HTTP {status}): {detail}", {
-          status: error.status,
-          detail: error.detail,
-        })
+      ? t(
+          "操作失败（HTTP {status}）：{detail}",
+          "Operation failed (HTTP {status}): {detail}",
+          {
+            status: error.status,
+            detail: error.detail,
+          },
+        )
       : t(
           "操作失败（HTTP {status}），请检查网关日志。",
           "Operation failed (HTTP {status}); check the gateway logs.",

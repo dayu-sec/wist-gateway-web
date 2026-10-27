@@ -151,9 +151,10 @@
 }
 
 .tile {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 34px auto 12px auto;
   gap: 4px;
+  align-content: start;
   padding: 16px 17px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -162,6 +163,7 @@
 }
 
 .tileTitle {
+  margin: 0;
   color: var(--text-3);
   font-size: 11.5px;
   font-weight: 700;
@@ -169,6 +171,11 @@
 }
 
 .tileValue {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  margin: 0;
+  overflow: hidden;
   color: var(--text);
   font-family: var(--font-mono);
   font-size: 27px;
@@ -176,18 +183,27 @@
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.tileCaptionGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 36px;
 }
 
 .tileCaption {
   color: var(--text-4);
   font-size: 12px;
+  line-height: 1.5;
 }
 
 .subList {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  margin-top: 11px;
+  margin: 11px 0 0;
   padding-top: 11px;
   border-top: 1px solid var(--border);
 }
@@ -226,6 +242,10 @@
 
 .text_unknown {
   color: var(--text-4);
+}
+
+.barSpacer {
+  height: 12px;
 }
 
 .barTrack {

@@ -128,10 +128,13 @@ function platformText(platform: string): string {
 /**
  * 「这个面为什么不在本机的模板里」。
  *
- * 最常见的原因是**平台不支持**：例如 `ContainerWorkload` 目前只有 Linux 单元——
- * macOS 的容器跑在虚拟机里，日志不在宿主文件系统上（OrbStack / Docker Desktop 都是一个盘镜像），
- * 没法用 `FileGlob` 采。笼统写一句「模板不包含这个采集面」会把
- * 「这台机器就是采不到」说成「目录配错了」，方向完全相反。
+ * 最常见的原因是**这个平台还没有采集单元** —— 不是机器上没有这东西。
+ * 典型例：`ContainerWorkload` 目前只有 Linux 单元（macOS 的容器跑在虚拟机里，
+ * 容器 stdout 不在宿主文件系统上，得走运行时 API）；`DatabaseService` /
+ * `StorageHealth` 的 macOS 单元也还没写。
+ *
+ * 所以文案必须说「**还没接入**」，**不能**让人读成「这台机器没有数据库 / 没有容器」——
+ * 那会把运维带去查“是不是没装”，方向完全相反。
  */
 function familyNotInTemplateReason(
   catalog: ContentCatalogView,
@@ -142,8 +145,8 @@ function familyNotInTemplateReason(
   const platforms = meta?.platforms ?? [];
   if (platforms.length > 0 && !platforms.includes(platform)) {
     return t(
-      "该采集面目前只在 {platforms} 上提供（这台机器是 {platform}）",
-      "This family is available on {platforms} only (this host is {platform})",
+      "该面目前只有 {platforms} 采集单元（这台机器是 {platform}）—— 是该平台还没接入，不是机器上没有",
+      "This family has {platforms} units only (this host is {platform}) — coverage for this platform is not implemented yet, not a missing capability on the host",
       {
         platforms: platforms.map(platformText).join(" / "),
         platform: platformText(platform),

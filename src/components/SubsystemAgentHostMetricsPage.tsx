@@ -53,9 +53,7 @@ function describeSpan(points?: [number, number][]): string {
   return t("近 {n} 天", "Last {n} d", { n: (hours / 24).toFixed(1) });
 }
 
-export function SubsystemAgentHostMetricsPage(
-  {}: SubsystemAgentHostMetricsPageProps,
-) {
+export function SubsystemAgentHostMetricsPage({}: SubsystemAgentHostMetricsPageProps) {
   const { agentId = "" } = useParams<{ agentId: string }>();
   const { data, isLoading, isError } = useAgentHostMetrics(agentId);
   const { data: overview } = useAgentOverview();
@@ -86,8 +84,7 @@ export function SubsystemAgentHostMetricsPage(
   const filesystems = useMemo(
     () =>
       [...(data?.filesystems ?? [])].sort(
-        (left, right) =>
-          (right.usagePercent ?? -1) - (left.usagePercent ?? -1),
+        (left, right) => (right.usagePercent ?? -1) - (left.usagePercent ?? -1),
       ),
     [data?.filesystems],
   );
@@ -105,15 +102,15 @@ export function SubsystemAgentHostMetricsPage(
   const diskUsagePercent =
     worstFilesystem?.usagePercent ?? data?.diskUsagePercent;
   const diskTotalKb = worstFilesystem?.totalKb ?? data?.diskTotalKb;
-  const diskAvailableKb =
-    worstFilesystem?.availableKb ?? data?.diskAvailableKb;
+  const diskAvailableKb = worstFilesystem?.availableKb ?? data?.diskAvailableKb;
   const diskSeverity = severityForUsage(diskUsagePercent);
 
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span> {t("返回机队视图", "Back to fleet view")}
+          <span aria-hidden="true">←</span>{" "}
+          {t("返回机队视图", "Back to fleet view")}
         </Link>
         <div className={styles.titleRow}>
           <h1 className={styles.pageTitle}>
@@ -130,8 +127,7 @@ export function SubsystemAgentHostMetricsPage(
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/work`}
           >
-            {t("采集工作", "Collection work")}{" "}
-            <span aria-hidden="true">→</span>
+            {t("采集工作", "Collection work")} <span aria-hidden="true">→</span>
           </Link>
           {/* 两个入口各带一个箭头，挨着放会被读成一条链（采集 → 用途）；
               一根竖线把「两个独立去处」这件事说清楚。 */}
@@ -140,8 +136,7 @@ export function SubsystemAgentHostMetricsPage(
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/purpose`}
           >
-            {t("用途", "Purpose")}{" "}
-            <span aria-hidden="true">→</span>
+            {t("用途", "Purpose")} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <div className={styles.metaRow}>
@@ -214,11 +209,18 @@ export function SubsystemAgentHostMetricsPage(
             <p className={`${styles.tileValue} ${severityClass(loadSeverity)}`}>
               {formatNumber(currentLoad)}
             </p>
-            <span className={styles.tileCaption}>
-              {t("当前分级：{level}（1 分钟）", "Current level: {level} (1 min)", {
-                level: SEVERITY_LABEL[loadSeverity],
-              })}
-            </span>
+            <div className={styles.tileCaptionGroup}>
+              <span className={styles.tileCaption}>
+                {t(
+                  "当前分级：{level}（1 分钟）",
+                  "Current level: {level} (1 min)",
+                  {
+                    level: SEVERITY_LABEL[loadSeverity],
+                  },
+                )}
+              </span>
+            </div>
+            <div className={styles.barSpacer} aria-hidden="true" />
             <dl className={styles.subList}>
               <div className={styles.subRow}>
                 <dt>{t("5 分钟", "5 min")}</dt>
@@ -233,12 +235,16 @@ export function SubsystemAgentHostMetricsPage(
 
           <article className={styles.tile}>
             <h2 className={styles.tileTitle}>{t("内存", "Memory")}</h2>
-            <p className={`${styles.tileValue} ${severityClass(memorySeverity)}`}>
+            <p
+              className={`${styles.tileValue} ${severityClass(memorySeverity)}`}
+            >
               {formatPercent(memoryUsagePercent)}
             </p>
-            <span className={styles.tileCaption}>
-              {formatKiB(memoryUsedKb)} / {formatKiB(data?.memoryTotalKb)}
-            </span>
+            <div className={styles.tileCaptionGroup}>
+              <span className={styles.tileCaption}>
+                {formatKiB(memoryUsedKb)} / {formatKiB(data?.memoryTotalKb)}
+              </span>
+            </div>
             <div className={styles.barTrack}>
               <div
                 className={`${styles.barFill} ${barClass(memorySeverity)}`}
@@ -268,19 +274,18 @@ export function SubsystemAgentHostMetricsPage(
             <p className={`${styles.tileValue} ${severityClass(diskSeverity)}`}>
               {formatPercent(diskUsagePercent)}
             </p>
-            <span className={styles.tileCaption}>
-              {t("当前分级：{level}", "Current level: {level}", {
-                level: SEVERITY_LABEL[diskSeverity],
-              })}
-            </span>
-            {filesystems.length > 0 ? (
+            <div className={styles.tileCaptionGroup}>
               <span className={styles.tileCaption}>
-                {t(
-                  "逐挂载点容量见下方",
-                  "Per-mount capacity below",
-                )}
+                {t("当前分级：{level}", "Current level: {level}", {
+                  level: SEVERITY_LABEL[diskSeverity],
+                })}
               </span>
-            ) : null}
+              {filesystems.length > 0 ? (
+                <span className={styles.tileCaption}>
+                  {t("逐挂载点容量见下方", "Per-mount capacity below")}
+                </span>
+              ) : null}
+            </div>
             <div className={styles.barTrack}>
               <div
                 className={`${styles.barFill} ${barClass(diskSeverity)}`}
@@ -311,13 +316,18 @@ export function SubsystemAgentHostMetricsPage(
             <h2 className={styles.tileTitle}>
               {t("主机开机时长", "Host uptime")}
             </h2>
-            <p className={styles.tileValue}>{formatUptime(data?.uptimeSeconds)}</p>
-            <span className={styles.tileCaption}>
-              {t(
-                "操作系统开机至今，与 Agent 在线时长不同",
-                "Since the OS booted, unlike agent uptime",
-              )}
-            </span>
+            <p className={styles.tileValue}>
+              {formatUptime(data?.uptimeSeconds)}
+            </p>
+            <div className={styles.tileCaptionGroup}>
+              <span className={styles.tileCaption}>
+                {t(
+                  "操作系统开机至今，与 Agent 在线时长不同",
+                  "Since the OS booted, unlike agent uptime",
+                )}
+              </span>
+            </div>
+            <div className={styles.barSpacer} aria-hidden="true" />
             <dl className={styles.subList}>
               <div className={styles.subRow}>
                 <dt>{t("指标采集窗口", "Metric window")}</dt>
@@ -394,7 +404,9 @@ export function SubsystemAgentHostMetricsPage(
       {data?.history ? (
         <section className={styles.trends}>
           <div className={styles.trendsHead}>
-            <h2 className={styles.trendsTitle}>{t("指标趋势", "Metric trends")}</h2>
+            <h2 className={styles.trendsTitle}>
+              {t("指标趋势", "Metric trends")}
+            </h2>
             <span className={styles.trendsHint}>
               {t(
                 "{span} · 悬停折线可查看任意时刻取值",

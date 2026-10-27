@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { AgentUplinkStateView } from "../api";
 import { t } from "../i18n";
 import styles from "./SubsystemAgentUplinkStatusPanel.module.css";
@@ -170,58 +170,90 @@ export function SubsystemAgentUplinkStatusPanel({
   loadError = null,
 }: SubsystemAgentUplinkStatusPanelProps) {
   const headline = describe(uplinkState);
+  // 正常状态收成一行；只有真正的故障（出口写失败 / 读取失败）才默认展开。
+  const defaultExpanded = headline.tone === "crit" || Boolean(loadError);
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  useEffect(() => {
+    if (defaultExpanded) setExpanded(true);
+  }, [defaultExpanded]);
+  const pill = loadError
+    ? t("读取失败", "Load failed")
+    : loading
+      ? t("读取中", "Loading")
+      : headline.pill;
+  const summary = loadError
+    ? t("读取失败，展开查看原因", "Load failed; expand for the reason")
+    : loading
+      ? t("正在读取…", "Loading…")
+      : headline.title;
 
   return (
     <section
       className={`${styles.container} ${styles[headline.tone]}`}
       aria-label={t("数据面上送状态", "Data plane uplink status")}
     >
-      <div className={styles.header}>
-        <h2 className={styles.title}>{t("数据面上送", "Data plane uplink")}</h2>
-        <span className={styles.pill}>{headline.pill}</span>
-      </div>
+      <button
+        type="button"
+        className={styles.header}
+        aria-expanded={expanded}
+        aria-controls="agent-uplink-details"
+        title={summary}
+        onClick={() => setExpanded((value) => !value)}
+      >
+        <span className={styles.title} role="heading" aria-level={2}>
+          {t("数据面上送", "Data plane uplink")}
+        </span>
+        <span className={styles.pill}>{pill}</span>
+        <span className={styles.summary}>{summary}</span>
+        <span className={styles.chevron} aria-hidden="true">
+          {expanded ? "▾" : "▸"}
+        </span>
+      </button>
 
-      {loadError ? (
-        <p className={styles.error}>{loadError}</p>
-      ) : loading ? (
-        <p className={styles.muted}>{t("正在读取…", "Loading…")}</p>
-      ) : (
-        <>
-          <p className={styles.headline}>{headline.title}</p>
-          <p className={styles.detail}>{headline.detail}</p>
-          {uplinkState ? (
-            <dl className={styles.facts}>
-              <div className={styles.fact}>
-                <dt>{t("开关", "Switch")}</dt>
-                <dd>
-                  {uplinkState.enabled
-                    ? t("启用", "Enabled")
-                    : t("待命", "Standby")}
-                </dd>
-              </div>
-              <div className={styles.fact}>
-                <dt>{t("输出", "Output")}</dt>
-                <dd>
-                  {uplinkState.kind}
-                  {uplinkState.target ? ` → ${uplinkState.target}` : ""}
-                </dd>
-              </div>
-              <div className={styles.fact}>
-                <dt>{t("来源", "Source")}</dt>
-                <dd>{sourceLabel(uplinkState.source)}</dd>
-              </div>
-              <div className={styles.fact}>
-                <dt>{t("出口写失败", "Output write failure")}</dt>
-                <dd>
-                  {uplinkState.outputWriteFailing
-                    ? t("尚未恢复", "Not recovered")
-                    : t("无", "None")}
-                </dd>
-              </div>
-            </dl>
-          ) : null}
-        </>
-      )}
+      {expanded ? (
+        <div className={styles.details} id="agent-uplink-details">
+          {loadError ? (
+            <p className={styles.error}>{loadError}</p>
+          ) : loading ? (
+            <p className={styles.muted}>{t("正在读取…", "Loading…")}</p>
+          ) : (
+            <>
+              <p className={styles.detail}>{headline.detail}</p>
+              {uplinkState ? (
+                <dl className={styles.facts}>
+                  <div className={styles.fact}>
+                    <dt>{t("开关", "Switch")}</dt>
+                    <dd>
+                      {uplinkState.enabled
+                        ? t("启用", "Enabled")
+                        : t("待命", "Standby")}
+                    </dd>
+                  </div>
+                  <div className={styles.fact}>
+                    <dt>{t("输出", "Output")}</dt>
+                    <dd>
+                      {uplinkState.kind}
+                      {uplinkState.target ? ` → ${uplinkState.target}` : ""}
+                    </dd>
+                  </div>
+                  <div className={styles.fact}>
+                    <dt>{t("来源", "Source")}</dt>
+                    <dd>{sourceLabel(uplinkState.source)}</dd>
+                  </div>
+                  <div className={styles.fact}>
+                    <dt>{t("出口写失败", "Output write failure")}</dt>
+                    <dd>
+                      {uplinkState.outputWriteFailing
+                        ? t("尚未恢复", "Not recovered")
+                        : t("无", "None")}
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
+            </>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

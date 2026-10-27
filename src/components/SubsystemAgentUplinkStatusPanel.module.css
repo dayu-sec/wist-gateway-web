@@ -12,12 +12,55 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.header:hover .summary {
+  color: var(--text);
+}
+
+.header:focus-visible {
+  border-radius: var(--radius-xs);
+  box-shadow: var(--ring);
+  outline: none;
 }
 
 .title {
   color: var(--text);
   font-size: 14px;
   font-weight: 700;
+}
+
+.summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: 0 0 auto;
+  padding-left: 4px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .pill {
@@ -112,6 +155,11 @@
 /* 待命：中性。这是正常状态，不该看起来像故障。 */
 .standby {
   border-color: var(--border-strong);
+}
+
+.crit .summary {
+  color: var(--crit);
+  font-weight: 600;
 }
 
 /* 已启用但出口失败：真正的故障，报警。 */

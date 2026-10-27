@@ -242,8 +242,10 @@ assert.equal(
  *
  * 现实例子就是「macOS 开发机想采容器日志」：`ContainerWorkload` 只有 Linux 单元 ——
  * macOS 的容器跑在 VMware/VirtioFS 的虚拟机里（OrbStack / Docker Desktop 都是一个盘镜像），
- * 宿主文件系统上没有 `*-json.log` 可采。笼统写「模板不包含这个采集面」会把
- * 「这台机器就是采不到」说成「目录配错了」。
+ * 宿主文件系统上没有 `*-json.log` 可采。
+ *
+ * 文案**不能**让人读成「这台机器没有容器/数据库」：macOS 上这些东西是存在的，
+ * 缺的是我们的采集单元。否则运维会去查“是不是没装”。
  */
 const macCatalog: ContentCatalogView = {
   ...catalog,
@@ -283,6 +285,12 @@ assert.ok(
   unsupported.reason?.includes("Linux") &&
     unsupported.reason?.includes("macOS"),
   `原因要点明平台，而不是「模板不包含」：${unsupported.reason}`,
+);
+// 「还没接入」而不是「机器上没有」：macOS 上容器是存在的，缺的是采集单元。
+assert.ok(
+  unsupported.reason?.includes("还没接入") &&
+    !unsupported.reason?.includes("这台机器没有"),
+  `不得断言机器没有该能力：${unsupported.reason}`,
 );
 
 // 对照组：同一台机器、模板里**有**的面，不该被说成「平台不支持」。
