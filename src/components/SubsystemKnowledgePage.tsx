@@ -83,12 +83,17 @@ export function SubsystemKnowledgePage() {
   // 两个 tab 答的是两个问题：「哪一版内容在生效」与「这一版里有哪些面」。
   // tab 落在 URL 上（`?view=families`）：可直接分享 / 收藏到全景页，刷新也不会跳回去。
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab: "packages" | "families" =
-    searchParams.get("view") === "families" ? "families" : "packages";
-  function selectTab(next: "packages" | "families") {
+  const tab: "packages" | "families" | "record" =
+    searchParams.get("view") === "families"
+      ? "families"
+      : searchParams.get("view") === "record"
+        ? "record"
+        : "packages";
+  function selectTab(next: "packages" | "families" | "record") {
     const params = new URLSearchParams(searchParams);
     // 默认视图不写进 URL：`/knowledge` 就是「知识包」，链接保持短。
     if (next === "families") params.set("view", "families");
+    else if (next === "record") params.set("view", "record");
     else params.delete("view");
     // replace：切 tab 是换视图，不是导航，不该堆历史记录。
     setSearchParams(params, { replace: true });
@@ -237,7 +242,11 @@ export function SubsystemKnowledgePage() {
           </p>
         </header>
 
-        <div className={styles.tabs} role="tablist" aria-label={t("知识库视图", "Knowledge views")}>
+        <div
+          className={styles.tabs}
+          role="tablist"
+          aria-label={t("知识库视图", "Knowledge views")}
+        >
           <button
             type="button"
             role="tab"
@@ -256,6 +265,15 @@ export function SubsystemKnowledgePage() {
           >
             {t("采集面", "Collection families")}
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "record"}
+            className={`${styles.tab} ${tab === "record" ? styles.tabActive : ""}`}
+            onClick={() => selectTab("record")}
+          >
+            {t("录入知识库", "Record knowledge")}
+          </button>
         </div>
 
         {tab === "families" ? (
@@ -266,645 +284,745 @@ export function SubsystemKnowledgePage() {
           />
         ) : (
           <>
-        {/* ① 当前生效 */}
-        <section className={styles.card} aria-labelledby="knowledge-current">
-          <header className={styles.cardHead}>
-            <h2 id="knowledge-current">{t("当前生效", "Currently active")}</h2>
-            <p>
-              {t(
-                "事实入库用的目录 / 模板、用途推断用的规则、发现方向策略，都以这一版为准。",
-                "The catalog / templates used for fact ingestion, the rules used for purpose inference and the discovery policy all follow this version.",
-              )}
-            </p>
-          </header>
-
-          {knowledge.isLoading || knowledge.isError ? (
-            <div className={styles.noticeBlock}>
-              {knowledge.isLoading ? (
-                <div className={styles.notice} role="status">
-                  {t("正在读取当前生效的知识库…", "Loading the active knowledge base…")}
-                </div>
-              ) : null}
-              {knowledge.isError ? (
-                isRateLimitedError(knowledge.error) ? (
-                  <RateLimitNotice error={knowledge.error} />
-                ) : (
-                  <div className={styles.noticeDanger} role="alert">
-                    {knowledgeLoadErrorMessage(knowledge.error)}
-                  </div>
-                )
-              ) : null}
-            </div>
-          ) : null}
-
-          {current && !current.configured ? (
-            <div className={styles.empty}>
-              <strong>{t("知识库未配置（空载）", "Knowledge base not configured (empty)")}</strong>
-              <span>
-                {current.hint ??
-                  t(
-                    "网关没有装载任何策展内容：不产「系统类型」建议与用途建议，发现策略用 agentd 内建默认值。录入一个包并激活即可。",
-                    "The gateway has no curated content loaded: it produces no “system type” or purpose suggestions, and the discovery policy falls back to agentd built-in defaults. Record a package and activate it to fix this.",
-                  )}
-              </span>
-            </div>
-          ) : null}
-
-          {current && current.configured ? (
-            <div className={styles.currentBody}>
-              <div className={styles.currentLine}>
-                {isPackageMode ? (
-                  activePkg ? (
-                    <span className={styles.currentLabel}>
-                      {knowledgeVersionLabel(activePkg)}
-                    </span>
-                  ) : (
-                    // 生效态与录入历史是两个来源：对齐不上就如实说未识别，别装作有值。
-                    <span className={styles.currentUnknown}>
-                      {t("未识别（录入历史里没有这一版）", "Unrecognized (this version is not in the record history)")}
-                    </span>
-                  )
-                ) : (
-                  <span
-                    className={
-                      sourceKind === "initial"
-                        ? styles.currentLabel
-                        : styles.currentUnknown
-                    }
-                  >
-                    {knowledgeSourceText(sourceKind)}
-                  </span>
-                )}
-                <span className={styles.currentTime}>
-                  {current.active
-                    ? `${timestampText(current.active.activatedAt)} · ${current.active.activatedBy}`
-                    : "—"}
-                </span>
-              </div>
-
-              <div className={styles.currentMeta}>
-                <span className={`${styles.metaGroup} ${styles.metaGroupPkg}`}>
-                  <span className={styles.metaLabel}>{t("包", "Package")}</span>
-                  <span
-                    className={styles.metaValue}
-                    title={activePackageId ?? ""}
-                  >
-                    {activePackageId ?? "—"}
-                  </span>
-                  {activePackageId ? (
-                    <CopyButton
-                      text={activePackageId}
-                      label={t("复制", "Copy")}
-                      className={styles.inlineCopyButton}
-                    />
-                  ) : null}
-                </span>
-                <span
-                  className={`${styles.metaGroup} ${styles.metaGroupVersions}`}
+            {tab === "packages" ? (
+              <>
+                {/* ① 当前生效 */}
+                <section
+                  className={styles.card}
+                  aria-labelledby="knowledge-current"
                 >
-                  <span className={styles.metaLabel}>{t("内容版本", "Content version")}</span>
-                  <span className={styles.metaValue}>
-                    {knowledgeVersionSummary(current) || "—"}
-                  </span>
-                </span>
-                <span
-                  className={`${styles.metaGroup} ${styles.metaGroupGeneration}`}
-                >
-                  <span className={styles.metaLabel}>{t("世代", "Generation")}</span>
-                  <span
-                    className={styles.metaSha}
-                    title={t(
-                      "每次激活 +1；派生结果「算自哪一版」的表级锚",
-                      "Increments by 1 on every activation; the table-level anchor for which version a derived result was computed from",
-                    )}
-                  >
-                    {current.generation}
-                  </span>
-                </span>
-              </div>
-
-              {rollback ? (
-                <div className={styles.rollbackRow}>
-                  <button
-                    type="button"
-                    className={styles.secondaryButton}
-                    disabled={rollback.blockedReason !== null}
-                    title={rollback.blockedReason ?? undefined}
-                    onClick={() =>
-                      openConfirm({
-                        kind: "rollback",
-                        packageId: rollback.packageId,
-                        label: rollback.pkg
-                          ? knowledgeVersionLabel(rollback.pkg)
-                          : rollback.packageId,
-                      })
-                    }
-                  >
-                    {rollback.pkg
-                      ? t(
-                          "回滚到上一版（{version}）",
-                          "Roll back to previous version ({version})",
-                          { version: knowledgeVersionLabel(rollback.pkg) },
-                        )
-                      : t("回滚到上一版", "Roll back to previous version")}
-                  </button>
-                  <span className={styles.actionHint}>
-                    {rollback.blockedReason ??
-                      t(
-                        "把生效指针指回上一版；已经派出去的工作不跟着改。",
-                        "Points the active pointer back to the previous version; already-dispatched work does not follow.",
-                      )}
-                  </span>
-                </div>
-              ) : null}
-
-              {current.activations.length > 0 ? (
-                <div className={styles.switchLog}>
-                  <span className={styles.metaLabel}>{t("最近切换", "Recent switches")}</span>
-                  <ul className={styles.switchLogList}>
-                    {current.activations.slice(0, 3).map((entry) => (
-                      <li
-                        key={`${entry.generation}-${entry.toPackage}`}
-                        className={styles.switchLogRow}
-                      >
-                        <span className={styles.switchLogText}>
-                          {entry.fromPackage
-                            ? `${entry.fromPackage} → ${entry.toPackage}`
-                            : t("（首次）→ {pkg}", "(first) → {pkg}", {
-                                pkg: entry.toPackage,
-                              })}
-                        </span>
-                        <span className={styles.switchLogMeta}>
-                          {`#${entry.generation} ${entry.reason} · ${timestampText(entry.createdAt)} · ${entry.requestedBy}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
-
-        {/* ② 锁在旧版目录的工作（§8.3）：换版不追改在跑的工作，所以要看得见 */}
-        {locks.data && lockedWorkTotal(locks.data) > 0 ? (
-          <section className={styles.card} aria-labelledby="knowledge-locks">
-            <header className={styles.cardHead}>
-              <h2 id="knowledge-locks">{t("锁在旧版目录的工作", "Work locked to an older catalog")}</h2>
-              <p>
-                {t(
-                  "换版不追改在跑的工作 —— 采集范围是合规边界，不能因为换了内容就悄悄扩大。这些工作会一直按它们派出去时那一版目录跑。",
-                  "Switching versions does not rewrite running work — the collection scope is a compliance boundary and must not silently widen because the content changed. This work keeps running against the catalog it was dispatched with.",
-                )}
-              </p>
-            </header>
-            <div className={styles.lockBody}>
-              <div className={styles.lockTotal}>
-                {locks.data.activeCatalogVersion !== null
-                  ? t(
-                      "共 {n} 件常驻工作锁在旧版目录上（当前生效目录版本：{version}）",
-                      "{n} standing work items are locked to an older catalog (active catalog version: {version})",
-                      {
-                        n: lockedWorkTotal(locks.data),
-                        version: locks.data.activeCatalogVersion,
-                      },
-                    )
-                  : t(
-                      "共 {n} 件常驻工作锁在旧版目录上",
-                      "{n} standing work items are locked to an older catalog",
-                      { n: lockedWorkTotal(locks.data) },
-                    )}
-              </div>
-              <ul className={styles.lockList}>
-                {staleLocks(locks.data).length > 0 ? (
-                  staleLocks(locks.data).map((entry) => (
-                    <li key={entry.catalogVersion} className={styles.lockRow}>
-                      <span className={styles.lockVersion}>
-                        {t("目录 {version}", "Catalog {version}", {
-                          version: entry.catalogVersion,
-                        })}
-                      </span>
-                      <span className={styles.lockWorks}>
-                        {t("{n} 件", "{n} items", { n: entry.works })}
-                      </span>
-                    </li>
-                  ))
-                ) : (
-                  <li className={styles.lockRow}>
-                    <span className={styles.lockWorks}>
+                  <header className={styles.cardHead}>
+                    <h2 id="knowledge-current">
+                      {t("当前生效", "Currently active")}
+                    </h2>
+                    <p>
                       {t(
-                        "全部工作都已经在生效目录版本上。",
-                        "All work is already on the active catalog version.",
+                        "事实入库用的目录 / 模板、用途推断用的规则、发现方向策略，都以这一版为准。",
+                        "The catalog / templates used for fact ingestion, the rules used for purpose inference and the discovery policy all follow this version.",
                       )}
-                    </span>
-                  </li>
-                )}
-              </ul>
-            </div>
-          </section>
-        ) : null}
+                    </p>
+                  </header>
 
-        {/* ③ 录入历史 */}
-        <section className={styles.card} aria-labelledby="knowledge-history">
-          <header className={styles.cardHead}>
-            <h2 id="knowledge-history">{t("录入历史", "Record history")}</h2>
-            <p>
-              {t(
-                "「设为生效」切的是全平台；已经派出去的工作不跟着改（见上一张卡）。",
-                "“Set active” switches the whole platform; already-dispatched work does not follow (see the card above).",
-              )}
-            </p>
-          </header>
+                  {knowledge.isLoading || knowledge.isError ? (
+                    <div className={styles.noticeBlock}>
+                      {knowledge.isLoading ? (
+                        <div className={styles.notice} role="status">
+                          {t(
+                            "正在读取当前生效的知识库…",
+                            "Loading the active knowledge base…",
+                          )}
+                        </div>
+                      ) : null}
+                      {knowledge.isError ? (
+                        isRateLimitedError(knowledge.error) ? (
+                          <RateLimitNotice error={knowledge.error} />
+                        ) : (
+                          <div className={styles.noticeDanger} role="alert">
+                            {knowledgeLoadErrorMessage(knowledge.error)}
+                          </div>
+                        )
+                      ) : null}
+                    </div>
+                  ) : null}
 
-          {packages.isLoading || packages.isError ? (
-            <div className={styles.noticeBlock}>
-              {packages.isLoading ? (
-                <div className={styles.notice} role="status">
-                  {t("正在读取录入历史…", "Loading record history…")}
-                </div>
-              ) : null}
-              {packages.isError ? (
-                isRateLimitedError(packages.error) ? (
-                  <RateLimitNotice error={packages.error} />
-                ) : (
-                  <div className={styles.noticeDanger} role="alert">
-                    {knowledgeLoadErrorMessage(packages.error)}
-                  </div>
-                )
-              ) : null}
-            </div>
-          ) : null}
+                  {current && !current.configured ? (
+                    <div className={styles.empty}>
+                      <strong>
+                        {t(
+                          "知识库未配置（空载）",
+                          "Knowledge base not configured (empty)",
+                        )}
+                      </strong>
+                      <span>
+                        {current.hint ??
+                          t(
+                            "网关没有装载任何策展内容：不产「系统类型」建议与用途建议，发现策略用 agentd 内建默认值。录入一个包并激活即可。",
+                            "The gateway has no curated content loaded: it produces no “system type” or purpose suggestions, and the discovery policy falls back to agentd built-in defaults. Record a package and activate it to fix this.",
+                          )}
+                      </span>
+                    </div>
+                  ) : null}
 
-          {!packages.isLoading && !packages.isError && history.length === 0 ? (
-            <div className={styles.empty}>
-              <strong>{t("还没有录入过任何包", "No packages recorded yet")}</strong>
-              <span>
-                {t(
-                  "在下面「录入知识库包」填一个来源保存一次。包来自 wist-knowledge 的 Release 附件（",
-                  "Fill in a source under “Record knowledge package” below and save once. Packages come from wist-knowledge Release assets (",
-                )}
-                <code className={styles.code}>.tar.gz</code>{" "}
-                {t("与其", "and the matching ")}
-                <code className={styles.code}>.sha256</code>
-                {t(
-                  "）；离线环境用 stack 的 ",
-                  "); in offline environments, deploy them with the stack's ",
-                )}
-                <code className={styles.code}>scripts/import-knowledge.sh</code>{" "}
-                {t("投放后再录。", "and then record them.")}
-              </span>
-            </div>
-          ) : null}
-
-          {history.length > 0 ? (
-            <div className={styles.tableWrap}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th scope="col">{t("版本", "Version")}</th>
-                    <th scope="col">{t("内容版本", "Content version")}</th>
-                    <th scope="col">{t("摘要 / 验签", "Digest / signature")}</th>
-                    <th scope="col">{t("录入", "Recorded")}</th>
-                    <th scope="col">{t("状态", "Status")}</th>
-                    <th scope="col" className={styles.thAction}>
-                      <span className={styles.srOnly}>{t("操作", "Actions")}</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {history.map((pkg) => {
-                    const isActive = pkg.packageId === activePackageId;
-                    return (
-                      <tr key={pkg.packageId}>
-                        <td className={styles.tdVersion}>
-                          <span className={styles.versionLabel}>
-                            {knowledgeVersionLabel(pkg)}
-                          </span>
-                          <span
-                            className={styles.versionMeta}
-                            title={pkg.packageId}
-                          >
-                            {pkg.packageId}
-                          </span>
-                        </td>
-                        <td className={styles.tdMuted}>
-                          {knowledgePackageVersionSummary(pkg) || "—"}
-                        </td>
-                        <td className={styles.tdMuted}>
-                          <span
-                            className={styles.shaValue}
-                            title={pkg.packageSha256}
-                          >
-                            {knowledgeShaLabel(pkg.packageSha256)}
-                          </span>
-                          <span
-                            className={styles.signature}
-                            title={pkg.signedBy || undefined}
-                          >
-                            {knowledgeSignatureLabel(pkg)}
-                          </span>
-                        </td>
-                        <td className={styles.tdMuted}>
-                          <span className={styles.createdBy}>
-                            {pkg.createdBy || "—"}
-                          </span>
-                          <span className={styles.createdAt}>
-                            {timestampText(pkg.createdAt)}
-                          </span>
-                        </td>
-                        <td>
-                          {isActive ? (
-                            <span
-                              className={`${styles.badge} ${styles.badgeActive}`}
-                            >
-                              {t("生效中", "Active")}
-                            </span>
-                          ) : !pkg.available ? (
-                            <span
-                              className={`${styles.badge} ${styles.badgeGone}`}
-                            >
-                              {t("副本缺失", "Copy missing")}
+                  {current && current.configured ? (
+                    <div className={styles.currentBody}>
+                      <div className={styles.currentLine}>
+                        {isPackageMode ? (
+                          activePkg ? (
+                            <span className={styles.currentLabel}>
+                              {knowledgeVersionLabel(activePkg)}
                             </span>
                           ) : (
-                            <span
-                              className={`${styles.badge} ${styles.badgeStored}`}
-                            >
-                              {t("已录入", "Recorded")}
+                            // 生效态与录入历史是两个来源：对齐不上就如实说未识别，别装作有值。
+                            <span className={styles.currentUnknown}>
+                              {t(
+                                "未识别（录入历史里没有这一版）",
+                                "Unrecognized (this version is not in the record history)",
+                              )}
                             </span>
-                          )}
-                        </td>
-                        <td className={styles.tdAction}>
+                          )
+                        ) : (
+                          <span
+                            className={
+                              sourceKind === "initial"
+                                ? styles.currentLabel
+                                : styles.currentUnknown
+                            }
+                          >
+                            {knowledgeSourceText(sourceKind)}
+                          </span>
+                        )}
+                        <span className={styles.currentTime}>
+                          {current.active
+                            ? `${timestampText(current.active.activatedAt)} · ${current.active.activatedBy}`
+                            : "—"}
+                        </span>
+                      </div>
+
+                      <div className={styles.currentMeta}>
+                        <span
+                          className={`${styles.metaGroup} ${styles.metaGroupPkg}`}
+                        >
+                          <span className={styles.metaLabel}>
+                            {t("包", "Package")}
+                          </span>
+                          <span
+                            className={styles.metaValue}
+                            title={activePackageId ?? ""}
+                          >
+                            {activePackageId ?? "—"}
+                          </span>
+                          {activePackageId ? (
+                            <CopyButton
+                              text={activePackageId}
+                              label={t("复制", "Copy")}
+                              className={styles.inlineCopyButton}
+                            />
+                          ) : null}
+                        </span>
+                        <span
+                          className={`${styles.metaGroup} ${styles.metaGroupVersions}`}
+                        >
+                          <span className={styles.metaLabel}>
+                            {t("内容版本", "Content version")}
+                          </span>
+                          <span className={styles.metaValue}>
+                            {knowledgeVersionSummary(current) || "—"}
+                          </span>
+                        </span>
+                        <span
+                          className={`${styles.metaGroup} ${styles.metaGroupGeneration}`}
+                        >
+                          <span className={styles.metaLabel}>
+                            {t("世代", "Generation")}
+                          </span>
+                          <span
+                            className={styles.metaSha}
+                            title={t(
+                              "每次激活 +1；派生结果「算自哪一版」的表级锚",
+                              "Increments by 1 on every activation; the table-level anchor for which version a derived result was computed from",
+                            )}
+                          >
+                            {current.generation}
+                          </span>
+                        </span>
+                      </div>
+
+                      {rollback ? (
+                        <div className={styles.rollbackRow}>
                           <button
                             type="button"
-                            className={styles.activateButton}
-                            disabled={isActive || !pkg.available}
-                            title={
-                              isActive
-                                ? t("这一版已经在生效", "This version is already active")
-                                : !pkg.available
-                                  ? t(
-                                      "副本已不在网关（包目录被手工清过，或备份还原不完整）",
-                                      "The copy is no longer on the gateway (the package directory was cleaned up by hand, or a restore was incomplete)",
-                                    )
-                                  : t("切到这一版（两次确认）", "Switch to this version (double confirmation)")
-                            }
+                            className={styles.secondaryButton}
+                            disabled={rollback.blockedReason !== null}
+                            title={rollback.blockedReason ?? undefined}
                             onClick={() =>
                               openConfirm({
-                                kind: "activate",
-                                packageId: pkg.packageId,
-                                label: knowledgeVersionLabel(pkg),
+                                kind: "rollback",
+                                packageId: rollback.packageId,
+                                label: rollback.pkg
+                                  ? knowledgeVersionLabel(rollback.pkg)
+                                  : rollback.packageId,
                               })
                             }
                           >
-                            {t("设为生效", "Set active")}
+                            {rollback.pkg
+                              ? t(
+                                  "回滚到上一版（{version}）",
+                                  "Roll back to previous version ({version})",
+                                  {
+                                    version: knowledgeVersionLabel(
+                                      rollback.pkg,
+                                    ),
+                                  },
+                                )
+                              : t(
+                                  "回滚到上一版",
+                                  "Roll back to previous version",
+                                )}
                           </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </section>
+                          <span className={styles.actionHint}>
+                            {rollback.blockedReason ??
+                              t(
+                                "把生效指针指回上一版；已经派出去的工作不跟着改。",
+                                "Points the active pointer back to the previous version; already-dispatched work does not follow.",
+                              )}
+                          </span>
+                        </div>
+                      ) : null}
 
-        {/* ④ 录入 */}
-        <section className={styles.card} aria-labelledby="knowledge-record">
-          <header className={styles.cardHead}>
-            <h2 id="knowledge-record">{t("录入知识库包", "Record knowledge package")}</h2>
-            <p>
-              {t(
-                "录入只落盘登记；除非勾上「立即激活」，否则不改变现状。",
-                "Recording only writes a registration; unless “Activate immediately” is checked, nothing changes.",
-              )}
-            </p>
-          </header>
+                      {current.activations.length > 0 ? (
+                        <div className={styles.switchLog}>
+                          <span className={styles.metaLabel}>
+                            {t("最近切换", "Recent switches")}
+                          </span>
+                          <ul className={styles.switchLogList}>
+                            {current.activations.slice(0, 3).map((entry) => (
+                              <li
+                                key={`${entry.generation}-${entry.toPackage}`}
+                                className={styles.switchLogRow}
+                              >
+                                <span className={styles.switchLogText}>
+                                  {entry.fromPackage
+                                    ? `${entry.fromPackage} → ${entry.toPackage}`
+                                    : t("（首次）→ {pkg}", "(first) → {pkg}", {
+                                        pkg: entry.toPackage,
+                                      })}
+                                </span>
+                                <span className={styles.switchLogMeta}>
+                                  {`#${entry.generation} ${entry.reason} · ${timestampText(entry.createdAt)} · ${entry.requestedBy}`}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
 
-          <form className={styles.form} onSubmit={handleSubmit}>
-            {/* 一键填充：与安装包录入页同一套入口（GitHub Release / COS 路径），
+                {/* ② 锁在旧版目录的工作（§8.3）：换版不追改在跑的工作，所以要看得见 */}
+                {locks.data && lockedWorkTotal(locks.data) > 0 ? (
+                  <section
+                    className={styles.card}
+                    aria-labelledby="knowledge-locks"
+                  >
+                    <header className={styles.cardHead}>
+                      <h2 id="knowledge-locks">
+                        {t(
+                          "锁在旧版目录的工作",
+                          "Work locked to an older catalog",
+                        )}
+                      </h2>
+                      <p>
+                        {t(
+                          "换版不追改在跑的工作 —— 采集范围是合规边界，不能因为换了内容就悄悄扩大。这些工作会一直按它们派出去时那一版目录跑。",
+                          "Switching versions does not rewrite running work — the collection scope is a compliance boundary and must not silently widen because the content changed. This work keeps running against the catalog it was dispatched with.",
+                        )}
+                      </p>
+                    </header>
+                    <div className={styles.lockBody}>
+                      <div className={styles.lockTotal}>
+                        {locks.data.activeCatalogVersion !== null
+                          ? t(
+                              "共 {n} 件常驻工作锁在旧版目录上（当前生效目录版本：{version}）",
+                              "{n} standing work items are locked to an older catalog (active catalog version: {version})",
+                              {
+                                n: lockedWorkTotal(locks.data),
+                                version: locks.data.activeCatalogVersion,
+                              },
+                            )
+                          : t(
+                              "共 {n} 件常驻工作锁在旧版目录上",
+                              "{n} standing work items are locked to an older catalog",
+                              { n: lockedWorkTotal(locks.data) },
+                            )}
+                      </div>
+                      <ul className={styles.lockList}>
+                        {staleLocks(locks.data).length > 0 ? (
+                          staleLocks(locks.data).map((entry) => (
+                            <li
+                              key={entry.catalogVersion}
+                              className={styles.lockRow}
+                            >
+                              <span className={styles.lockVersion}>
+                                {t("目录 {version}", "Catalog {version}", {
+                                  version: entry.catalogVersion,
+                                })}
+                              </span>
+                              <span className={styles.lockWorks}>
+                                {t("{n} 件", "{n} items", { n: entry.works })}
+                              </span>
+                            </li>
+                          ))
+                        ) : (
+                          <li className={styles.lockRow}>
+                            <span className={styles.lockWorks}>
+                              {t(
+                                "全部工作都已经在生效目录版本上。",
+                                "All work is already on the active catalog version.",
+                              )}
+                            </span>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  </section>
+                ) : null}
+
+                {/* ③ 录入历史 */}
+                <section
+                  className={styles.card}
+                  aria-labelledby="knowledge-history"
+                >
+                  <header className={styles.cardHead}>
+                    <h2 id="knowledge-history">
+                      {t("录入历史", "Record history")}
+                    </h2>
+                    <p>
+                      {t(
+                        "「设为生效」切的是全平台；已经派出去的工作不跟着改（见上一张卡）。",
+                        "“Set active” switches the whole platform; already-dispatched work does not follow (see the card above).",
+                      )}
+                    </p>
+                  </header>
+
+                  {packages.isLoading || packages.isError ? (
+                    <div className={styles.noticeBlock}>
+                      {packages.isLoading ? (
+                        <div className={styles.notice} role="status">
+                          {t("正在读取录入历史…", "Loading record history…")}
+                        </div>
+                      ) : null}
+                      {packages.isError ? (
+                        isRateLimitedError(packages.error) ? (
+                          <RateLimitNotice error={packages.error} />
+                        ) : (
+                          <div className={styles.noticeDanger} role="alert">
+                            {knowledgeLoadErrorMessage(packages.error)}
+                          </div>
+                        )
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {!packages.isLoading &&
+                  !packages.isError &&
+                  history.length === 0 ? (
+                    <div className={styles.empty}>
+                      <strong>
+                        {t("还没有录入过任何包", "No packages recorded yet")}
+                      </strong>
+                      <span>
+                        {t(
+                          "到「录入知识库」标签页填一个来源保存一次。包来自 wist-knowledge 的 Release 附件（",
+                          "Go to the “Record knowledge” tab, fill in a source and save once. Packages come from wist-knowledge Release assets (",
+                        )}
+                        <code className={styles.code}>.tar.gz</code>{" "}
+                        {t("与其", "and the matching ")}
+                        <code className={styles.code}>.sha256</code>
+                        {t(
+                          "）；离线环境用 stack 的 ",
+                          "); in offline environments, deploy them with the stack's ",
+                        )}
+                        <code className={styles.code}>
+                          scripts/import-knowledge.sh
+                        </code>{" "}
+                        {t("投放后再录。", "and then record them.")}
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.activateButton}
+                        onClick={() => selectTab("record")}
+                      >
+                        {t("去录入", "Record a package")}
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {history.length > 0 ? (
+                    <div className={styles.tableWrap}>
+                      <table className={styles.table}>
+                        <thead>
+                          <tr>
+                            <th scope="col">{t("版本", "Version")}</th>
+                            <th scope="col">
+                              {t("内容版本", "Content version")}
+                            </th>
+                            <th scope="col">
+                              {t("摘要 / 验签", "Digest / signature")}
+                            </th>
+                            <th scope="col">{t("录入", "Recorded")}</th>
+                            <th scope="col">{t("状态", "Status")}</th>
+                            <th scope="col" className={styles.thAction}>
+                              <span className={styles.srOnly}>
+                                {t("操作", "Actions")}
+                              </span>
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.map((pkg) => {
+                            const isActive = pkg.packageId === activePackageId;
+                            return (
+                              <tr key={pkg.packageId}>
+                                <td className={styles.tdVersion}>
+                                  <span className={styles.versionLabel}>
+                                    {knowledgeVersionLabel(pkg)}
+                                  </span>
+                                  <span
+                                    className={styles.versionMeta}
+                                    title={pkg.packageId}
+                                  >
+                                    {pkg.packageId}
+                                  </span>
+                                </td>
+                                <td className={styles.tdMuted}>
+                                  {knowledgePackageVersionSummary(pkg) || "—"}
+                                </td>
+                                <td className={styles.tdMuted}>
+                                  <span
+                                    className={styles.shaValue}
+                                    title={pkg.packageSha256}
+                                  >
+                                    {knowledgeShaLabel(pkg.packageSha256)}
+                                  </span>
+                                  <span
+                                    className={styles.signature}
+                                    title={pkg.signedBy || undefined}
+                                  >
+                                    {knowledgeSignatureLabel(pkg)}
+                                  </span>
+                                </td>
+                                <td className={styles.tdMuted}>
+                                  <span className={styles.createdBy}>
+                                    {pkg.createdBy || "—"}
+                                  </span>
+                                  <span className={styles.createdAt}>
+                                    {timestampText(pkg.createdAt)}
+                                  </span>
+                                </td>
+                                <td>
+                                  {isActive ? (
+                                    <span
+                                      className={`${styles.badge} ${styles.badgeActive}`}
+                                    >
+                                      {t("生效中", "Active")}
+                                    </span>
+                                  ) : !pkg.available ? (
+                                    <span
+                                      className={`${styles.badge} ${styles.badgeGone}`}
+                                    >
+                                      {t("副本缺失", "Copy missing")}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className={`${styles.badge} ${styles.badgeStored}`}
+                                    >
+                                      {t("已录入", "Recorded")}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={styles.tdAction}>
+                                  <button
+                                    type="button"
+                                    className={styles.activateButton}
+                                    disabled={isActive || !pkg.available}
+                                    title={
+                                      isActive
+                                        ? t(
+                                            "这一版已经在生效",
+                                            "This version is already active",
+                                          )
+                                        : !pkg.available
+                                          ? t(
+                                              "副本已不在网关（包目录被手工清过，或备份还原不完整）",
+                                              "The copy is no longer on the gateway (the package directory was cleaned up by hand, or a restore was incomplete)",
+                                            )
+                                          : t(
+                                              "切到这一版（两次确认）",
+                                              "Switch to this version (double confirmation)",
+                                            )
+                                    }
+                                    onClick={() =>
+                                      openConfirm({
+                                        kind: "activate",
+                                        packageId: pkg.packageId,
+                                        label: knowledgeVersionLabel(pkg),
+                                      })
+                                    }
+                                  >
+                                    {t("设为生效", "Set active")}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </section>
+              </>
+            ) : null}
+
+            {/* ④ 录入 */}
+            {tab === "record" ? (
+              <section
+                className={styles.card}
+                aria-labelledby="knowledge-record"
+              >
+                <header className={styles.cardHead}>
+                  <h2 id="knowledge-record">
+                    {t("录入知识库包", "Record knowledge package")}
+                  </h2>
+                  <p>
+                    {t(
+                      "录入只落盘登记；除非勾上「立即激活」，否则不改变现状。",
+                      "Recording only writes a registration; unless “Activate immediately” is checked, nothing changes.",
+                    )}
+                  </p>
+                </header>
+
+                <form className={styles.form} onSubmit={handleSubmit}>
+                  {/* 一键填充：与安装包录入页同一套入口（GitHub Release / COS 路径），
                 解析后直接填「来源地址 + 摘要」——这两项本来就成对。 */}
-            <div
-              className={styles.sourceTabs}
-              role="tablist"
-              aria-label={t("解析来源", "Resolve source")}
-            >
-              {(["github", "cos"] as const).map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="tab"
-                  aria-selected={resolveSource === value}
-                  className={
-                    resolveSource === value
-                      ? `${styles.sourceTab} ${styles.sourceTabActive}`
-                      : styles.sourceTab
-                  }
-                  onClick={() => selectResolveSource(value)}
-                >
-                  {value === "github"
-                    ? "GitHub Release"
-                    : t("COS 路径", "COS path")}
-                </button>
-              ))}
-            </div>
+                  <div
+                    className={styles.sourceTabs}
+                    role="tablist"
+                    aria-label={t("解析来源", "Resolve source")}
+                  >
+                    {(["github", "cos"] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="tab"
+                        aria-selected={resolveSource === value}
+                        className={
+                          resolveSource === value
+                            ? `${styles.sourceTab} ${styles.sourceTabActive}`
+                            : styles.sourceTab
+                        }
+                        onClick={() => selectResolveSource(value)}
+                      >
+                        {value === "github"
+                          ? "GitHub Release"
+                          : t("COS 路径", "COS path")}
+                      </button>
+                    ))}
+                  </div>
 
-            <div className={styles.resolveField}>
-              <label
-                className={styles.resolveLabel}
-                htmlFor="knowledge-source-input"
-              >
-                {resolveSource === "github"
-                  ? t(
-                      "GitHub Release 地址（可选，一键填充）",
-                      "GitHub Release URL (optional, one-click fill)",
-                    )
-                  : t(
-                      "COS 路径（可选，一键填充）",
-                      "COS path (optional, one-click fill)",
-                    )}
-              </label>
-              <div className={styles.resolveControls}>
-                <input
-                  id="knowledge-source-input"
-                  className={styles.resolveInput}
-                  type="text"
-                  value={resolveInput}
-                  onChange={(event) => {
-                    setResolveInput(event.target.value);
-                    if (resolveNote) setResolveNote(null);
-                  }}
-                  onKeyDown={(event) => {
-                    // 回车是「解析」，别提交整个录入表单。
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleResolve();
-                    }
-                  }}
-                  placeholder={
-                    resolveSource === "github"
-                      ? "https://github.com/dayu-sec/wist-knowledge/releases/tag/<tag>"
-                      : t(
-                          "桶/组件/版本，如 github-1347593047/wist-knowledge/v0.1.1",
-                          "bucket/component/version, e.g. github-1347593047/wist-knowledge/v0.1.1",
-                        )
-                  }
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  className={styles.resolveButton}
-                  onClick={handleResolve}
-                  disabled={resolve.isPending || !resolveInput.trim()}
-                >
-                  {resolve.isPending
-                    ? t("解析中…", "Resolving…")
-                    : t("解析并填充", "Resolve and fill")}
-                </button>
-              </div>
-              <small className={styles.resolveHint}>
-                {resolveSource === "github"
-                  ? t(
-                      "填 release 页面地址后点「解析并填充」：网关拉该 release 的制品，取其中的 .tar.gz 地址与摘要填到下面。",
-                      "Enter the release page URL and click Resolve and fill: the gateway fetches the release's assets and fills in the .tar.gz URL and its digest below.",
-                    )
-                  : t(
-                      "填 COS 路径后点「解析并填充」：网关按命名约定找到该前缀下的 .tar.gz，并读回对象元数据里的 sha256；未指定 region 时会逐个探测，可能要十几秒。",
-                      "Enter a COS path and click Resolve and fill: the gateway finds the .tar.gz under that prefix and reads its sha256 from object metadata; without a region it probes them in order, which can take a while.",
-                    )}
-              </small>
-            </div>
-            {resolve.error ? (
-              <div className={styles.errorBanner} role="alert">
-                {t("解析失败：{detail}", "Resolve failed: {detail}", {
-                  detail: resolveSourceErrorMessage(resolve.error, resolveSource),
-                })}
-              </div>
-            ) : null}
-            {resolveNote ? <p className={styles.resolveNote}>{resolveNote}</p> : null}
+                  <div className={styles.resolveField}>
+                    <label
+                      className={styles.resolveLabel}
+                      htmlFor="knowledge-source-input"
+                    >
+                      {resolveSource === "github"
+                        ? t(
+                            "GitHub Release 地址（可选，一键填充）",
+                            "GitHub Release URL (optional, one-click fill)",
+                          )
+                        : t(
+                            "COS 路径（可选，一键填充）",
+                            "COS path (optional, one-click fill)",
+                          )}
+                    </label>
+                    <div className={styles.resolveControls}>
+                      <input
+                        id="knowledge-source-input"
+                        className={styles.resolveInput}
+                        type="text"
+                        value={resolveInput}
+                        onChange={(event) => {
+                          setResolveInput(event.target.value);
+                          if (resolveNote) setResolveNote(null);
+                        }}
+                        onKeyDown={(event) => {
+                          // 回车是「解析」，别提交整个录入表单。
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleResolve();
+                          }
+                        }}
+                        placeholder={
+                          resolveSource === "github"
+                            ? "https://github.com/dayu-sec/wist-knowledge/releases/tag/<tag>"
+                            : t(
+                                "桶/组件/版本，如 github-1347593047/wist-knowledge/v0.1.1",
+                                "bucket/component/version, e.g. github-1347593047/wist-knowledge/v0.1.1",
+                              )
+                        }
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      <button
+                        type="button"
+                        className={styles.resolveButton}
+                        onClick={handleResolve}
+                        disabled={resolve.isPending || !resolveInput.trim()}
+                      >
+                        {resolve.isPending
+                          ? t("解析中…", "Resolving…")
+                          : t("解析并填充", "Resolve and fill")}
+                      </button>
+                    </div>
+                    <small className={styles.resolveHint}>
+                      {resolveSource === "github"
+                        ? t(
+                            "填 release 页面地址后点「解析并填充」：网关拉该 release 的制品，取其中的 .tar.gz 地址与摘要填到下面。",
+                            "Enter the release page URL and click Resolve and fill: the gateway fetches the release's assets and fills in the .tar.gz URL and its digest below.",
+                          )
+                        : t(
+                            "填 COS 路径后点「解析并填充」：网关按命名约定找到该前缀下的 .tar.gz，并读回对象元数据里的 sha256；未指定 region 时会逐个探测，可能要十几秒。",
+                            "Enter a COS path and click Resolve and fill: the gateway finds the .tar.gz under that prefix and reads its sha256 from object metadata; without a region it probes them in order, which can take a while.",
+                          )}
+                    </small>
+                  </div>
+                  {resolve.error ? (
+                    <div className={styles.errorBanner} role="alert">
+                      {t("解析失败：{detail}", "Resolve failed: {detail}", {
+                        detail: resolveSourceErrorMessage(
+                          resolve.error,
+                          resolveSource,
+                        ),
+                      })}
+                    </div>
+                  ) : null}
+                  {resolveNote ? (
+                    <p className={styles.resolveNote}>{resolveNote}</p>
+                  ) : null}
 
-            {/* 来源与摘要并排：它们是一对（摘要只校验这个来源），别再上下拉开一屏。 */}
-            <div className={styles.recordFields}>
-              <label className={styles.field}>
-                <span>{t("来源地址", "Source URL")}</span>
-                <input
-                  type="text"
-                  value={source}
-                  onChange={(event) => {
-                    setSource(event.target.value);
-                    // 手动改了来源，上一次解析的说明就不再描述这次要录的东西了。
-                    if (resolveNote) setResolveNote(null);
-                  }}
-                  placeholder={
-                    resolveSource === "github"
-                      ? "https://github.com/dayu-sec/wist-knowledge/releases/download/v0.1.1/wist-knowledge-0.1.1.tar.gz"
-                      : t(
-                          "https://<桶>.cos.<region>.myqcloud.com/wist-knowledge/v0.1.1/wist-knowledge-0.1.1.tar.gz",
-                          "https://<bucket>.cos.<region>.myqcloud.com/wist-knowledge/v0.1.1/wist-knowledge-0.1.1.tar.gz",
-                        )
-                  }
-                  autoComplete="off"
-                  title={source || undefined}
-                  required
-                />
-                <small>
-                  {t(
-                    "https:// 链接，或「网关容器内」的绝对路径（宿主路径在网关容器里看不见；离线投放见 stack 的 import-knowledge.sh）。不支持明文 http。",
-                    "An https:// link, or an absolute path inside the gateway container (host paths are invisible in the container; for offline deployment see the stack's import-knowledge.sh). Plain http is not supported.",
-                  )}
-                </small>
-              </label>
-              <label className={styles.field}>
-                <span>{t("期望摘要 sha256（必填）", "Expected digest sha256 (required)")}</span>
-                <input
-                  type="text"
-                  value={sha256}
-                  onChange={(event) => {
-                    setSha256(event.target.value);
-                    if (shaFormError) setShaFormError(null);
-                    if (resolveNote) setResolveNote(null);
-                  }}
-                  placeholder={t("64 位十六进制，可带 sha256: 前缀", "64 hex characters, optionally prefixed with sha256:")}
-                  autoComplete="off"
-                  spellCheck={false}
-                  title={sha256 || undefined}
-                  required
-                  aria-invalid={shaFormError ? true : undefined}
-                />
-                <small>
-                  {t(
-                    "必填：填发布侧 *.sha256 里那串（算的是来源 tarball 的字节）；网关先校验，不符即拒绝。",
-                    "Required: paste the value from the published *.sha256 (it covers the source tarball bytes); the gateway verifies it first and rejects a mismatch.",
-                  )}
-                </small>
-              </label>
-            </div>
-            <label className={styles.checkboxField}>
-              <input
-                type="checkbox"
-                checked={activateNow}
-                onChange={(event) => setActivateNow(event.target.checked)}
-              />
-              <span>
-                {t("立即激活", "Activate immediately")}
-                <small>
-                  {t(
-                    "录入成功后马上切到这一版；不勾则先登记，之后在历史里点「设为生效」。",
-                    "Switch to this version as soon as recording succeeds; if unchecked, it is only registered and you can click “Set active” in the history later.",
-                  )}
-                </small>
-              </span>
-            </label>
+                  {/* 来源与摘要并排：它们是一对（摘要只校验这个来源），别再上下拉开一屏。 */}
+                  <div className={styles.recordFields}>
+                    <label className={styles.field}>
+                      <span>{t("来源地址", "Source URL")}</span>
+                      <input
+                        type="text"
+                        value={source}
+                        onChange={(event) => {
+                          setSource(event.target.value);
+                          // 手动改了来源，上一次解析的说明就不再描述这次要录的东西了。
+                          if (resolveNote) setResolveNote(null);
+                        }}
+                        placeholder={
+                          resolveSource === "github"
+                            ? "https://github.com/dayu-sec/wist-knowledge/releases/download/v0.1.1/wist-knowledge-0.1.1.tar.gz"
+                            : t(
+                                "https://<桶>.cos.<region>.myqcloud.com/wist-knowledge/v0.1.1/wist-knowledge-0.1.1.tar.gz",
+                                "https://<bucket>.cos.<region>.myqcloud.com/wist-knowledge/v0.1.1/wist-knowledge-0.1.1.tar.gz",
+                              )
+                        }
+                        autoComplete="off"
+                        title={source || undefined}
+                        required
+                      />
+                      <small>
+                        {t(
+                          "https:// 链接，或「网关容器内」的绝对路径（宿主路径在网关容器里看不见；离线投放见 stack 的 import-knowledge.sh）。不支持明文 http。",
+                          "An https:// link, or an absolute path inside the gateway container (host paths are invisible in the container; for offline deployment see the stack's import-knowledge.sh). Plain http is not supported.",
+                        )}
+                      </small>
+                    </label>
+                    <label className={styles.field}>
+                      <span>
+                        {t(
+                          "期望摘要 sha256（必填）",
+                          "Expected digest sha256 (required)",
+                        )}
+                      </span>
+                      <input
+                        type="text"
+                        value={sha256}
+                        onChange={(event) => {
+                          setSha256(event.target.value);
+                          if (shaFormError) setShaFormError(null);
+                          if (resolveNote) setResolveNote(null);
+                        }}
+                        placeholder={t(
+                          "64 位十六进制，可带 sha256: 前缀",
+                          "64 hex characters, optionally prefixed with sha256:",
+                        )}
+                        autoComplete="off"
+                        spellCheck={false}
+                        title={sha256 || undefined}
+                        required
+                        aria-invalid={shaFormError ? true : undefined}
+                      />
+                      <small>
+                        {t(
+                          "必填：填发布侧 *.sha256 里那串（算的是来源 tarball 的字节）；网关先校验，不符即拒绝。",
+                          "Required: paste the value from the published *.sha256 (it covers the source tarball bytes); the gateway verifies it first and rejects a mismatch.",
+                        )}
+                      </small>
+                    </label>
+                  </div>
+                  <label className={styles.checkboxField}>
+                    <input
+                      type="checkbox"
+                      checked={activateNow}
+                      onChange={(event) => setActivateNow(event.target.checked)}
+                    />
+                    <span>
+                      {t("立即激活", "Activate immediately")}
+                      <small>
+                        {t(
+                          "录入成功后马上切到这一版；不勾则先登记，之后在历史里点「设为生效」。",
+                          "Switch to this version as soon as recording succeeds; if unchecked, it is only registered and you can click “Set active” in the history later.",
+                        )}
+                      </small>
+                    </span>
+                  </label>
 
-            {shaFormError ? (
-              <div className={styles.errorBanner} role="alert">
-                {shaFormError}
-              </div>
-            ) : null}
-            {record.isError ? (
-              <div className={styles.errorBanner} role="alert">
-                {knowledgeActionErrorMessage(record.error, "录入")}
-              </div>
-            ) : null}
-            {record.isSuccess ? (
-              <div className={styles.formNotice} role="status">
-                {record.data.active
-                  ? t(
-                      "已录入 {version}（{id}），并已切换为生效版本。",
-                      "Recorded {version} ({id}) and switched to it as the active version.",
-                      {
-                        version: knowledgeVersionLabel(record.data),
-                        id: record.data.packageId,
-                      },
-                    )
-                  : t(
-                      "已录入 {version}（{id}），尚未生效。",
-                      "Recorded {version} ({id}); not active yet.",
-                      {
-                        version: knowledgeVersionLabel(record.data),
-                        id: record.data.packageId,
-                      },
-                    )}
-              </div>
-            ) : null}
+                  {shaFormError ? (
+                    <div className={styles.errorBanner} role="alert">
+                      {shaFormError}
+                    </div>
+                  ) : null}
+                  {record.isError ? (
+                    <div className={styles.errorBanner} role="alert">
+                      {knowledgeActionErrorMessage(record.error, "录入")}
+                    </div>
+                  ) : null}
+                  {record.isSuccess ? (
+                    <div className={styles.formNotice} role="status">
+                      {record.data.active
+                        ? t(
+                            "已录入 {version}（{id}），并已切换为生效版本。",
+                            "Recorded {version} ({id}) and switched to it as the active version.",
+                            {
+                              version: knowledgeVersionLabel(record.data),
+                              id: record.data.packageId,
+                            },
+                          )
+                        : t(
+                            "已录入 {version}（{id}），尚未生效。",
+                            "Recorded {version} ({id}); not active yet.",
+                            {
+                              version: knowledgeVersionLabel(record.data),
+                              id: record.data.packageId,
+                            },
+                          )}
+                    </div>
+                  ) : null}
 
-            <div className={styles.formActions}>
-              <button
-                type="submit"
-                className={styles.primaryButton}
-                disabled={!canSubmit}
-              >
-                {record.isPending ? t("正在录入…", "Recording…") : t("录入", "Record")}
-              </button>
-              <span className={styles.actionHint}>
-                {t(
-                  "网关会先取包、跑完整校验链（摘要 → manifest → 装载器 → 签名），任一不过整次录入都不生效。",
-                  "The gateway fetches the package first and runs the full verification chain (digest → manifest → loader → signature); if any step fails the whole recording has no effect.",
-                )}
-              </span>
-            </div>
-          </form>
-        </section>
+                  <div className={styles.formActions}>
+                    <button
+                      type="submit"
+                      className={styles.primaryButton}
+                      disabled={!canSubmit}
+                    >
+                      {record.isPending
+                        ? t("正在录入…", "Recording…")
+                        : t("录入", "Record")}
+                    </button>
+                    <span className={styles.actionHint}>
+                      {t(
+                        "网关会先取包、跑完整校验链（摘要 → manifest → 装载器 → 签名），任一不过整次录入都不生效。",
+                        "The gateway fetches the package first and runs the full verification chain (digest → manifest → loader → signature); if any step fails the whole recording has no effect.",
+                      )}
+                    </span>
+                  </div>
+                </form>
+              </section>
+            ) : null}
           </>
         )}
       </main>
@@ -933,10 +1051,15 @@ export function SubsystemKnowledgePage() {
                 "This switches the platform-wide active knowledge base to ",
               )}
               <code className={styles.code}>{pending.label}</code>
-              {pending.kind === "rollback" ? t("（上一版）", " (previous version)") : ""}
+              {pending.kind === "rollback"
+                ? t("（上一版）", " (previous version)")
+                : ""}
               {t("。", ". ")}
               <strong className={styles.dialogNote}>
-                {t("已经派出去的工作不跟着改", "Already-dispatched work does not follow")}
+                {t(
+                  "已经派出去的工作不跟着改",
+                  "Already-dispatched work does not follow",
+                )}
               </strong>
               {t(
                 "；新的事实入库与用途推断按新一版内容走。切换前网关会重新装载并校验，校验不过则完全不动现状。",
@@ -963,7 +1086,9 @@ export function SubsystemKnowledgePage() {
                 onClick={confirmAction}
                 disabled={activate.isPending}
               >
-                {activate.isPending ? t("正在切换…", "Switching…") : t("确认切换", "Confirm switch")}
+                {activate.isPending
+                  ? t("正在切换…", "Switching…")
+                  : t("确认切换", "Confirm switch")}
               </button>
             </div>
           </div>

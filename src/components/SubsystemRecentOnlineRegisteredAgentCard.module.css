@@ -21,21 +21,65 @@
   min-width: 0;
 }
 
-.agentId {
+.hostname {
   overflow: hidden;
   color: var(--text);
-  font-size: 13.5px;
+  font-family: var(--font-mono);
+  font-size: 14px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
 }
 
-.instance {
+.ipLine {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
   margin-top: 3px;
+}
+
+.ipLabel,
+.agentIdLabel {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.ipValue {
   overflow: hidden;
+  min-width: 0;
   color: var(--text-2);
+  font-family: var(--font-mono);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ipMore {
+  flex: 0 0 auto;
+  color: var(--text-4);
+  font-size: 10.5px;
+}
+
+.agentId {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentIdValue {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

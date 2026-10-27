@@ -2,6 +2,7 @@ import styles from "./SubsystemRecentOnlineRegisteredAgentCard.module.css";
 import { Sparkline } from "./Sparkline";
 import { Link } from "react-router-dom";
 import type { RecentOnlineRegisteredAgent } from "../api";
+import { summarizeAddresses } from "../lib/format";
 import { t, dateLocale } from "../i18n";
 
 interface SubsystemRecentOnlineRegisteredAgentCardProps {
@@ -34,7 +35,8 @@ function formatDuration(seconds: number): string {
 function formatMemory(bytes?: number): string {
   if (bytes === undefined || bytes === null) return "—";
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
@@ -42,7 +44,9 @@ function formatMemory(bytes?: number): string {
 // agent 进程自身）；cpuPercentOfMachine 是整机口径（0..100）。二者都不能在缺省时
 // 假装成 0，所以统一显示「—」。
 function formatCpu(percent?: number): string {
-  return percent === undefined || percent === null ? "—" : `${percent.toFixed(1)}%`;
+  return percent === undefined || percent === null
+    ? "—"
+    : `${percent.toFixed(1)}%`;
 }
 
 function formatLatency(ms?: number): string {
@@ -52,7 +56,8 @@ function formatLatency(ms?: number): string {
 export function SubsystemRecentOnlineRegisteredAgentCard({
   agent,
 }: SubsystemRecentOnlineRegisteredAgentCardProps) {
-  const sourceLabel = agent.source === "real" ? t("真实", "Real") : t("示例", "Sample");
+  const sourceLabel =
+    agent.source === "real" ? t("真实", "Real") : t("示例", "Sample");
   // 与网关侧判定保持一致：online_since 距今 ≤ 5 分钟才算在线
   // （见 crates/wist-gateway/src/api/overview.rs 的 ONLINE_WINDOW_SECONDS）。
   const secondsSinceOnline = Math.max(
@@ -60,12 +65,30 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
     (Date.now() - new Date(agent.onlineSince).getTime()) / 1000,
   );
   const isOnline = secondsSinceOnline <= ONLINE_WINDOW_SECONDS;
+  // 主机名 / IP 是运维实际用来区分机器的信息；agent_id 只在排障时关联日志用，降为次级。
+  const addresses = summarizeAddresses(agent.ipAddresses ?? []);
+  const primaryHost = agent.hostname.trim() || agent.agentId;
   return (
     <article className={styles.container}>
       <div className={styles.top}>
         <div className={styles.identity}>
-          <div className={styles.agentId}>{agent.agentId}</div>
-          <div className={styles.instance}>{agent.instanceId}</div>
+          <div className={styles.hostname} title={primaryHost}>
+            {primaryHost}
+          </div>
+          <div className={styles.ipLine} title={addresses.full || undefined}>
+            <span className={styles.ipLabel}>IP</span>
+            <span className={styles.ipValue}>{addresses.primary ?? "—"}</span>
+            {addresses.others > 0 ? (
+              <span className={styles.ipMore}>+{addresses.others}</span>
+            ) : null}
+          </div>
+          <div
+            className={styles.agentId}
+            title={`${agent.agentId} · ${agent.instanceId}`}
+          >
+            <span className={styles.agentIdLabel}>ID</span>{" "}
+            <span className={styles.agentIdValue}>{agent.agentId}</span>
+          </div>
         </div>
         <div className={styles.badges}>
           <span className={isOnline ? styles.badge : styles.offlineBadge}>
@@ -75,19 +98,27 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
                   duration: formatDuration(Math.round(secondsSinceOnline)),
                 })}
           </span>
-          <span className={agent.source === "real" ? styles.realBadge : styles.exampleBadge}>
+          <span
+            className={
+              agent.source === "real" ? styles.realBadge : styles.exampleBadge
+            }
+          >
             {sourceLabel}
           </span>
         </div>
       </div>
       <div className={styles.durationBlock}>
         <span className={styles.durationLabel}>{t("上线时长", "Uptime")}</span>
-        <strong className={styles.duration}>{formatDuration(agent.onlineDurationSeconds)}</strong>
+        <strong className={styles.duration}>
+          {formatDuration(agent.onlineDurationSeconds)}
+        </strong>
       </div>
       <div className={styles.metrics}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>{t("内存", "Memory")}</span>
-          <span className={styles.metricValue}>{formatMemory(agent.memoryBytes)}</span>
+          <span className={styles.metricValue}>
+            {formatMemory(agent.memoryBytes)}
+          </span>
         </div>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>CPU</span>
@@ -106,12 +137,16 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
           <span className={styles.metricLabel}>
             {t("Admin 延时", "Admin latency")}
           </span>
-          <span className={styles.metricValue}>{formatLatency(agent.adminLatencyMs)}</span>
+          <span className={styles.metricValue}>
+            {formatLatency(agent.adminLatencyMs)}
+          </span>
         </div>
       </div>
       <div className={styles.trend}>
         <div className={styles.trendItem}>
-          <span className={styles.trendLabel}>{t("内存趋势", "Memory trend")}</span>
+          <span className={styles.trendLabel}>
+            {t("内存趋势", "Memory trend")}
+          </span>
           <Sparkline
             values={(agent.metricsHistory ?? []).map((s) => s.memoryBytes)}
             color="var(--series-1)"
@@ -127,7 +162,9 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
           />
         </div>
         <div className={styles.trendItem}>
-          <span className={styles.trendLabel}>{t("延时趋势", "Latency trend")}</span>
+          <span className={styles.trendLabel}>
+            {t("延时趋势", "Latency trend")}
+          </span>
           <Sparkline
             values={(agent.metricsHistory ?? []).map((s) => s.adminLatencyMs)}
             color="var(--series-3)"
@@ -141,11 +178,15 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
         </div>
         <div className={styles.item}>
           <div className={styles.label}>{t("注册时间", "Registered at")}</div>
-          <div className={styles.value}>{formatDateTime(agent.registeredAt)}</div>
+          <div className={styles.value}>
+            {formatDateTime(agent.registeredAt)}
+          </div>
         </div>
         <div className={styles.item}>
           <div className={styles.label}>{t("上线时间", "Online since")}</div>
-          <div className={styles.value}>{formatDateTime(agent.onlineSince)}</div>
+          <div className={styles.value}>
+            {formatDateTime(agent.onlineSince)}
+          </div>
         </div>
       </div>
       <div className={styles.footer}>

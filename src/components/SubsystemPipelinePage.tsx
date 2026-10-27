@@ -67,9 +67,12 @@ function windows(): { seconds: number; label: string }[] {
 export function SubsystemPipelinePage() {
   const [windowSeconds, setWindowSeconds] = useState(1800);
   const [selected, setSelected] = useState<Selection | null>(null);
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    new Set(),
+  );
 
-  const { data, isLoading, isError, error } = usePipelineTopology(windowSeconds);
+  const { data, isLoading, isError, error } =
+    usePipelineTopology(windowSeconds);
 
   const summary = data?.summary;
   const lossTone = (summary?.lossRate ?? 0) > 0.1 ? "crit" : "ok";
@@ -150,7 +153,9 @@ export function SubsystemPipelinePage() {
 
       {isStale || hasNoSample ? (
         <div className={styles.staleBanner}>
-          <strong>{t("指标通道已停止上报", "Metrics channel stopped reporting")}</strong>
+          <strong>
+            {t("指标通道已停止上报", "Metrics channel stopped reporting")}
+          </strong>
           <span>
             {hasNoSample
               ? t(
@@ -164,8 +169,7 @@ export function SubsystemPipelinePage() {
                     at: formatClock(data?.latestSampleAt),
                     age: formatRelativeSeconds(sampleAgeSeconds).text,
                   },
-                )}
-            {" "}
+                )}{" "}
             {t(
               "这通常意味着数据面的 VictoriaMetrics 推送失败（数据面日志关键字 ",
               "This usually means the data plane failed to push to VictoriaMetrics (data plane log keyword ",
@@ -196,14 +200,20 @@ export function SubsystemPipelinePage() {
         <MetricTile
           label={t("入流速率", "Ingress rate")}
           value={formatRate(summary?.ingressRate)}
-          hint={t("所有来源合计；这是采集实际收到的量", "Sum over all sources; this is what collection actually received")}
+          hint={t(
+            "所有来源合计；这是采集实际收到的量",
+            "Sum over all sources; this is what collection actually received",
+          )}
           tone="accent"
           loading={isLoading}
         />
         <MetricTile
           label={t("解析速率", "Parse rate")}
           value={formatRate(summary?.parseRate)}
-          hint={t("进入解析规则的速率（含未通过的行）", "Rate entering the parse rules (including rows that fail them)")}
+          hint={t(
+            "进入解析规则的速率（含未通过的行）",
+            "Rate entering the parse rules (including rows that fail them)",
+          )}
           tone="unknown"
           loading={isLoading}
         />
@@ -227,7 +237,10 @@ export function SubsystemPipelinePage() {
                   "{share} of ingress; expected ≤0.1 e/s",
                   { share: formatShare(summary.lossRate, summary.ingressRate) },
                 )
-              : t("miss / residue / error 三路合计", "miss / residue / error combined")
+              : t(
+                  "miss / residue / error 三路合计",
+                  "miss / residue / error combined",
+                )
           }
           tone={lossTone}
           loading={isLoading}
@@ -246,7 +259,9 @@ export function SubsystemPipelinePage() {
         <>
           <section className={styles.section}>
             <header className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>{t("接入与输出", "Ingress and egress")}</h2>
+              <h2 className={styles.sectionTitle}>
+                {t("接入与输出", "Ingress and egress")}
+              </h2>
               <p className={styles.sectionNote}>
                 {t(
                   "来源接入与落盘出口；两者数量通常稳定。",
@@ -280,7 +295,10 @@ export function SubsystemPipelinePage() {
                 accent="sink"
                 items={data?.sinks ?? []}
                 canCollapse
-                emptyText={t("没有输出分组在接收数据", "No sink group is receiving data")}
+                emptyText={t(
+                  "没有输出分组在接收数据",
+                  "No sink group is receiving data",
+                )}
                 onExpandAll={() => setAllCollapsed(data?.sinks ?? [], false)}
                 onCollapseAll={() => setAllCollapsed(data?.sinks ?? [], true)}
                 renderItem={(group, silent) => (
@@ -301,7 +319,9 @@ export function SubsystemPipelinePage() {
             <div className={styles.sectionChart}>
               <div className={styles.chartHead}>
                 <span className={styles.chartTitle}>
-                  {selected ? t("选中项", "Selected") : t("来源汇总", "Source total")}
+                  {selected
+                    ? t("选中项", "Selected")
+                    : t("来源汇总", "Source total")}
                 </span>
                 <span className={styles.chartNote}>
                   {selected
@@ -324,7 +344,9 @@ export function SubsystemPipelinePage() {
 
           <section className={styles.section}>
             <header className={styles.sectionHead}>
-              <h2 className={styles.sectionTitle}>{t("解析规则", "Parse rules")}</h2>
+              <h2 className={styles.sectionTitle}>
+                {t("解析规则", "Parse rules")}
+              </h2>
               <p className={styles.sectionNote}>
                 {t(
                   "按可用宽度自动分栏；规则多时在节内滚动。",
@@ -364,15 +386,23 @@ export function SubsystemPipelinePage() {
       <section className={styles.detail}>
         <div className={styles.detailHead}>
           <div className={styles.detailTitleGroup}>
-            <h2 className={styles.detailTitle}>{t("节点详情", "Node details")}</h2>
+            <h2 className={styles.detailTitle}>
+              {t("节点详情", "Node details")}
+            </h2>
             <span className={styles.detailTarget}>
               {selected
                 ? selected.label
-                : t("未选择节点 —— 点上方任意节点查看曲线", "No node selected — click any node above to view its chart")}
+                : t(
+                    "未选择节点 —— 点上方任意节点查看曲线",
+                    "No node selected — click any node above to view its chart",
+                  )}
             </span>
             {selectedHasNoData ? (
               <span className={styles.detailIdleNote}>
-                {t("窗口内无数据（全程 0）", "No data in window (zero throughout)")}
+                {t(
+                  "窗口内无数据（全程 0）",
+                  "No data in window (zero throughout)",
+                )}
               </span>
             ) : null}
           </div>
@@ -443,10 +473,18 @@ function LayerColumn({
         {tabs}
         {canCollapse ? (
           <div className={styles.columnActions}>
-            <button type="button" className={styles.linkButton} onClick={onExpandAll}>
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={onExpandAll}
+            >
               {t("全部展开", "Expand all")}
             </button>
-            <button type="button" className={styles.linkButton} onClick={onCollapseAll}>
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={onCollapseAll}
+            >
               {t("全部收起", "Collapse all")}
             </button>
           </div>
@@ -493,24 +531,30 @@ function GroupCard({
         className={styles.groupHead}
         onClick={onToggle}
         aria-expanded={expanded}
+        title={group.label}
       >
-        <span className={expanded ? styles.caretOpen : styles.caret} aria-hidden="true">
+        <span
+          className={expanded ? styles.caretOpen : styles.caret}
+          aria-hidden="true"
+        >
           ▸
         </span>
         <span className={styles.groupName}>{group.label}</span>
         {isLoss ? (
-          <span className={isLossActive ? styles.lossBadge : styles.lossBadgeIdle}>
+          <span
+            className={isLossActive ? styles.lossBadge : styles.lossBadgeIdle}
+          >
             {t("未落存储", "Not stored")}
           </span>
         ) : null}
-      </button>
-      <div className={styles.groupStats}>
-        {silent ? <IdleBadge series={group.series} /> : null}
-        <span className={styles.rate}>{formatRate(group.rate)}</span>
-        <span className={styles.total}>{formatCount(group.total)}</span>
         <span className={styles.childCount}>
           {group.children.length} {unitLabel}
         </span>
+        {silent ? <IdleBadge series={group.series} /> : null}
+      </button>
+      <div className={styles.groupStats}>
+        <span className={styles.rate}>{formatRate(group.rate)}</span>
+        <span className={styles.total}>{formatCount(group.total)}</span>
         <button
           type="button"
           className={isSelected ? styles.plotButtonActive : styles.plotButton}
@@ -580,12 +624,14 @@ function NodeRow({
           })
         }
       >
-        <span className={styles.nodeName}>{node.label}</span>
-        <span className={styles.nodeStats}>
+        <span className={styles.nodeNameCell}>
+          <span className={styles.nodeName} title={node.label}>
+            {node.label}
+          </span>
           {silent ? <IdleBadge series={node.series} /> : null}
-          <span className={styles.rate}>{formatRate(node.rate)}</span>
-          <span className={styles.total}>{formatCount(node.total)}</span>
         </span>
+        <span className={styles.rate}>{formatRate(node.rate)}</span>
+        <span className={styles.total}>{formatCount(node.total)}</span>
       </button>
       <span className={styles.srOnly}>{`${layer}:${node.id}`}</span>
     </div>
@@ -739,7 +785,11 @@ function ActivityTabs({
     { key: "silent", label: t("静默", "Silent"), count: silentCount },
   ];
   return (
-    <div className={styles.activityTabs} role="tablist" aria-label={t("活跃 / 静默", "Active / Silent")}>
+    <div
+      className={styles.activityTabs}
+      role="tablist"
+      aria-label={t("活跃 / 静默", "Active / Silent")}
+    >
       {entries.map((entry) => {
         const disabled = entry.count === 0;
         const selected = !disabled && entry.key === value;
@@ -766,7 +816,9 @@ function ActivityTabs({
  * 一层（来源 / PARSE / 输出）：列头 + 活跃静默 tab + 条目列表。
  * tab 状态按层独立保存，层与层之间互不影响。
  */
-function PipelineLayer<T extends { id: string; rate: number; series: [number, number][] }>({
+function PipelineLayer<
+  T extends { id: string; rate: number; series: [number, number][] },
+>({
   layer,
   title,
   accent,
@@ -790,7 +842,8 @@ function PipelineLayer<T extends { id: string; rate: number; series: [number, nu
   const [tab, setTab] = useState<ActivityKey>("active");
   const { active, silent } = splitByActivity(items);
   // 该层没有活跃项时（例如全部静默）自动落到静默页，避免开出一个空白列表。
-  const effectiveTab: ActivityKey = active.length === 0 && silent.length > 0 ? "silent" : tab;
+  const effectiveTab: ActivityKey =
+    active.length === 0 && silent.length > 0 ? "silent" : tab;
   const visible = effectiveTab === "active" ? active : silent;
 
   return (

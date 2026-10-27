@@ -284,22 +284,29 @@
 /* ---------- 计划内容（只读摘要，卡片内通栏行） ---------- */
 
 .metaList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
   margin: 0;
+  background: var(--border);
 }
 
 .metaRow {
   display: flex;
   align-items: baseline;
   gap: 16px;
-  padding: 11px 20px;
+  min-width: 0;
+  padding: 9px 20px;
+  background: var(--surface);
 }
 
-.metaRow + .metaRow {
-  border-top: 1px solid var(--border);
+/* 包地址 / 包摘要 / 批准要逐字核对或带操作人，给整行。 */
+.metaRowWide {
+  grid-column: 1 / -1;
 }
 
 .metaRow dt {
-  flex: 0 0 88px;
+  flex: 0 0 108px;
   color: var(--text-2);
   font-size: 12.5px;
   font-weight: 600;
@@ -571,7 +578,17 @@
   }
 }
 
+@media (max-width: 960px) {
+  .metaList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 560px) {
+  .metaList {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .unknown,
   .errorBanner,
   .idleNotice,

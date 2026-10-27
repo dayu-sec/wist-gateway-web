@@ -146,7 +146,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
         return false;
       }
       if (keyword) {
-        const haystack = [row.agentId, row.hostname, row.nodeId, ...row.ipAddresses]
+        const haystack = [
+          row.agentId,
+          row.hostname,
+          row.nodeId,
+          ...row.ipAddresses,
+        ]
           .join(" ")
           .toLowerCase();
         if (!haystack.includes(keyword)) return false;
@@ -160,7 +165,9 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
       if (sortKey === "severity") {
         const bySeverity = severityRank(a.severity, b.severity);
         if (bySeverity !== 0) return bySeverity;
-        return (b.diskWorstUsagePercent ?? -1) - (a.diskWorstUsagePercent ?? -1);
+        return (
+          (b.diskWorstUsagePercent ?? -1) - (a.diskWorstUsagePercent ?? -1)
+        );
       }
 
       const pick = (row: HostRow): number | string => {
@@ -236,7 +243,9 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
         </div>
       ) : rows.length === 0 ? (
         <div className={styles.empty}>
-          <strong className={styles.emptyTitle}>{t("暂无主机数据", "No host data")}</strong>
+          <strong className={styles.emptyTitle}>
+            {t("暂无主机数据", "No host data")}
+          </strong>
           <span className={styles.emptyText}>
             {t(
               "确认 Agent 已启动并完成注册；也可以在「安装 Agent」页获取安装命令。",
@@ -248,7 +257,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
         <section className={styles.fleet}>
           <div className={styles.toolbar}>
             <div className={styles.search}>
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <svg
+                viewBox="0 0 16 16"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
                 <circle
                   cx="7"
                   cy="7"
@@ -268,7 +282,10 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
               <input
                 type="search"
                 className={styles.searchInput}
-                placeholder={t("搜索主机名 / ID / IP", "Search hostname / ID / IP")}
+                placeholder={t(
+                  "搜索主机名 / ID / IP",
+                  "Search hostname / ID / IP",
+                )}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-label={t(
@@ -294,13 +311,18 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                     key={filter.key}
                     type="button"
                     className={
-                      active ? `${styles.chip} ${styles.chipActive}` : styles.chip
+                      active
+                        ? `${styles.chip} ${styles.chipActive}`
+                        : styles.chip
                     }
                     onClick={() => setSeverityFilter(filter.key)}
                     aria-pressed={active}
                   >
                     {tone ? (
-                      <span className={`${styles.chipDot} ${tone}`} aria-hidden="true" />
+                      <span
+                        className={`${styles.chipDot} ${tone}`}
+                        aria-hidden="true"
+                      />
                     ) : null}
                     {filter.label}
                     <span className={styles.chipCount}>{filter.count}</span>
@@ -310,8 +332,8 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
             </div>
 
             <span className={styles.resultCount}>
-              {t("显示", "Showing")} <strong>{visible.length}</strong> / {rows.length}{" "}
-              {t("台", "hosts")}
+              {t("显示", "Showing")} <strong>{visible.length}</strong> /{" "}
+              {rows.length} {t("台", "hosts")}
             </span>
           </div>
 
@@ -370,7 +392,9 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                     </button>
                   </th>
                   <th scope="col" className={styles.thAction}>
-                    <span className={styles.srOnly}>{t("操作", "Actions")}</span>
+                    <span className={styles.srOnly}>
+                      {t("操作", "Actions")}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -500,7 +524,9 @@ function MetricBar({
   return (
     <div className={styles.metricCell}>
       <div className={styles.metricTop}>
-        <span className={`${styles.metricValue} ${severityClass("text", severity)}`}>
+        <span
+          className={`${styles.metricValue} ${severityClass("text", severity)}`}
+        >
           {value}
         </span>
         {detail ? <span className={styles.metricDetail}>{detail}</span> : null}

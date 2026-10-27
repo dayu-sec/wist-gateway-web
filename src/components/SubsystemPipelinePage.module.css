@@ -222,7 +222,8 @@
   height: 8px;
   border-radius: 999px;
   background: var(--column-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--column-accent) 22%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--column-accent) 22%, transparent);
 }
 
 .columnTitle {
@@ -316,7 +317,6 @@
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
-
 
 .activityTab,
 .activityTabActive {
@@ -456,12 +456,12 @@
 
 .groupName {
   min-width: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--text);
   font-size: 12.5px;
   font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .lossBadge {
@@ -487,11 +487,12 @@
 }
 
 .groupStats {
-  display: flex;
+  display: grid;
+  /* 速率 / 累计 / 曲线三列固定宽度：不同分组、不同子规则的数字才能纵向对齐。 */
+  grid-template-columns: 66px 46px 42px;
   align-items: center;
-  gap: 10px;
-  /* 左边留一段：分组窄的时候「名称」与第一个数字会贴在一起读成一串。 */
-  padding: 0 10px 0 14px;
+  gap: 8px;
+  padding: 0 8px 0 10px;
 }
 
 .children {
@@ -520,14 +521,11 @@
 }
 
 .nodeBody {
-  display: flex;
-  /* 三列并排时单列只有 ~250px（例如 1250px 宽的窗口），
-     节点名会被挤成 "mac_agent_l…"。允许换行：放不下时数值行下移，
-     名字保持完整——名字比速率更关键。 */
-  flex-wrap: wrap;
+  display: grid;
+  /* 名称 / 速率 / 累计：后两列固定，长规则名只影响自己的行高，不推歪数字列。 */
+  grid-template-columns: minmax(0, 1fr) 66px 46px;
   align-items: center;
-  justify-content: space-between;
-  gap: 2px 10px;
+  gap: 2px 8px;
   width: 100%;
   padding: 6px 8px;
   border: none;
@@ -540,26 +538,26 @@
   background: var(--overlay-soft);
 }
 
+.nodeNameCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .nodeName {
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
+  overflow-wrap: anywhere;
   color: var(--text-2);
   font-family: var(--font-mono);
   font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nodeStats {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: baseline;
-  gap: 10px;
-  margin-left: auto;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .rate {
+  text-align: right;
   /* 不用等宽字体：数值里带「万 / 亿」单位，等宽字体缺 CJK 字形会掉回
      另一套字体、字号明显偏小。正文 + 表格数字同样能保证列对齐。 */
   /* 速率用**本层的主色**（来源=蓝、输出=绿、解析=紫，就是列头那个圆点与曲线同色）：
@@ -574,9 +572,11 @@
   color: var(--text-4);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .childCount {
+  flex: 0 0 auto;
   color: var(--text-4);
   font-size: 11px;
   white-space: nowrap;
@@ -584,7 +584,7 @@
 
 .plotButton,
 .plotButtonActive {
-  margin-left: auto;
+  justify-self: end;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 10.5px;

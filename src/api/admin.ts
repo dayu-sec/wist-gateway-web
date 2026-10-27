@@ -187,6 +187,10 @@ export interface AgentMetricSample {
 export interface RecentOnlineRegisteredAgent {
   agentId: string;
   instanceId: string;
+  /** 机器名：卡片主标题；老网关可能为空，页面回落到 agentId。 */
+  hostname: string;
+  /** 机器级最近一次已知网卡地址；老网关可能为空。 */
+  ipAddresses: string[];
   version: string;
   registeredAt: string;
   onlineSince: string;
@@ -840,6 +844,12 @@ function normalizeRecentOnlineAgent(payload: any): RecentOnlineRegisteredAgent {
       payload.instance_id ?? payload.instanceId,
       "recentOnlineAgent.instanceId",
     ),
+    // 老网关没有这两个字段：回落空串 / 空数组，页面用 agentId 兜底，不把旧响应当坏形状。
+    hostname: typeof payload.hostname === "string" ? payload.hostname : "",
+    ipAddresses: requiredStringArray(
+      payload.ip_addresses ?? payload.ipAddresses ?? [],
+      "recentOnlineAgent.ipAddresses",
+    ),
     version: requiredString(payload.version, "recentOnlineAgent.version"),
     registeredAt: requiredString(
       payload.registered_at ?? payload.registeredAt,
@@ -1025,8 +1035,7 @@ function normalizeHostMetricsSummary(payload: any): AgentHostMetricsSummary {
     memoryAvailableKb: payload.memory_available_kb ?? payload.memoryAvailableKb,
     diskUsagePercent: payload.disk_usage_percent ?? payload.diskUsagePercent,
     maxFilesystemUsagePercent: optionalFiniteNumber(
-      payload.max_filesystem_usage_percent ??
-        payload.maxFilesystemUsagePercent,
+      payload.max_filesystem_usage_percent ?? payload.maxFilesystemUsagePercent,
     ),
     maxFilesystemUsageMount:
       optionalStringField(
@@ -1554,10 +1563,7 @@ function normalizeDiscoverySnapshotAgentRow(
   );
   const applied = presentField(record, ["applied"], `${at}.applied`);
   return {
-    agentId: requiredString(
-      record.agent_id ?? record.agentId,
-      `${at}.agentId`,
-    ),
+    agentId: requiredString(record.agent_id ?? record.agentId, `${at}.agentId`),
     overrideSetting:
       overrideSetting === null
         ? null
@@ -1581,10 +1587,7 @@ export function normalizeDiscoverySnapshot(
     global:
       global === null
         ? null
-        : normalizeDiscoverySnapshotSetting(
-            global,
-            "discoverySnapshot.global",
-          ),
+        : normalizeDiscoverySnapshotSetting(global, "discoverySnapshot.global"),
     agents: requiredArray(record.agents, "discoverySnapshot.agents").map(
       normalizeDiscoverySnapshotAgentRow,
     ),
@@ -1611,9 +1614,7 @@ export async function fetchDiscoverySnapshot(): Promise<DiscoverySnapshotView> {
   return normalizeDiscoverySnapshot(payload);
 }
 
-function discoverySnapshotBody(
-  command: SetDiscoverySnapshotCommand,
-): string {
+function discoverySnapshotBody(command: SetDiscoverySnapshotCommand): string {
   return JSON.stringify({
     enabled: command.enabled,
     interval_seconds: command.intervalSeconds,
@@ -1746,10 +1747,7 @@ export function normalizeAgentFactRefresh(
     outcome:
       outcome === null
         ? null
-        : requiredAgentFactRefreshOutcome(
-            outcome,
-            "agentFactRefresh.outcome",
-          ),
+        : requiredAgentFactRefreshOutcome(outcome, "agentFactRefresh.outcome"),
     detail: nullableStringField(record, ["detail"], "agentFactRefresh.detail"),
   };
 }
@@ -1792,18 +1790,11 @@ export async function requestAgentFactRefresh(
  * 为什么不是“让人去机器上跑个命令”：agentd 装在客户主机上，登录成本极高。
  */
 export type CollectionPreflightVerdict =
-  | "grantable"
-  | "partial"
-  | "blocked"
-  | "undetermined";
+  "grantable" | "partial" | "blocked" | "undetermined";
 
 /** `verdict = undetermined` 时才有：平台侧答不了的原因（决定页面给哪个 CTA）。 */
 export type CollectionPreflightUndeterminedReason =
-  | "no_content"
-  | "unclassified"
-  | "no_template"
-  | "no_facts"
-  | "catalog_error";
+  "no_content" | "unclassified" | "no_template" | "no_facts" | "catalog_error";
 
 /**
  * 一个采集面在这台机器上的**结论**。
@@ -1831,10 +1822,7 @@ export type CollectionPreflightUnitResult =
   | "agent_too_old";
 
 export type CollectionPreflightPathState =
-  | "present"
-  | "absent"
-  | "unreadable"
-  | "unprobed";
+  "present" | "absent" | "unreadable" | "unprobed";
 
 /** 证据从哪来：本机实测 / 事实摘要里的路径 / 都没有。 */
 export type CollectionPreflightProbeSource = "probe" | "reported" | "none";
@@ -1905,7 +1893,10 @@ function requiredClosedValue<T extends string>(
   allowed: readonly T[],
   fieldName: string,
 ): T {
-  if (typeof value === "string" && (allowed as readonly string[]).includes(value)) {
+  if (
+    typeof value === "string" &&
+    (allowed as readonly string[]).includes(value)
+  ) {
     return value as T;
   }
   throw new Error(`Invalid API response: invalid ${fieldName}`);
@@ -1917,13 +1908,8 @@ const PREFLIGHT_VERDICTS: readonly CollectionPreflightVerdict[] = [
   "blocked",
   "undetermined",
 ];
-const PREFLIGHT_UNDETERMINED: readonly CollectionPreflightUndeterminedReason[] = [
-  "no_content",
-  "unclassified",
-  "no_template",
-  "no_facts",
-  "catalog_error",
-];
+const PREFLIGHT_UNDETERMINED: readonly CollectionPreflightUndeterminedReason[] =
+  ["no_content", "unclassified", "no_template", "no_facts", "catalog_error"];
 const PREFLIGHT_FAMILY_STATES: readonly CollectionPreflightFamilyState[] = [
   "grantable",
   "absent",
@@ -1999,21 +1985,24 @@ function normalizePreflightUnit(
       `${fieldName}.matchExpr`,
     ),
     // `paths` 空就不发（只对 `path_exists` / `not_path_exists` 条件出现）。
-    paths: (record.paths === undefined || record.paths === null
-      ? []
-      : requiredArrayOf(
-          record.paths,
-          `${fieldName}.paths`,
-          normalizePreflightPathFact,
-        )),
+    paths:
+      record.paths === undefined || record.paths === null
+        ? []
+        : requiredArrayOf(
+            record.paths,
+            `${fieldName}.paths`,
+            normalizePreflightPathFact,
+          ),
     // `unresolved_sources` 空就不发（只在 `source_not_resolved` 时出现）。
     unresolvedSources:
-      record.unresolved_sources === undefined || record.unresolved_sources === null
+      record.unresolved_sources === undefined ||
+      record.unresolved_sources === null
         ? []
-        : requiredArrayOf(record.unresolved_sources, `${fieldName}.unresolvedSources`, (
-            item,
-            itemField,
-          ) => requiredString(item, itemField)),
+        : requiredArrayOf(
+            record.unresolved_sources,
+            `${fieldName}.unresolvedSources`,
+            (item, itemField) => requiredString(item, itemField),
+          ),
     // `min_agentd_version` 只在 `agent_too_old` 时出现。
     minAgentdVersion: optionalStringField(
       record,
@@ -2153,10 +2142,7 @@ export function normalizeCollectionPreflightView(
             "collectionPreflight.undeterminedReason",
           ),
     summary: requiredString(record.summary, "collectionPreflight.summary"),
-    probe: normalizePreflightProbe(
-      record.probe,
-      "collectionPreflight.probe",
-    ),
+    probe: normalizePreflightProbe(record.probe, "collectionPreflight.probe"),
     families:
       families === undefined || families === null
         ? []
@@ -2317,7 +2303,8 @@ export function normalizeGatewayLinkdStatusView(
     gatewayId: requiredString(view.gateway_id, "gateway_id"),
     instanceId: requiredString(view.instance_id, "instance_id"),
     version: requiredString(view.version, "version"),
-    gopsVersion: optionalStringField(view, ["gops_version"], "gops_version") ?? "",
+    gopsVersion:
+      optionalStringField(view, ["gops_version"], "gops_version") ?? "",
     gxVersion: optionalStringField(view, ["gx_version"], "gx_version") ?? "",
     centerEndpoint: requiredString(view.center_endpoint, "center_endpoint"),
     state: requiredString(view.state, "state"),
@@ -3789,7 +3776,10 @@ function grantFailureMessage(error: unknown): string {
         })
       : `HTTP ${error.status}`;
   }
-  return t("响应不符合当前契约", "Response does not match the current contract");
+  return t(
+    "响应不符合当前契约",
+    "Response does not match the current contract",
+  );
 }
 
 /** 派一件一次性工作（有期限与终态；agentd 侧的执行尚未实现）。 */
@@ -3952,8 +3942,14 @@ function normalizeContentFamily(payload: any): ContentFamilyView {
       record.semantics_version ?? record.semanticsVersion ?? 0,
       "contentFamily.semanticsVersion",
     ),
-    nameZh: requiredString(record.name_zh ?? record.nameZh ?? "", "contentFamily.nameZh"),
-    nameEn: requiredString(record.name_en ?? record.nameEn ?? "", "contentFamily.nameEn"),
+    nameZh: requiredString(
+      record.name_zh ?? record.nameZh ?? "",
+      "contentFamily.nameZh",
+    ),
+    nameEn: requiredString(
+      record.name_en ?? record.nameEn ?? "",
+      "contentFamily.nameEn",
+    ),
     summaryZh: requiredString(
       record.summary_zh ?? record.summaryZh ?? "",
       "contentFamily.summaryZh",
@@ -3965,7 +3961,10 @@ function normalizeContentFamily(payload: any): ContentFamilyView {
   };
 }
 
-function normalizeContentUnitSource(payload: any, field: string): ContentUnitSourceView {
+function normalizeContentUnitSource(
+  payload: any,
+  field: string,
+): ContentUnitSourceView {
   const record = requiredRecord(payload, field);
   return {
     kind: requiredString(record.kind, `${field}.kind`),

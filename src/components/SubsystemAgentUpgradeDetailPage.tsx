@@ -39,17 +39,24 @@ function loadErrorMessage(error: unknown): string {
         "Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click “Apply”.",
       );
     if (error.status === 429)
-      return t("认证失败次数过多，请稍后再试。", "Too many failed authentications; try again later.");
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentications; try again later.",
+      );
     if (error.status === 404)
       return t(
         "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
         "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build; rebuild and restart the gateway, then try again.",
       );
     return error.detail
-      ? t("网关返回 HTTP {status}：{detail}", "The gateway returned HTTP {status}: {detail}", {
-          status: error.status,
-          detail: error.detail,
-        })
+      ? t(
+          "网关返回 HTTP {status}：{detail}",
+          "The gateway returned HTTP {status}: {detail}",
+          {
+            status: error.status,
+            detail: error.detail,
+          },
+        )
       : t(
           "网关返回 HTTP {status}，请检查网关日志。",
           "The gateway returned HTTP {status}; check the gateway logs.",
@@ -69,7 +76,14 @@ function actionErrorMessage(error: unknown): string {
       return t(
         "操作与当前状态冲突（HTTP 409）：{detail}",
         "The operation conflicts with the current state (HTTP 409): {detail}",
-        { detail: error.detail ?? t("请刷新后按当前状态重试。", "Refresh and retry from the current state.") },
+        {
+          detail:
+            error.detail ??
+            t(
+              "请刷新后按当前状态重试。",
+              "Refresh and retry from the current state.",
+            ),
+        },
       );
     if (error.status === 404)
       return t(
@@ -77,10 +91,14 @@ function actionErrorMessage(error: unknown): string {
         "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build; rebuild and restart the gateway, then try again.",
       );
     return error.detail
-      ? t("操作失败（HTTP {status}）：{detail}", "Operation failed (HTTP {status}): {detail}", {
-          status: error.status,
-          detail: error.detail,
-        })
+      ? t(
+          "操作失败（HTTP {status}）：{detail}",
+          "Operation failed (HTTP {status}): {detail}",
+          {
+            status: error.status,
+            detail: error.detail,
+          },
+        )
       : t(
           "操作失败（HTTP {status}），请检查网关日志。",
           "Operation failed (HTTP {status}); check the gateway logs.",
@@ -142,12 +160,17 @@ export function SubsystemAgentUpgradeDetailPage() {
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <Link className={styles.back} to="/upgrade">
-          <span aria-hidden="true">←</span> {t("返回升级计划", "Back to upgrade plans")}
+          <span aria-hidden="true">←</span>{" "}
+          {t("返回升级计划", "Back to upgrade plans")}
         </Link>
         <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>{planId || t("未指定计划", "No plan specified")}</h1>
+          <h1 className={styles.pageTitle}>
+            {planId || t("未指定计划", "No plan specified")}
+          </h1>
           {plan ? (
-            <span className={`${styles.badge} ${toneClass(planStatusTone(plan.status))}`}>
+            <span
+              className={`${styles.badge} ${toneClass(planStatusTone(plan.status))}`}
+            >
               {planStatusLabel(plan.status)}
             </span>
           ) : null}
@@ -162,14 +185,22 @@ export function SubsystemAgentUpgradeDetailPage() {
 
       {unknownPlan ? (
         <section className={styles.unknown} role="alert">
-          <h2 className={styles.unknownTitle}>{t("未知计划", "Unknown plan")}</h2>
+          <h2 className={styles.unknownTitle}>
+            {t("未知计划", "Unknown plan")}
+          </h2>
           <p className={styles.unknownText}>
             {t("网关里没有 ", "The gateway has no ")}
             <strong>{planId}</strong>
-            {t(" 这份升级计划（HTTP 404）。", " upgrade plan with this id (HTTP 404).")}
+            {t(
+              " 这份升级计划（HTTP 404）。",
+              " upgrade plan with this id (HTTP 404).",
+            )}
           </p>
           <p className={styles.unknownHint}>
-            {t("请确认计划 id 是否正确；已创建的升级计划可以在", "Check that the plan id is correct; existing upgrade plans can be verified on the")}
+            {t(
+              "请确认计划 id 是否正确；已创建的升级计划可以在",
+              "Check that the plan id is correct; existing upgrade plans can be verified on the",
+            )}
             <Link className={styles.unknownLink} to="/upgrade">
               {t("升级计划", "Upgrade plans")}
             </Link>
@@ -217,11 +248,17 @@ export function SubsystemAgentUpgradeDetailPage() {
             aria-label={t("升级计划摘要", "Upgrade plan summary")}
           >
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>{t("Agent 数", "Agents")}</span>
-              <span className={styles.summaryValue}>{planTargetCount(plan)}</span>
+              <span className={styles.summaryLabel}>
+                {t("Agent 数", "Agents")}
+              </span>
+              <span className={styles.summaryValue}>
+                {planTargetCount(plan)}
+              </span>
             </div>
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>{t("成功", "Succeeded")}</span>
+              <span className={styles.summaryLabel}>
+                {t("成功", "Succeeded")}
+              </span>
               <span className={`${styles.summaryValue} ${styles.valueOk}`}>
                 {counts.succeeded}
               </span>
@@ -237,11 +274,15 @@ export function SubsystemAgentUpgradeDetailPage() {
               </span>
             </div>
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>{t("执行中", "Running")}</span>
+              <span className={styles.summaryLabel}>
+                {t("执行中", "Running")}
+              </span>
               <span className={styles.summaryValue}>{counts.dispatched}</span>
             </div>
             <div className={styles.summaryItem}>
-              <span className={styles.summaryLabel}>{t("待派发", "Awaiting dispatch")}</span>
+              <span className={styles.summaryLabel}>
+                {t("待派发", "Awaiting dispatch")}
+              </span>
               <span className={styles.summaryValue}>{counts.pending}</span>
             </div>
             <div className={styles.summaryItem}>
@@ -264,9 +305,13 @@ export function SubsystemAgentUpgradeDetailPage() {
               })}
               {plan.status === "completed"
                 ? t("计划已完成。", "Plan completed.")
-                : t("当前处于第 {phase} 阶段。", "Currently in phase {phase}.", {
-                    phase: plan.currentPhase,
-                  })}
+                : t(
+                    "当前处于第 {phase} 阶段。",
+                    "Currently in phase {phase}.",
+                    {
+                      phase: plan.currentPhase,
+                    },
+                  )}
               {t(
                 "Agent 下一次拉快照（≤30 秒）后会看到新派的工作。",
                 " The agent will see the newly dispatched work at its next snapshot (≤30 seconds).",
@@ -274,7 +319,10 @@ export function SubsystemAgentUpgradeDetailPage() {
             </div>
           ) : null}
 
-          <section className={styles.card} aria-labelledby="rollout-plan-meta-title">
+          <section
+            className={styles.card}
+            aria-labelledby="rollout-plan-meta-title"
+          >
             <header className={styles.cardHead}>
               <h2 className={styles.cardTitle} id="rollout-plan-meta-title">
                 {t("升级参数", "Upgrade parameters")}
@@ -299,35 +347,24 @@ export function SubsystemAgentUpgradeDetailPage() {
                 <dd>
                   {spec?.error ? (
                     <span className={styles.valueWarn}>
-                      {t("spec 不是合法 JSON：{detail}", "spec is not valid JSON: {detail}", {
-                        detail: spec.error,
-                      })}
+                      {t(
+                        "spec 不是合法 JSON：{detail}",
+                        "spec is not valid JSON: {detail}",
+                        {
+                          detail: spec.error,
+                        },
+                      )}
                     </span>
                   ) : spec?.targetVersion ? (
                     <span className={styles.mono}>{spec.targetVersion}</span>
                   ) : (
                     <span className={styles.valueMuted}>
-                      {t("由包内 agentd 决定", "Determined by the agentd in the package")}
+                      {t(
+                        "由包内 agentd 决定",
+                        "Determined by the agentd in the package",
+                      )}
                     </span>
                   )}
-                </dd>
-              </div>
-              <div className={styles.metaRow}>
-                <dt>{t("包地址", "Package URL")}</dt>
-                <dd>
-                  <span className={styles.mono}>
-                    {spec?.packageUrl ??
-                      t("（按 Agent 平台自动选择）", "(selected automatically per agent platform)")}
-                  </span>
-                </dd>
-              </div>
-              <div className={styles.metaRow}>
-                <dt>{t("包摘要", "Package digest")}</dt>
-                <dd>
-                  <span className={styles.mono}>
-                    {spec?.packageSha256 ??
-                      t("（按 Agent 平台自动选择）", "(selected automatically per agent platform)")}
-                  </span>
                 </dd>
               </div>
               <div className={styles.metaRow}>
@@ -335,6 +372,30 @@ export function SubsystemAgentUpgradeDetailPage() {
                 <dd>
                   <span className={styles.mono}>
                     {formatTimestamp(plan.deadlineAt)}
+                  </span>
+                </dd>
+              </div>
+              <div className={`${styles.metaRow} ${styles.metaRowWide}`}>
+                <dt>{t("包地址", "Package URL")}</dt>
+                <dd>
+                  <span className={styles.mono}>
+                    {spec?.packageUrl ??
+                      t(
+                        "（按 Agent 平台自动选择）",
+                        "(selected automatically per agent platform)",
+                      )}
+                  </span>
+                </dd>
+              </div>
+              <div className={`${styles.metaRow} ${styles.metaRowWide}`}>
+                <dt>{t("包摘要", "Package digest")}</dt>
+                <dd>
+                  <span className={styles.mono}>
+                    {spec?.packageSha256 ??
+                      t(
+                        "（按 Agent 平台自动选择）",
+                        "(selected automatically per agent platform)",
+                      )}
                   </span>
                 </dd>
               </div>
@@ -351,7 +412,10 @@ export function SubsystemAgentUpgradeDetailPage() {
                 <dd>
                   <span className={styles.mono}>
                     {plan.batchSize === 0
-                      ? t("不节流（全部同时升级）", "Unthrottled (all upgraded at once)")
+                      ? t(
+                          "不节流（全部同时升级）",
+                          "Unthrottled (all upgraded at once)",
+                        )
                       : t("最多 {n} 台同时升级", "Up to {n} upgraded at once", {
                           n: plan.batchSize,
                         })}
@@ -367,7 +431,7 @@ export function SubsystemAgentUpgradeDetailPage() {
                   <span className={styles.meta}>{plan.createdBy}</span>
                 </dd>
               </div>
-              <div className={styles.metaRow}>
+              <div className={`${styles.metaRow} ${styles.metaRowWide}`}>
                 <dt>{t("批准", "Approved")}</dt>
                 <dd>
                   {plan.approvedAt ? (
@@ -387,7 +451,10 @@ export function SubsystemAgentUpgradeDetailPage() {
             </dl>
           </section>
 
-          <section className={styles.card} aria-labelledby="rollout-plan-phases-title">
+          <section
+            className={styles.card}
+            aria-labelledby="rollout-plan-phases-title"
+          >
             <header className={styles.cardHead}>
               <h2 className={styles.cardTitle} id="rollout-plan-phases-title">
                 {t("灰度阶段", "Rollout phases")}
@@ -404,7 +471,10 @@ export function SubsystemAgentUpgradeDetailPage() {
               <div className={styles.gateRow}>
                 <div className={styles.gateCopy}>
                   <span className={styles.gateTitle}>
-                    {t("批准并进入第一阶段", "Approve and enter the first phase")}
+                    {t(
+                      "批准并进入第一阶段",
+                      "Approve and enter the first phase",
+                    )}
                   </span>
                   <span className={styles.gateHint}>
                     {t(
@@ -418,9 +488,7 @@ export function SubsystemAgentUpgradeDetailPage() {
                   type="button"
                   className={styles.primaryButton}
                   disabled={action.isPending}
-                  onClick={() =>
-                    action.mutate({ kind: "approve", planId })
-                  }
+                  onClick={() => action.mutate({ kind: "approve", planId })}
                 >
                   {action.isPending
                     ? t("正在批准…", "Approving…")
@@ -449,7 +517,9 @@ export function SubsystemAgentUpgradeDetailPage() {
                             "The current phase is fully settled; advancing dispatches upgrades to the {n} agents in batch {phase}.",
                             {
                               phase: plan.currentPhase + 1,
-                              n: plan.phases[plan.currentPhase]?.targetIds.length ?? 0,
+                              n:
+                                plan.phases[plan.currentPhase]?.targetIds
+                                  .length ?? 0,
                             },
                           )
                       : t(
@@ -467,9 +537,7 @@ export function SubsystemAgentUpgradeDetailPage() {
                       : `${styles.primaryButton} ${styles.primaryButtonWarn}`
                   }
                   disabled={action.isPending}
-                  onClick={() =>
-                    action.mutate({ kind: "advance", planId })
-                  }
+                  onClick={() => action.mutate({ kind: "advance", planId })}
                 >
                   {action.isPending
                     ? t("正在推进…", "Advancing…")
@@ -524,12 +592,16 @@ export function SubsystemAgentUpgradeDetailPage() {
                   <li
                     key={phase.phaseIndex}
                     className={
-                      isActive ? `${styles.phaseItem} ${styles.phaseActive}` : styles.phaseItem
+                      isActive
+                        ? `${styles.phaseItem} ${styles.phaseActive}`
+                        : styles.phaseItem
                     }
                   >
                     <div className={styles.phaseTop}>
                       <span className={styles.phaseIndex}>
-                        {t("第 {index} 批", "Batch {index}", { index: phase.phaseIndex })}
+                        {t("第 {index} 批", "Batch {index}", {
+                          index: phase.phaseIndex,
+                        })}
                       </span>
                       <span
                         className={`${styles.badge} ${toneClass(phaseStatusTone(phase.status))}`}
@@ -540,7 +612,8 @@ export function SubsystemAgentUpgradeDetailPage() {
                         {t("{n} 个 Agent", "{n} agents", {
                           n: phase.targetIds.length,
                         })}{" "}
-                        · {advanceRuleLabel(
+                        ·{" "}
+                        {advanceRuleLabel(
                           phase.advanceRule,
                           phase.phaseIndex === plan.phases.length,
                         )}
@@ -559,7 +632,10 @@ export function SubsystemAgentUpgradeDetailPage() {
             </ol>
           </section>
 
-          <section className={styles.card} aria-labelledby="rollout-plan-entries-title">
+          <section
+            className={styles.card}
+            aria-labelledby="rollout-plan-entries-title"
+          >
             <header className={styles.cardHead}>
               <h2 className={styles.cardTitle} id="rollout-plan-entries-title">
                 {t("逐台进度", "Per-agent progress")}
@@ -574,7 +650,10 @@ export function SubsystemAgentUpgradeDetailPage() {
 
             {entries.length === 0 ? (
               <p className={styles.emptyNotice}>
-                {t("这份计划还没有 Agent 条目。", "This plan has no agent entries yet.")}
+                {t(
+                  "这份计划还没有 Agent 条目。",
+                  "This plan has no agent entries yet.",
+                )}
               </p>
             ) : (
               <div className={styles.tableWrap}>
