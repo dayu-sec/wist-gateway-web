@@ -530,6 +530,15 @@ export interface ContentUnitView {
   parseReady: boolean;
   /** 至少一条来源 agentd 能执行。 */
   executable: boolean;
+  /**
+   * L3 受限搜索的根（unit 级舰队上限；空 = 不搜）。
+   *
+   * 展示的是**声明值**：真正生效的还要与网关 `[collection]
+   * allowed_source_roots` 取交集（预检/日志里能看到交集结果）。
+   */
+  searchRoots: string[];
+  /** 要求的最低 agentd 版本（包级与单元级取高者）；null = 无要求。 */
+  minAgentdVersion: string | null;
   sources: ContentUnitSourceView[];
 }
 

@@ -12,7 +12,7 @@ import { t } from "../i18n";
  * 采集预检（collection preflight）的**展示判定**。
  *
  * 为什么单独放一处：本仓没有组件渲染环境（无 jsdom），而这些映射决定了运维如何理解
- * 一台机器 —— 「本机没有」是换机器、「还没探」是再点一次、「探不了」是去要权限，
+ * 一台机器 —— 「约定位置没有」是换机器 / 改目录、「还没探」是再点一次、「探不了」是去要权限，
  * 三种处置完全不同。抽出来就能被测试钉住，也保证行内徽标与提示条说的是同一句话。
  */
 
@@ -35,11 +35,15 @@ export function preflightFamilyStateLabel(
     case "grantable":
       return t("可授权", "Grantable");
     case "absent":
-      return t("本机没有", "Not on this host");
+      return t("约定位置没有", "Not at expected paths");
     case "unprobed":
       return t("还没探", "Not probed yet");
     case "unreadable":
       return t("探不了", "Unreadable");
+    case "source_unresolved":
+      return t("找不到日志目录", "Log dir unresolved");
+    case "agent_too_old":
+      return t("要升级 agentd", "agentd too old");
     case "not_ready":
       return t("策展未就绪", "Not curated yet");
   }
@@ -54,6 +58,12 @@ export function preflightFamilyStateTone(
     case "absent":
       return "crit";
     case "unreadable":
+      return "warn";
+    case "source_unresolved":
+      // 不是“机器没有”，也不是“再探一次”：要人配一条覆盖（或开搜索）。
+      return "warn";
+    case "agent_too_old":
+      // 处置明确（升级 agentd），但也不是“这台机器没有”。
       return "warn";
     case "unprobed":
     case "not_ready":
@@ -143,11 +153,24 @@ export function preflightReason(
     case "grantable":
       return null;
     case "absent":
-      return t("本机没有这个面要求的路径", "The paths this family requires are not on this host");
+      return t(
+        "目录约定的位置没有这个面要求的路径（服务可能装在非标准目录）",
+        "The expected paths are not present (the service may live in a non-standard directory)",
+      );
     case "unprobed":
       return t("这个面的路径还没探过", "The paths for this family have not been probed yet");
     case "unreadable":
       return t("这个面的路径探不了（权限 / IO）", "The paths for this family cannot be read (permissions / IO)");
+    case "source_unresolved":
+      return t(
+        "服务在，但找不到它的日志目录（先配人工覆盖，或开受限搜索）",
+        "The service is up but its log directory is unknown (set an override or enable bounded search)",
+      );
+    case "agent_too_old":
+      return t(
+        "这台机器的 agentd 版本低于知识库要求（升级 agentd 后自动恢复）",
+        "This host's agentd is older than the catalog requires (upgrading restores collection)",
+      );
     case "not_ready":
       return t("知识库还没把这个面的单元标成 active", "The catalog has no active unit for this family yet");
   }
@@ -230,6 +253,8 @@ export function summarizePreflight(
     unprobed: 0,
     unreadable: 0,
     not_ready: 0,
+    source_unresolved: 0,
+    agent_too_old: 0,
   };
   let pending = 0;
   let total = 0;
@@ -252,6 +277,8 @@ export const PREFLIGHT_SUMMARY_ORDER: readonly PreflightFamilyState[] = [
   "grantable",
   "unprobed",
   "unreadable",
+  "agent_too_old",
+  "source_unresolved",
   "absent",
   "not_ready",
 ];

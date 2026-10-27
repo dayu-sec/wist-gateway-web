@@ -1,9 +1,6 @@
 import { Fragment, useState, type FormEvent } from "react";
 import { ApiError, isRateLimitedError } from "../api";
-import type {
-  DiscoverySnapshotAgentRow,
-  DiscoverySnapshotView,
-} from "../api";
+import type { DiscoverySnapshotAgentRow, DiscoverySnapshotView } from "../api";
 import {
   useClearAgentDiscoverySnapshot,
   useClearDiscoverySnapshotGlobal,
@@ -62,7 +59,10 @@ function settingSummary(setting: {
 function apiErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
     if (error.status === 400) {
-      return error.detail ?? t("输入不成立（HTTP 400）。", "Invalid input (HTTP 400).");
+      return (
+        error.detail ??
+        t("输入不成立（HTTP 400）。", "Invalid input (HTTP 400).")
+      );
     }
     if (error.status === 401) {
       return t(
@@ -227,8 +227,8 @@ function GlobalSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
         onSuccess: (created) =>
           setSavedNote(
             t(
-              "已保存全局设置：{summary}",
-              "Global setting saved: {summary}",
+              "已保存全局设置：{summary}。等待 Agent 下一次轮询应用并回传（通常 1 分钟内）。",
+              "Global setting saved: {summary}. Agents apply it on their next poll and report back (usually within about a minute).",
               { summary: settingSummary(created) },
             ),
           ),
@@ -298,7 +298,9 @@ function GlobalSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
         </label>
 
         <div className={styles.intervalRow}>
-          <span className={styles.intervalLabel}>{t("上送周期", "Interval")}</span>
+          <span className={styles.intervalLabel}>
+            {t("上送周期", "Interval")}
+          </span>
           <div
             className={styles.presetGroup}
             role="group"
@@ -341,7 +343,9 @@ function GlobalSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
               step={1}
               inputMode="numeric"
               value={draft.interval}
-              onChange={(event) => updateDraft({ interval: event.target.value })}
+              onChange={(event) =>
+                updateDraft({ interval: event.target.value })
+              }
               aria-invalid={!form.intervalOk}
             />
             <small>
@@ -452,6 +456,13 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
     draft: SnapshotDraft;
   } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // 只用于提示条计数：逐行是否分叉仍由渲染时的 snapshotDivergence 判定。
+  const divergentRows = view.agents.filter((row) =>
+    snapshotDivergence(
+      snapshotExpectedSetting(view.global, row.overrideSetting),
+      row.applied,
+    ),
+  );
 
   function beginEdit(row: DiscoverySnapshotAgentRow) {
     // 新一次编辑从干净的错误态开始（上一次失败的红条不该跟过来）。
@@ -472,16 +483,13 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
 
   function updateDraft(patch: Partial<SnapshotDraft>) {
     setEditing((current) =>
-      current
-        ? { ...current, draft: { ...current.draft, ...patch } }
-        : current,
+      current ? { ...current, draft: { ...current.draft, ...patch } } : current,
     );
     setNotice(null);
   }
 
   function saveRow(row: DiscoverySnapshotAgentRow) {
-    const draft =
-      editing?.agentId === row.agentId ? editing.draft : null;
+    const draft = editing?.agentId === row.agentId ? editing.draft : null;
     if (!draft) return;
     const base = snapshotDraftFrom(row.overrideSetting ?? view.global);
     const state = snapshotDraftState(
@@ -507,8 +515,8 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
           );
           setNotice(
             t(
-              "已保存 {agent} 的单机覆盖：{summary}",
-              "Override saved for {agent}: {summary}",
+              "已保存 {agent} 的单机覆盖：{summary}。等待 Agent 下一次轮询应用并回传。",
+              "Override saved for {agent}: {summary}. It will be applied and reported on the Agent's next poll.",
               { agent: row.agentId, summary: settingSummary(created) },
             ),
           );
@@ -552,6 +560,23 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
         ) : null}
       </div>
 
+      {divergentRows.length > 0 ? (
+        <div className={styles.divergenceNotice} role="status">
+          <strong>
+            {t(
+              "{n} 台机器的实际生效还没跟上配置",
+              "{n} hosts have not applied the configured value yet",
+              { n: divergentRows.length },
+            )}
+          </strong>
+          <span>
+            {t(
+              "下面「实际生效」是 Agent 最近一次回传。它下一次拉取（≤30 秒）后会应用新值，并在后续心跳回传；页面通常会在 1 分钟内更新，不必重复保存。",
+              "The “Effective” column is the Agent's most recent report. It applies the new value on its next poll (≤30 s) and reports it on the following heartbeat; this page usually catches up within about a minute — there is no need to save again.",
+            )}
+          </span>
+        </div>
+      ) : null}
       {notice ? (
         <div className={styles.formNotice} role="status">
           {notice}
@@ -591,10 +616,8 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
                 <th>{t("Agent", "Agent")}</th>
                 <th>{t("单机覆盖", "Override")}</th>
                 <th>{t("实际生效", "Effective")}</th>
-                <th>{t("来源", "Source")}</th>
-                <th className={styles.actionsHead}>
-                  {t("操作", "Actions")}
-                </th>
+                <th>{t("生效来源", "Applied source")}</th>
+                <th className={styles.actionsHead}>{t("操作", "Actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -641,9 +664,7 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
                 return (
                   <Fragment key={row.agentId}>
                     <tr
-                      className={
-                        divergent ? styles.rowDivergent : styles.row
-                      }
+                      className={divergent ? styles.rowDivergent : styles.row}
                       title={divergenceHint}
                     >
                       <td className={styles.agentCell}>
@@ -670,15 +691,33 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
                       </td>
                       <td>
                         {row.applied ? (
-                          <span
-                            className={
-                              divergent
-                                ? styles.valueDivergent
-                                : styles.valuePrimary
-                            }
-                          >
-                            {settingSummary(row.applied)}
-                          </span>
+                          <>
+                            <span className={styles.effectiveLine}>
+                              <span
+                                className={
+                                  divergent
+                                    ? styles.valueDivergent
+                                    : styles.valuePrimary
+                                }
+                              >
+                                {settingSummary(row.applied)}
+                              </span>
+                              {divergent ? (
+                                <span className={styles.pendingChip}>
+                                  {t("待应用", "Pending")}
+                                </span>
+                              ) : null}
+                            </span>
+                            {divergent && expected ? (
+                              <span className={styles.valueMeta}>
+                                {t(
+                                  "配置要求：{summary}",
+                                  "Configured: {summary}",
+                                  { summary: settingSummary(expected) },
+                                )}
+                              </span>
+                            ) : null}
+                          </>
                         ) : (
                           <span className={styles.valueMuted}>
                             {t("尚未回传", "Not reported yet")}
@@ -782,7 +821,9 @@ function AgentSnapshotPanel({ view }: { view: DiscoverySnapshotView }) {
                                   inputMode="numeric"
                                   value={draft.interval}
                                   onChange={(event) =>
-                                    updateDraft({ interval: event.target.value })
+                                    updateDraft({
+                                      interval: event.target.value,
+                                    })
                                   }
                                   aria-invalid={!rowForm.intervalOk}
                                 />

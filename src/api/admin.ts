@@ -1808,21 +1808,27 @@ export type CollectionPreflightUndeterminedReason =
 /**
  * 一个采集面在这台机器上的**结论**。
  *
- * 五个值就是五种处置：能授 / 机器确实没有 / 还没探 / 探不了（要权限）/ 策展没就绪。
+ * 六种值就是六种处置：能授 / 机器确实没有 / 还没探 / 探不了（要权限）/ 策展没就绪 /
+ * **服务在但找不到日志**（配人工覆盖或开搜索）。后两者分开报，是因为处置相反：
+ * 前者再探也不会变，后者该去查权限。
  */
 export type CollectionPreflightFamilyState =
   | "grantable"
   | "absent"
   | "unprobed"
   | "unreadable"
-  | "not_ready";
+  | "not_ready"
+  | "source_unresolved"
+  | "agent_too_old";
 
 export type CollectionPreflightUnitResult =
   | "selected"
   | "match_unsatisfied"
   | "fact_not_collected"
   | "unreadable"
-  | "collect_not_ready";
+  | "collect_not_ready"
+  | "source_not_resolved"
+  | "agent_too_old";
 
 export type CollectionPreflightPathState =
   | "present"
@@ -1843,6 +1849,10 @@ export interface CollectionPreflightUnit {
   result: CollectionPreflightUnitResult;
   matchExpr: string;
   paths: CollectionPreflightPathFact[];
+  /** `source_not_resolved` 时点名“哪个服务没找到日志目录”（可能多个实例）。 */
+  unresolvedSources: string[];
+  /** `agent_too_old` 时：本单元要求的最低 agentd 版本。 */
+  minAgentdVersion: string | null;
 }
 
 export interface CollectionPreflightFamily {
@@ -1920,6 +1930,8 @@ const PREFLIGHT_FAMILY_STATES: readonly CollectionPreflightFamilyState[] = [
   "unprobed",
   "unreadable",
   "not_ready",
+  "source_unresolved",
+  "agent_too_old",
 ];
 const PREFLIGHT_UNIT_RESULTS: readonly CollectionPreflightUnitResult[] = [
   "selected",
@@ -1927,6 +1939,8 @@ const PREFLIGHT_UNIT_RESULTS: readonly CollectionPreflightUnitResult[] = [
   "fact_not_collected",
   "unreadable",
   "collect_not_ready",
+  "source_not_resolved",
+  "agent_too_old",
 ];
 const PREFLIGHT_PATH_STATES: readonly CollectionPreflightPathState[] = [
   "present",
@@ -1992,6 +2006,20 @@ function normalizePreflightUnit(
           `${fieldName}.paths`,
           normalizePreflightPathFact,
         )),
+    // `unresolved_sources` 空就不发（只在 `source_not_resolved` 时出现）。
+    unresolvedSources:
+      record.unresolved_sources === undefined || record.unresolved_sources === null
+        ? []
+        : requiredArrayOf(record.unresolved_sources, `${fieldName}.unresolvedSources`, (
+            item,
+            itemField,
+          ) => requiredString(item, itemField)),
+    // `min_agentd_version` 只在 `agent_too_old` 时出现。
+    minAgentdVersion: optionalStringField(
+      record,
+      ["min_agentd_version", "minAgentdVersion"],
+      `${fieldName}.minAgentdVersion`,
+    ),
   };
 }
 
@@ -3985,6 +4013,17 @@ function normalizeContentUnit(payload: any, index: number): ContentUnitView {
       `${field}.parseReady`,
     ),
     executable: requiredBoolean(record.executable, `${field}.executable`),
+    // `search_roots` / `min_agentd_version`：旧网关不返回，补空值（页面不显示那两列）。
+    searchRoots: optionalStringArray(
+      record,
+      ["search_roots", "searchRoots"],
+      `${field}.searchRoots`,
+    ),
+    minAgentdVersion: optionalStringField(
+      record,
+      ["min_agentd_version", "minAgentdVersion"],
+      `${field}.minAgentdVersion`,
+    ),
     sources: requiredArray(record.sources ?? [], `${field}.sources`).map(
       (source, sourceIndex) =>
         normalizeContentUnitSource(source, `${field}.sources[${sourceIndex}]`),

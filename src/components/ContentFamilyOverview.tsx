@@ -153,6 +153,24 @@ function UnitDetails({ row }: { row: FamilyOverviewRow }) {
               {unit.ruleRef.trim() || t("无（只落原文）", "(none — raw only)")}
             </code>
           </div>
+          {unit.minAgentdVersion ? (
+            <div className={styles.unitLine}>
+              <span className={styles.unitLabel}>
+                {t("最低 agentd", "Min agentd")}
+              </span>
+              <code className={styles.unitValue}>{unit.minAgentdVersion}</code>
+            </div>
+          ) : null}
+          {unit.searchRoots.length > 0 ? (
+            <div className={styles.unitLine}>
+              <span className={styles.unitLabel}>
+                {t("搜索范围", "Search roots")}
+              </span>
+              <code className={styles.unitValue}>
+                {unit.searchRoots.join(", ")}
+              </code>
+            </div>
+          ) : null}
 
           <ul className={styles.sourceList}>
             {unit.sources.map((source, index) => (

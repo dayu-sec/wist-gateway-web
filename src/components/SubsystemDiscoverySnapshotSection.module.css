@@ -118,6 +118,27 @@
   line-height: 1.55;
 }
 
+.divergenceNotice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.divergenceNotice strong {
+  font-size: 12px;
+}
+
+.divergenceNotice span {
+  color: var(--text-2);
+}
+
 .formNotice {
   padding: 10px 12px;
   border: 1px solid var(--ok-border);
@@ -476,12 +497,33 @@
 }
 
 /* 分叉行里的「实际生效」值：用警示色标出来，并与 title 里的解释对照。 */
+.effectiveLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .valueDivergent {
   display: block;
   color: var(--warn);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
+}
+
+.pendingChip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .valueMuted {

@@ -18,11 +18,10 @@ import type {
   AgentListEntryView,
   CollectionPreflightView,
 } from "../api";
-import type { FamilyState } from "./familyOverviewRows";
 import { t } from "../i18n";
 import { summarizeAddresses } from "../lib/format";
 import { adminApiErrorMessage } from "./adminApiError";
-import { standingAckState } from "./agentWorkStatus";
+import { platformForMachineClass, standingAckState } from "./agentWorkStatus";
 import { machineClassLabel } from "./SubsystemAgentPurposeView";
 import {
   collectionFamilyName,
@@ -32,10 +31,14 @@ import {
 import {
   buildFamilyOverview,
   type FamilyOverviewRow,
+  type FamilyState,
 } from "./familyOverviewRows";
 import {
   countHostGrantStates,
+  familyBadgeState,
+  familySupportsPlatform,
   resolveHostGrantState,
+  type FamilyBadgeState,
   type HostGrantCounts,
   type HostGrantState,
 } from "./collectionGrantState";
@@ -79,29 +82,6 @@ const HOST_LIMIT = 40;
 
 /** 页面上的主机状态比纯判定多一个「还没检查」。 */
 type RowState = HostGrantState | null;
-
-type FamilyBadgeState = FamilyState | "partial";
-
-/**
- * 面级「就绪」是**跨平台聚合**：只要有一个平台有 active 单元就是 ready。
- * 但对某台主机来说，它所在平台没就绪就是不能授权。这里把「部分平台就绪」
- * 显式标出来，避免出现「面显示已就绪，主机却全不可授权」的错愕。
- */
-function familyBadgeState(row: FamilyOverviewRow): FamilyBadgeState {
-  if (row.state !== "ready") return row.state;
-  const readyPlatforms = new Set(
-    row.perPlatform
-      .filter((entry) => entry.activeUnits > 0)
-      .map((entry) => entry.platform),
-  );
-  const expected =
-    row.family.platforms.length > 0
-      ? row.family.platforms
-      : row.perPlatform.map((entry) => entry.platform);
-  return expected.some((platform) => !readyPlatforms.has(platform))
-    ? "partial"
-    : "ready";
-}
 
 function familyStateLabel(state: FamilyBadgeState): string {
   switch (state) {
@@ -225,19 +205,25 @@ function ackLabel(work: NonNullable<HostGrantState["work"]>): {
   }
 }
 
+function platformLabel(platform: string): string {
+  switch (platform) {
+    case "linux":
+      return "Linux";
+    case "macos":
+      return "macOS";
+    default:
+      return platform;
+  }
+}
+
 function platformText(row: FamilyOverviewRow): string {
   if (row.perPlatform.length === 0)
     return t("未建采集单元", "No collection units");
   return row.perPlatform
-    .map((entry) => {
-      const platform =
-        entry.platform === "linux"
-          ? "Linux"
-          : entry.platform === "macos"
-            ? "macOS"
-            : entry.platform;
-      return `${platform} ${entry.activeUnits}/${entry.totalUnits}`;
-    })
+    .map(
+      (entry) =>
+        `${platformLabel(entry.platform)} ${entry.activeUnits}/${entry.totalUnits}`,
+    )
     .join(" · ");
 }
 
@@ -365,8 +351,35 @@ export function SubsystemCollectionGrantPage() {
     () => indexCollectionFamilies(catalogForRows?.families),
     [catalogForRows],
   );
+  const platformOptions = useMemo(() => {
+    const platforms = new Set<string>();
+    for (const row of familyRows) {
+      for (const platform of row.family.platforms) platforms.add(platform);
+      for (const entry of row.perPlatform) platforms.add(entry.platform);
+      for (const machineClass of row.machineClasses) {
+        platforms.add(platformForMachineClass(machineClass));
+      }
+    }
+    const order = ["linux", "macos"];
+    const rank = (platform: string) => {
+      const index = order.indexOf(platform);
+      return index === -1 ? order.length : index;
+    };
+    const sorted = [...platforms].sort(
+      (left, right) => rank(left) - rank(right) || left.localeCompare(right),
+    );
+    return [
+      { id: "all", count: familyRows.length },
+      ...sorted.map((platform) => ({
+        id: platform,
+        count: familyRows.filter((row) => familySupportsPlatform(row, platform))
+          .length,
+      })),
+    ];
+  }, [familyRows]);
 
   const [selectedFamily, setSelectedFamily] = useState<string | null>(null);
+  const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [familySearch, setFamilySearch] = useState("");
   const [hostSearch, setHostSearch] = useState("");
   const [checkRequest, setCheckRequest] = useState<{
@@ -393,7 +406,9 @@ export function SubsystemCollectionGrantPage() {
     () => familyRows.find((row) => row.family.id === selectedFamily) ?? null,
     [familyRows, selectedFamily],
   );
-  const selectedBadge = selectedRow ? familyBadgeState(selectedRow) : null;
+  const selectedBadge = selectedRow
+    ? familyBadgeState(selectedRow, platformFilter)
+    : null;
 
   const checkedIds = checkRequest?.ids ?? [];
   const purposes = useAgentPurposes(checkedIds);
@@ -420,9 +435,13 @@ export function SubsystemCollectionGrantPage() {
   );
 
   const filteredFamilies = useMemo(() => {
+    const platformFamilies = familyRows.filter(
+      (row) =>
+        platformFilter === "all" || familySupportsPlatform(row, platformFilter),
+    );
     const query = familySearch.trim().toLowerCase();
-    if (!query) return familyRows;
-    return familyRows.filter((row) => {
+    if (!query) return platformFamilies;
+    return platformFamilies.filter((row) => {
       const name = collectionFamilyName(
         row.family.id,
         familyText,
@@ -441,7 +460,7 @@ export function SubsystemCollectionGrantPage() {
         )
       );
     });
-  }, [familyRows, familyText, familySearch]);
+  }, [familyRows, familyText, familySearch, platformFilter]);
 
   const filteredHosts = useMemo(() => {
     const query = hostSearch.trim().toLowerCase();
@@ -653,6 +672,22 @@ export function SubsystemCollectionGrantPage() {
     });
   }
 
+  function selectPlatform(next: string) {
+    if (next === platformFilter) return;
+    setPlatformFilter(next);
+    setSelectedHosts(new Set());
+    setConfirming(false);
+    setOutcomes(null);
+    if (
+      next !== "all" &&
+      selectedRow &&
+      !familySupportsPlatform(selectedRow, next)
+    ) {
+      setSelectedFamily(null);
+      setCheckRequest(null);
+    }
+  }
+
   function checkCurrent() {
     if (!selectedFamily) return;
     const next = filteredHosts
@@ -837,6 +872,35 @@ export function SubsystemCollectionGrantPage() {
                 onChange={(event) => setFamilySearch(event.target.value)}
               />
             </header>
+            {platformOptions.length > 1 ? (
+              <div
+                className={styles.platformTabs}
+                role="tablist"
+                aria-label={t("平台筛选", "Platform filter")}
+              >
+                {platformOptions.map((option) => {
+                  const active = platformFilter === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      className={`${styles.platformTab} ${active ? styles.platformTabActive : ""}`}
+                      disabled={grantBatch.isPending}
+                      onClick={() => selectPlatform(option.id)}
+                    >
+                      {option.id === "all"
+                        ? t("全部", "All")
+                        : platformLabel(option.id)}
+                      <span className={styles.platformTabCount}>
+                        {option.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
             {filteredFamilies.length === 0 ? (
               <p className={styles.selectorEmpty}>
                 {t("没有匹配的采集面。", "No matching collection family.")}
@@ -846,7 +910,7 @@ export function SubsystemCollectionGrantPage() {
                 {filteredFamilies.map((row) => {
                   const active = row.family.id === selectedFamily;
                   const name = collectionFamilyName(row.family.id, familyText);
-                  const badge = familyBadgeState(row);
+                  const badge = familyBadgeState(row, platformFilter);
                   const platform = platformText(row);
                   const classes =
                     row.machineClasses.length === 0
@@ -1097,16 +1161,28 @@ export function SubsystemCollectionGrantPage() {
                   </div>
                   {selectedBadge && selectedBadge !== "ready" ? (
                     <div className={styles.familyWarning}>
-                      {selectedBadge === "partial"
-                        ? t(
-                            "这个采集面只在部分平台就绪（{readiness}）；未就绪平台的主机会在下面显示为不可授权。",
-                            "This family is ready on some platforms only ({readiness}); hosts on unready platforms are blocked below.",
-                            { readiness: platformText(selectedRow) },
-                          )
-                        : t(
-                            "这个采集面当前没有采集就绪的单元（status = active），不能授权；先到知识库补齐内容并切换生效版本。",
-                            "This family has no collection-ready unit (status = active), so it cannot be granted. Add content in the knowledge base and activate a version first.",
-                          )}
+                      {platformFilter !== "all"
+                        ? selectedBadge === "unconfigured"
+                          ? t(
+                              "这个采集面在 {platform} 还没有采集单元；该平台的主机会在下面显示为不可授权。",
+                              "This family has no collection unit on {platform} yet; hosts on that platform are blocked below.",
+                              { platform: platformLabel(platformFilter) },
+                            )
+                          : t(
+                              "这个采集面在 {platform} 还没有采集就绪（status = active）的单元；该平台的主机会在下面显示为不可授权。",
+                              "This family has no collection-ready unit (status = active) on {platform} yet; hosts on that platform are blocked below.",
+                              { platform: platformLabel(platformFilter) },
+                            )
+                        : selectedBadge === "partial"
+                          ? t(
+                              "这个采集面只在部分平台就绪（{readiness}）；未就绪平台的主机会在下面显示为不可授权。",
+                              "This family is ready on some platforms only ({readiness}); hosts on unready platforms are blocked below.",
+                              { readiness: platformText(selectedRow) },
+                            )
+                          : t(
+                              "这个采集面当前没有采集就绪的单元（status = active），不能授权；先到知识库补齐内容并切换生效版本。",
+                              "This family has no collection-ready unit (status = active), so it cannot be granted. Add content in the knowledge base and activate a version first.",
+                            )}
                     </div>
                   ) : null}
                 </header>
@@ -1162,9 +1238,13 @@ export function SubsystemCollectionGrantPage() {
                         ? t("预检（{n} 台）", "Preflight ({n} hosts)", {
                             n: preflightTargets.length,
                           })
-                        : t("预检当前筛选（{n} 台）", "Preflight filter ({n})", {
-                            n: preflightTargets.length,
-                          })}
+                        : t(
+                            "预检当前筛选（{n} 台）",
+                            "Preflight filter ({n})",
+                            {
+                              n: preflightTargets.length,
+                            },
+                          )}
                   </button>
                   <span className={styles.toolbarInfo}>
                     {t("匹配 {n} 台", "{n} hosts match", {
@@ -1328,8 +1408,7 @@ export function SubsystemCollectionGrantPage() {
                         const refreshStatus = factRefreshStatus(refreshCommand);
                         const preflightView =
                           preflightByAgent.get(agent.agentId) ?? null;
-                        const preflightError =
-                          preflightErrors[agent.agentId];
+                        const preflightError = preflightErrors[agent.agentId];
                         const preflightFailed =
                           Object.prototype.hasOwnProperty.call(
                             preflightErrors,
@@ -1341,9 +1420,8 @@ export function SubsystemCollectionGrantPage() {
                         );
                         const preflightWhy = preflightReason(preflightEntry);
                         // 探测等到超时（机器大概率离线）：徽标不能永远停在「探测中」。
-                        const preflightOverdue = preflightPendingTimedOut(
-                          preflightView,
-                        );
+                        const preflightOverdue =
+                          preflightPendingTimedOut(preflightView);
                         return (
                           <li
                             key={agent.agentId}
@@ -1508,14 +1586,23 @@ export function SubsystemCollectionGrantPage() {
                                           "预检 · 探测超时",
                                           "Preflight · probe timed out",
                                         )
-                                      : t("预检 · 探测中", "Preflight · probing")
+                                      : t(
+                                          "预检 · 探测中",
+                                          "Preflight · probing",
+                                        )
                                     : preflightView.verdict === "undetermined"
-                                      ? t("预检 · 无法判断", "Preflight · undetermined")
+                                      ? t(
+                                          "预检 · 无法判断",
+                                          "Preflight · undetermined",
+                                        )
                                       : preflightEntry
                                         ? `${t("预检", "Preflight")} · ${preflightFamilyStateLabel(
                                             preflightEntry.state,
                                           )}`
-                                        : t("预检 · 无此面", "Preflight · not in scope")}
+                                        : t(
+                                            "预检 · 无此面",
+                                            "Preflight · not in scope",
+                                          )}
                                 </span>
                               ) : null}
                               {preflightWhy && preflightView ? (
@@ -1534,8 +1621,8 @@ export function SubsystemCollectionGrantPage() {
                               !preflightView.probe.pending &&
                               preflightNeedsProbe(preflightView) ? (
                                 <span className={styles.stateMeta}>
-                                  {preflightEvidenceLabel(preflightView.probe)} ·{" "}
-                                  {t("建议再探", "probe again")}
+                                  {preflightEvidenceLabel(preflightView.probe)}{" "}
+                                  · {t("建议再探", "probe again")}
                                 </span>
                               ) : null}
                               {preflightView?.verdict === "undetermined" &&

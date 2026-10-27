@@ -27,7 +27,7 @@ import {
 //   1. GET / POST 的路径、方法、URL 编码（agent_id 可能含 `/`、空格）；
 //   2. 响应里「可省字段」的语义（`reason` / `undetermined_reason` / `pending_since` 缺省 = null），
 //      以及**闭合取值**：认不出来的 verdict / state / result 必须报错，不能静默成“未知”；
-//   3. 五种面状态各自的文案与色调 —— 「本机没有」与「还没探」处置完全不同，不能混；
+//   3. 五种面状态各自的文案与色调 —— 「约定位置没有」与「还没探」处置完全不同，不能混；
 //   4. 轮询只在命令在路上时进行，并且有超时（页面不能陪一台离线机器打几分钟）。
 //
 // Usage: npx tsx tests/collection-preflight-contract.test.ts
@@ -64,7 +64,8 @@ function viewPayload(overrides: Record<string, unknown> = {}) {
     platform: "linux",
     catalog_version: 3,
     verdict: "blocked",
-    summary: "没有可授权的采集面：ContainerWorkload 这台机器没有 /var/log/containers",
+    summary:
+      "没有可授权的采集面：ContainerWorkload 目录约定的位置没有 /var/log/containers（服务可能装在非标准目录，尚未自动定位）",
     probe: {
       source: "probe",
       observed_at: "2026-10-26T00:00:00Z",
@@ -79,7 +80,8 @@ function viewPayload(overrides: Record<string, unknown> = {}) {
       {
         family: "ContainerWorkload",
         state: "absent",
-        reason: "这台机器没有 /var/log/containers",
+        reason:
+          "目录约定的位置没有 /var/log/containers（服务可能装在非标准目录，尚未自动定位）",
         selected_units: [],
         units: [
           {
@@ -201,6 +203,8 @@ function testStateMapping() {
     "unprobed",
     "unreadable",
     "not_ready",
+    "source_unresolved",
+    "agent_too_old",
   ];
   const labels = states.map(preflightFamilyStateLabel);
   assert(new Set(labels).size === states.length, "every state has its own label");
@@ -208,7 +212,22 @@ function testStateMapping() {
     preflightFamilyStateTone("grantable") === "ok",
     "grantable is the only ok",
   );
-  assert(preflightFamilyStateTone("unprobed") !== preflightFamilyStateTone("absent"), "“not probed yet” must not look like “not on this host”");
+  assert(preflightFamilyStateTone("unprobed") !== preflightFamilyStateTone("absent"), "“not probed yet” must not look like “expected paths absent”");
+  // 「服务在、找不到日志」不是“机器没有”：处置是配覆盖/开搜索，不是换机器。
+  assert(
+    preflightFamilyStateTone("source_unresolved") !== preflightFamilyStateTone("absent"),
+    "unresolved log dir must not look like absent",
+  );
+  // 「agentd 太旧」的处置是升级，不是换机器 / 再探一次。
+  assert(
+    preflightFamilyStateLabel("agent_too_old").includes("agentd") ||
+      preflightFamilyStateLabel("agent_too_old").toLowerCase().includes("agentd"),
+    "the label must name agentd",
+  );
+  assert(
+    preflightFamilyStateTone("agent_too_old") !== preflightFamilyStateTone("absent"),
+    "an old agentd must not look like absent",
+  );
 
   assert(preflightVerdictLabel("partial").length > 0, "verdict label");
   assert(
@@ -223,8 +242,13 @@ function testReasonAndEvidence() {
   const family = preflightFamily(view, "ContainerWorkload");
   assert(family !== null, "family lookup");
   assert(
-    preflightReason(family) === "这台机器没有 /var/log/containers",
+    preflightReason(family) ===
+      "目录约定的位置没有 /var/log/containers（服务可能装在非标准目录，尚未自动定位）",
     "gateway reason wins",
+  );
+  assert(
+    !preflightFamilyStateLabel("absent").includes("本机"),
+    "absent must not claim the host lacks the family (it may just live elsewhere)",
   );
   assert(preflightFamily(view, "NotInView") === null, "unknown family → null");
   assert(preflightFamily(view, null) === null, "no family selected → null");
@@ -360,6 +384,124 @@ function testPolling() {
   );
 }
 
+function testSourceUnresolved() {
+  // 「服务在、找不到日志」必须能被页面读懂：这是 L1 人工覆盖的入口条件。
+  const view = normalizeCollectionPreflightView(
+    viewPayload({
+      summary: "没有可授权的采集面：DatabaseService 找不到 postgresql 的日志目录",
+      families: [
+        {
+          family: "DatabaseService",
+          state: "source_unresolved",
+          reason: "找不到 postgresql 的日志目录（先配人工覆盖，或开受限搜索）",
+          selected_units: [],
+          units: [
+            {
+              unit_id: "linux-db-service",
+              result: "source_not_resolved",
+              match_expr: "any:port:5432|path_exists:/var/log/postgresql",
+              paths: [{ path: "/var/log/postgresql", state: "absent" }],
+              unresolved_sources: ["postgresql"],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  const family = preflightFamily(view, "DatabaseService");
+  assert(family !== null, "family lookup");
+  assert(family.state === "source_unresolved", "state normalizes");
+  assert(
+    family.units[0].result === "source_not_resolved",
+    "unit result normalizes",
+  );
+  assert(
+    family.units[0].unresolvedSources[0] === "postgresql",
+    "unresolved sources are kept (so the operator knows which service)",
+  );
+  assert(
+    preflightFamilyStateLabel("source_unresolved") !==
+      preflightFamilyStateLabel("absent"),
+    "unresolved must not read as absent",
+  );
+  // 老网关不发这个字段：归一成空数组，而不是 undefined。
+  const legacy = normalizeCollectionPreflightView(
+    viewPayload({
+      families: [
+        {
+          family: "ContainerWorkload",
+          state: "absent",
+          selected_units: [],
+          units: [{ unit_id: "u", result: "match_unsatisfied", match_expr: "" }],
+        },
+      ],
+    }),
+  );
+  assert(
+    legacy.families[0].units[0].unresolvedSources.length === 0,
+    "missing unresolved_sources → empty array",
+  );
+}
+
+function testAgentTooOld() {
+  // 「agentd 太旧」：处置是升级，不是换机器 / 再探；且要求版本要能读到。
+  const view = normalizeCollectionPreflightView(
+    viewPayload({
+      verdict: "blocked",
+      summary: "没有可授权的采集面：DatabaseService 需要升级 agentd",
+      families: [
+        {
+          family: "DatabaseService",
+          state: "agent_too_old",
+          reason:
+            "这台机器的 agentd 需要 ≥ 0.10.0（当前 0.9.13），升级后自动恢复",
+          selected_units: [],
+          units: [
+            {
+              unit_id: "linux-db-service",
+              result: "agent_too_old",
+              match_expr: "any:port:5432",
+              min_agentd_version: "0.10.0",
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  const family = preflightFamily(view, "DatabaseService");
+  assert(family !== null, "family lookup");
+  assert(family.state === "agent_too_old", "state normalizes");
+  assert(
+    family.units[0].result === "agent_too_old",
+    "unit result normalizes",
+  );
+  assert(
+    family.units[0].minAgentdVersion === "0.10.0",
+    "the required version is kept",
+  );
+  assert(
+    preflightReason(family)?.includes("0.10.0") ?? false,
+    "the reason must name the required version",
+  );
+  // 老网关不发 min_agentd_version：归一成 null，而不是 undefined。
+  const legacy = normalizeCollectionPreflightView(
+    viewPayload({
+      families: [
+        {
+          family: "ContainerWorkload",
+          state: "absent",
+          selected_units: [],
+          units: [{ unit_id: "u", result: "match_unsatisfied", match_expr: "" }],
+        },
+      ],
+    }),
+  );
+  assert(
+    legacy.families[0].units[0].minAgentdVersion === null,
+    "missing min_agentd_version → null",
+  );
+}
+
 function testSummary() {
   const absent = normalizeCollectionPreflightView(viewPayload());
   const grantable = normalizeCollectionPreflightView(
@@ -385,7 +527,7 @@ function testSummary() {
   assert(parts.length === 2, `only non-zero states: ${JSON.stringify(parts)}`);
 
   // 视图里没有当前面（例如这台机器的模板不包含它）：计入总数，但不计入任何状态 ——
-  // 否则汇总会凭空多出一台「本机没有」。
+  // 否则汇总会凭空多出一台「约定位置没有」。
   const otherFamily = normalizeCollectionPreflightView(
     viewPayload({
       families: [{ family: "LoginSession", state: "absent", selected_units: [], units: [] }],
@@ -408,6 +550,8 @@ async function main() {
   testNormalization();
   testStateMapping();
   testReasonAndEvidence();
+  testSourceUnresolved();
+  testAgentTooOld();
   testPolling();
   testSummary();
   console.log("collection-preflight contract: ok");
