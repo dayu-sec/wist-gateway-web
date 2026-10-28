@@ -7,6 +7,7 @@ import { isRateLimitedError } from "../api";
 import type { PipelineGroup, PipelineNode } from "../api";
 import { usePipelineTopology } from "../hooks";
 import { t } from "../i18n";
+import { SubsystemDataPlaneConfigPanel } from "./SubsystemDataPlaneConfig";
 import {
   formatAxis,
   formatClock,
@@ -17,6 +18,9 @@ import {
 } from "../lib/format";
 
 type LayerKey = "sources" | "parses" | "sinks";
+
+/** 页面内两个视图：实时吞吐（原有）与数据面实际使用的配置/规则。 */
+type PageTab = "throughput" | "config";
 
 interface Selection {
   id: string;
@@ -66,13 +70,16 @@ function windows(): { seconds: number; label: string }[] {
 
 export function SubsystemPipelinePage() {
   const [windowSeconds, setWindowSeconds] = useState(1800);
+  const [tab, setTab] = useState<PageTab>("throughput");
   const [selected, setSelected] = useState<Selection | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(),
   );
 
-  const { data, isLoading, isError, error } =
-    usePipelineTopology(windowSeconds);
+  const { data, isLoading, isError, error } = usePipelineTopology(
+    windowSeconds,
+    tab === "throughput",
+  );
 
   const summary = data?.summary;
   const lossTone = (summary?.lossRate ?? 0) > 0.1 ? "crit" : "ok";
@@ -133,8 +140,8 @@ export function SubsystemPipelinePage() {
     });
   }
 
-  return (
-    <div className={styles.container}>
+  const header = (
+    <>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("数据采集", "Data pipeline")}</h1>
         <p className={styles.pageSummary}>
@@ -150,6 +157,44 @@ export function SubsystemPipelinePage() {
           )}
         </p>
       </header>
+
+      <div className={styles.pageTabs} role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "throughput"}
+          className={
+            tab === "throughput" ? styles.pageTabActive : styles.pageTab
+          }
+          onClick={() => setTab("throughput")}
+        >
+          {t("吞吐", "Throughput")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "config"}
+          className={tab === "config" ? styles.pageTabActive : styles.pageTab}
+          onClick={() => setTab("config")}
+        >
+          {t("配置与规则", "Config & rules")}
+        </button>
+      </div>
+    </>
+  );
+
+  if (tab === "config") {
+    return (
+      <div className={styles.container}>
+        {header}
+        <SubsystemDataPlaneConfigPanel />
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.container}>
+      {header}
 
       {isStale || hasNoSample ? (
         <div className={styles.staleBanner}>

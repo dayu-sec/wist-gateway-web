@@ -39,6 +39,38 @@
   line-height: 1.6;
 }
 
+/* 页面内视图切换（实时吞吐 / 配置与规则）：与页面同宽，下边框把 tab 与内容分开。 */
+.pageTabs {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 var(--page-pad-x);
+  border-bottom: 1px solid var(--border);
+}
+
+.pageTab,
+.pageTabActive {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pageTab:hover {
+  color: var(--text);
+}
+
+.pageTabActive {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+}
+
 .errorBanner {
   width: calc(100% - 48px);
   max-width: calc(var(--content-max) - 48px);

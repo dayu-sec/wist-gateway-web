@@ -34,6 +34,8 @@ import {
   fetchAllAgentsHostMetrics,
   fetchBackendVersion,
   fetchContentCatalog,
+  fetchDataPlaneFile,
+  fetchDataPlaneTree,
   fetchDiscoverySnapshot,
   fetchInstallPackages,
   fetchKnowledge,
@@ -232,7 +234,29 @@ export function useBackendVersion() {
  * 数据采集吞吐。轮询 30s —— 数据面写入 VM 的粒度实测是 60 秒，
  * 刷得比它更快只会重复读到同一个值。
  */
-export function usePipelineTopology(windowSeconds = 1800) {
+export function usePipelineTopology(windowSeconds = 1800, active = true) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && active;
+  return useQuery({
+    queryKey: ["pipeline-topology", windowSeconds],
+    queryFn: () => fetchPipelineTopology(windowSeconds),
+    enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  });
+}
+
+/**
+ * 数据面配置与规则的白名单目录树。
+ *
+ * 不轮询：这些文件只在发布 / 手动改配置时变，页面提供「刷新」。
+ */
+export function useDataPlaneTree() {
   const [, setAuthVersion] = useState(0);
   useEffect(() => {
     const onAuthChanged = () => setAuthVersion((version) => version + 1);
@@ -242,10 +266,28 @@ export function usePipelineTopology(windowSeconds = 1800) {
   }, []);
   const enabled = Boolean(getAdminApiToken());
   return useQuery({
-    queryKey: ["pipeline-topology", windowSeconds],
-    queryFn: () => fetchPipelineTopology(windowSeconds),
+    queryKey: ["data-plane-tree"],
+    queryFn: fetchDataPlaneTree,
     enabled,
-    refetchInterval: enabled ? 30_000 : false,
+    staleTime: 10_000,
+  });
+}
+
+/** 单个配置 / 规则文件（`path` 为空时不请求）。 */
+export function useDataPlaneFile(path: string | null) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(path);
+  return useQuery({
+    queryKey: ["data-plane-file", path],
+    queryFn: () => fetchDataPlaneFile(path as string),
+    enabled,
+    staleTime: 10_000,
   });
 }
 

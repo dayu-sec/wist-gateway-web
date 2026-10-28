@@ -122,7 +122,7 @@ React Query 缓存里，不会重新拉。
 | `/gateway-init`、`/uplink`、`/agent-init` | 已改名 `/gateway-info`，保留重定向 |
 | `/hosts` | 主机列表 |
 | `/software` | 资产清单 |
-| `/pipeline` | 数据采集管线 |
+| `/pipeline` | 数据采集管线（吞吐 / 配置与规则） |
 | `/logs` | 采集日志 |
 | `/work` | 采集工作（按主机查看在采什么、授权/暂停/撤回） |
 | `/collection-grants` | 采集授权（按采集面选主机，批量授权） |

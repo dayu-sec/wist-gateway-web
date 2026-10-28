@@ -2693,6 +2693,100 @@ export async function fetchPipelineTopology(
   return normalizePipelineTopology(payload);
 }
 
+/* ------------------------------------------------------------------ *
+ * 数据面配置与规则（只读浏览）
+ *
+ * 数据：宿主 `data-plane-run/work` 只读挂在网关容器 `/data-plane`；网关侧只开放
+ * `conf` / `topology` / `connectors` / `models` 与 `wparse.local.toml`
+ * （白名单见 wist-gateway `api/data_plane.rs`）。前端只读展示，没有任何写入口。
+ * ------------------------------------------------------------------ */
+
+export type DataPlaneEntryKind = "dir" | "file";
+
+/** 目录树里的一个条目（相对工作根的路径）。 */
+export interface DataPlaneEntry {
+  path: string;
+  kind: DataPlaneEntryKind;
+  size: number;
+  /** RFC3339；拿不到时为 null。 */
+  modified: string | null;
+}
+
+export interface DataPlaneTree {
+  /** 容器内的工作根（页面用来告诉人「这是哪份目录」）。 */
+  workDir: string;
+  entries: DataPlaneEntry[];
+  /** 条目数触顶：只列了前 4096 条。 */
+  truncated: boolean;
+}
+
+export interface DataPlaneFile {
+  path: string;
+  size: number;
+  modified: string | null;
+  /** 超过 1 MiB：`content` 只是前缀。 */
+  truncated: boolean;
+  /** 不是合法 UTF-8：不返回正文。 */
+  binary: boolean;
+  content: string | null;
+}
+
+function requireRecord(value: unknown, what: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid API response: ${what} is not an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+/** 白名单目录树。 */
+export async function fetchDataPlaneTree(): Promise<DataPlaneTree> {
+  const payload = requireRecord(
+    await requestJson<unknown>("/api/v1/admin/data-plane/files"),
+    "data plane tree",
+  );
+  if (!Array.isArray(payload.entries)) {
+    throw new Error("Invalid API response: data plane entries");
+  }
+  const entries = payload.entries.map((item, index) => {
+    const record = requireRecord(item, `data plane entry #${index}`);
+    const path = typeof record.path === "string" ? record.path : null;
+    const kind =
+      record.kind === "dir" || record.kind === "file" ? record.kind : null;
+    if (path === null || kind === null) {
+      throw new Error(`Invalid API response: data plane entry #${index}`);
+    }
+    return {
+      path,
+      kind,
+      size: typeof record.size === "number" ? record.size : 0,
+      modified: typeof record.modified === "string" ? record.modified : null,
+    } satisfies DataPlaneEntry;
+  });
+  return {
+    workDir: typeof payload.work_dir === "string" ? payload.work_dir : "",
+    entries,
+    truncated: payload.truncated === true,
+  };
+}
+
+/** 读一个白名单内的文本文件。 */
+export async function fetchDataPlaneFile(path: string): Promise<DataPlaneFile> {
+  const payload = requireRecord(
+    await requestJson<unknown>(
+      `/api/v1/admin/data-plane/file?path=${encodeURIComponent(path)}`,
+    ),
+    "data plane file",
+  );
+  return {
+    path: typeof payload.path === "string" ? payload.path : path,
+    size: typeof payload.size === "number" ? payload.size : 0,
+    modified: typeof payload.modified === "string" ? payload.modified : null,
+    truncated: payload.truncated === true,
+    binary: payload.binary === true,
+    content: typeof payload.content === "string" ? payload.content : null,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Agent 用途（管理面）：事实 / 推断 / 判定三分并列
 // ─────────────────────────────────────────────────────────────────────────────
