@@ -5,6 +5,30 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.20.0-alpha] - 2026-10-28
+
+### 新增（数据采集：新增「配置与规则」tab）
+
+`/pipeline` 从单页吞吐拆成两个 tab：**吞吐**（原有拓扑 / 分组 / 选中详情）与
+**配置与规则**（新增）。后者展示 wparse **实际在用**的配置与规则，也就是宿主
+`data-plane-run/work` 的只读镜像。
+
+- **可展开的子目录树**：`conf` / `topology` / `connectors` / `models` 与
+  `wparse.local.toml`；目录带子孙文件数，支持展开/收起全部，选中文件时自动
+  展开祖先目录。
+- **右侧只读查看器**：文件名、大小、修改时间、一键复制；超出上限显示
+  `truncated`，二进制文件只标大小不回正文。
+- **错误分级**：503 `data_plane_unavailable` → 网关未挂载工作根，提示去栈侧
+  补 `[data_plane]`；404 `data_plane_file_not_found` → 文件可能刚被替换，
+  提示刷新；404 其他 → 网关版本旧于 0.25.0；429 走统一限流提示。
+- 切到「配置与规则」时**停掉吞吐轮询**（`usePipelineTopology(..., active)`），
+  不让后台刷新继续打接口。
+
+### 配套
+
+- 后端：`wist-gateway v0.25.0-alpha`（`/admin/data-plane/files`、`/admin/data-plane/file`）。
+- 栈：`wist-gateway-stack v0.5.0-alpha`（把宿主工作根只读挂进网关容器）。
+
 ## [0.19.0-alpha] - 2026-10-28
 
 ### 变更（知识库：录入独立成 tab）
