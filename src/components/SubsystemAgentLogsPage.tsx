@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
-import {
-  useAgentLogs,
-  useAgentOverview,
-  useContentCatalog,
-} from "../hooks";
+import { useDataPlaneOutputs, useDataPlaneOutputTail } from "../hooks";
 import { t } from "../i18n";
+import { filterLogLines } from "../lib/logFilter";
 import { CopyButton } from "./CopyButton";
 import { RateLimitNotice } from "./RateLimitNotice";
 import styles from "./SubsystemAgentLogsPage.module.css";
@@ -15,16 +12,19 @@ interface SubsystemAgentLogsPageProps {
   children?: React.ReactNode;
 }
 
-/**
- * 可选条数上限：后端把 limit 夹到 1..1000，默认 200。
- * 这里只列出常读的几档，不做「自定义输入」—— 数量级够用，且和后端口径一致。
- */
-const LIMITS = [100, 200, 500, 1000];
-const LIMIT_DEFAULT = 200;
+/** `ApiError` 的稳定错误码（网关侧 `codes` 词表）。 */
+function errorCode(error: unknown): string | undefined {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
+}
 
 /** 读取失败时的提示（与其它管理面页面同一口径）。 */
 function loadErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
+    const code = errorCode(error);
     if (error.status === 401)
       return t(
         "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击「应用」。",
@@ -35,12 +35,27 @@ function loadErrorMessage(error: unknown): string {
         "认证失败次数过多，请稍后再试。",
         "Too many failed authentication attempts. Try again later.",
       );
-    // 走到这里说明 404 的正文对不上已知语义：更可能是网关没有这个路由。
-    if (error.status === 404)
+    if (code === "data_plane_unavailable" || error.status === 503)
+      return t(
+        "网关没有可用的数据面工作目录：需要 wist-gateway-stack 把宿主 data-plane-run 下的 work 与 data 只读挂进 gateway 容器（本地进程部署则要配 [data_plane] work_dir），并重新 localize / 起栈。",
+        "The gateway has no usable data-plane work dir: wist-gateway-stack must mount work and data under host data-plane-run read-only into the gateway container (for a local process, configure [data_plane] work_dir), then re-localize / restart the stack.",
+      );
+    if (code === "data_plane_file_not_text")
+      return t(
+        "这个文件不是可读文本（可能是二进制 sink 的产物）：页面只 tail *.log / *.json 等文本文件。",
+        "This file is not readable text (it may come from a binary sink): the page only tails text files such as *.log / *.json.",
+      );
+    if (code === "data_plane_file_not_found" || error.status === 404) {
+      if (code === "data_plane_file_not_found")
+        return t(
+          "输出文件不存在：可能刚被轮转或删除。刷新文件列表后重新选择。",
+          "The output file does not exist: it may have just been rotated or removed. Refresh the file list and select again.",
+        );
       return t(
         "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
         "The gateway has no such endpoint (HTTP 404): the running gateway is most likely an old build. Rebuild and restart it, then retry.",
       );
+    }
     return error.detail
       ? t("网关返回 HTTP {status}：{detail}", "Gateway returned HTTP {status}: {detail}", {
           status: error.status,
@@ -58,14 +73,20 @@ function loadErrorMessage(error: unknown): string {
   );
 }
 
+/** 文件大小：页面只需要「大概多大」，不追求逐字节精确。 */
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KiB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
 /**
- * 时间戳按本地时区、固定成 `YYYY-MM-DD HH:mm:ss`；解析不了就原样透出，不假装成 1970。
+ * 时间戳按本地时区、固定成 `YYYY-MM-DD HH:mm:ss`；解析不了就原样透出。
  *
- * 不用 `toLocaleString`：英文界面会给 `10/18/2026, 11:58:30`，比中文长一截 —— 一条记录
- * 要并排放「观测时刻 / 到达网关」两个时间，英文下就会折行，把每条日志撑成三行。固定形状
- * 还和日志原文（`2026-10-18 10:08:24.319237 …`）对得上，肉眼比对时不用换算格式。
+ * 与输出文件里的时间对得上，比 `toLocaleString` 更适合并排看「多久没写了」。
  */
-function formatTimestamp(value: string): string {
+function formatTimestamp(value: string | null): string {
+  if (!value) return "—";
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) return value;
   const pad = (part: number) => String(part).padStart(2, "0");
@@ -75,97 +96,113 @@ function formatTimestamp(value: string): string {
 }
 
 /**
- * 采集日志页（管理面 `GET /api/v1/admin/logs`）。
+ * 采集日志页：**tail -f wparse 的输出文件**。
  *
- * 日志链路是 agentd → 数据面（warp-parse）→ 网关内部接入端点 → **网关主机上的
- * 本地 NDJSON 文件**（没有数据库表）。服务端读的是文件尾部窗口，返回最新的 N 条。
- * 页面因此要在两处特别小心：
- *   1. 两个时间不是一回事 —— 「观测时刻」（Agent 采到）与「到达网关」（网关写盘）分开标注；
- *   2. `truncated` 必须显式提示，否则操作者会把「这一窗」读成「全部」。
+ * 链路是 agentd → 数据面（warp-parse）→ file sink 落盘到
+ * 宿主 `data-plane-run/data/out_dat/*.json`。页面不再读网关自己那份 NDJSON 接入日志，
+ * 而是直接跟随数据面的输出 —— 这样「采集出来的日志长什么样」不用 SSH 到宿主。
  *
- * 机器筛选与**采集面**筛选都走 URL 参数（`?agent=` / `?family=`），与其它页面一致：
- * 链接贴给别人打开的是同一屏。面筛尤其重要 —— 正文规则未就绪时 `category` 恒为泛化的
- * `agent.log`，几张日志面同时跑起来，只有 `family` 能说出「这条是 launchd 的、那条是 wifi 的」。
+ * 行为约定：
+ *   - 只列 / 只 tail 文本扩展名（`*.log` / `*.json` / `*.jsonl` 等），二进制 sink 不出现；
+ *   - 首次打开取文件尾部窗口（不把整份日志拉进浏览器），以后按字节偏移增量追加；
+ *   - 文件被轮转 / 截断（大小小于已读偏移）时，服务端回 `reset`，页面清空后从新文件开头继续；
+ *   - 「暂停」只停页面轮询，不动服务端；「清空」只清屏，不删文件。
+ *
+ * 选中的文件走 URL（`?file=`），链接贴给别人打开的是同一份输出。
  */
 export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const agentId = searchParams.get("agent") ?? "";
-  const family = searchParams.get("family") ?? "";
-  const [agentDraft, setAgentDraft] = useState(agentId);
-  const [familyDraft, setFamilyDraft] = useState(family);
-  const [limit, setLimit] = useState(LIMIT_DEFAULT);
+  const requested = searchParams.get("file") ?? "";
+  const [follow, setFollow] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [clearKey, setClearKey] = useState(0);
+  // 行过滤：`filter` 是输入框里的原文，应用是**即时**的（等价 `tail -f | grep`）；
+  // 默认忽略大小写，`caseSensitive` 打开后按原样比较。
+  const [filter, setFilter] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
 
-  // URL 是唯一真相：带 `?agent=` 的链接进来、或用浏览器后退换筛选时，
-  // 输入框要跟着变，否则会显示上一次手输的内容。
-  useEffect(() => setAgentDraft(agentId), [agentId]);
-  useEffect(() => setFamilyDraft(family), [family]);
+  const {
+    data: outputs,
+    error: listError,
+    isLoading: listLoading,
+    refetch: refetchOutputs,
+  } = useDataPlaneOutputs();
 
-  const { data, error, isLoading, isError } = useAgentLogs(
-    agentId || undefined,
-    family || undefined,
-    limit,
-  );
-  const { data: overview } = useAgentOverview();
-  // 面名的取值集合来自内容目录（闭集，网关侧校验）：不在这里另抄一份，
-  // 抄一份就会和模型各自漂移。目录没装载（503）时只是没有候选项，输入框照常可用。
-  const { data: catalog } = useContentCatalog();
-
-  const knownAgents = useMemo(() => {
-    const ids: string[] = [];
-    for (const agent of overview?.recentOnlineAgents ?? []) ids.push(agent.agentId);
-    for (const agent of overview?.abnormalAgents ?? []) {
-      if (!ids.includes(agent.agentId)) ids.push(agent.agentId);
+  const files = outputs?.files ?? [];
+  // URL 里的文件可能已被轮转掉：这时回落到列表第一项（最近写过的那个）。
+  const activePath = useMemo(() => {
+    if (requested && files.some((file) => file.path === requested)) {
+      return requested;
     }
-    return ids;
-  }, [overview]);
+    return files[0]?.path ?? "";
+  }, [requested, files]);
 
-  const knownFamilies = useMemo(() => {
-    const names = new Set<string>();
-    for (const entry of catalog?.readiness ?? []) names.add(entry.family);
-    return [...names].sort();
-  }, [catalog]);
+  // 首次进页 / 选中的文件被轮转掉时，把回落结果**写回 URL**。
+  //
+  // 为什么必须写回：文件列表按修改时间排序，10s 刷新一次；如果只靠 `files[0]` 当默认值，
+  // 另一个 sink 变活跃时页面会自己跳到别的文件，偏移与已显示内容跟着清空 —— 用户看到
+  // “看着看着换了份日志”。固定住选择后，只有点击文件才会切换。
+  useEffect(() => {
+    if (files.length === 0) return;
+    if (requested && files.some((file) => file.path === requested)) return;
+    const next = files[0]?.path;
+    if (!next) return;
+    setSearchParams(
+      (previous) => {
+        const params = new URLSearchParams(previous);
+        params.set("file", next);
+        return params;
+      },
+      { replace: true },
+    );
+  }, [requested, files, setSearchParams]);
 
-  const filterActive = Boolean(agentId || family);
-  const filterSummary = [
-    agentId ? t("机器 {id}", "machine {id}", { id: agentId }) : null,
-    family ? t("采集面 {family}", "collection family {family}", { family }) : null,
-  ]
-    .filter((part) => part !== null)
-    .join(t("、", ", "));
-  const logs = data?.logs ?? [];
-  // 记录来源（`logDesc`）按类型注释当前恒为「Agent 日志-原文」：两百条里重复两百遍只是噪声。
-  // 全都一样就提到列表上方说一次；真出现多种来源时，再退回逐条标注（见下面的条件渲染）。
-  const uniformLogSource =
-    logs.length > 0 &&
-    logs.every((record) => record.logDesc === logs[0].logDesc)
-      ? logs[0].logDesc
-      : null;
+  const tail = useDataPlaneOutputTail(
+    activePath || null,
+    follow && Boolean(activePath),
+    refreshKey,
+    clearKey,
+  );
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  // 过滤只作用于**已加载窗口**：首屏尾部窗口 + 之后增量。更早的内容本来就不在页面里。
+  const filtered = useMemo(
+    () => filterLogLines(tail.text, filter, caseSensitive),
+    [tail.text, filter, caseSensitive],
+  );
+  const terminalText = filtered.text;
+  const filterActive = filter !== "";
+
+  const terminalRef = useRef<HTMLPreElement | null>(null);
+  useEffect(() => {
+    if (!autoScroll) return;
+    const node = terminalRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [terminalText, autoScroll]);
+
+  const activeFile = files.find((file) => file.path === activePath) ?? null;
+  const activeDir = outputs?.dir ?? "";
+  const fullPath = activePath
+    ? `${activeDir.replace(/\/$/, "")}/${activePath}`
+    : activeDir;
+  const pendingAfter = Math.max(0, tail.size - tail.nextOffset);
+  const error = listError ?? tail.error;
+
+  function selectFile(path: string) {
     const params = new URLSearchParams(searchParams);
-    const nextAgent = agentDraft.trim();
-    const nextFamily = familyDraft.trim();
-    if (nextAgent) params.set("agent", nextAgent);
-    else params.delete("agent");
-    if (nextFamily) params.set("family", nextFamily);
-    else params.delete("family");
+    params.set("file", path);
     setSearchParams(params);
   }
 
-  function clearFilter() {
-    const params = new URLSearchParams(searchParams);
-    params.delete("agent");
-    params.delete("family");
-    setSearchParams(params);
+  function refreshAll() {
+    void refetchOutputs();
+    setRefreshKey((key) => key + 1);
   }
 
-  /** 记录卡上的面标：点一下就只看这个面（与机器筛同一套 URL 真相，链接可直传）。 */
-  function filterByFamily(next: string) {
-    const params = new URLSearchParams(searchParams);
-    if (next) params.set("family", next);
-    else params.delete("family");
-    setSearchParams(params);
+  function clearScreen() {
+    // 只清屏，不删文件：偏移不动，下一次轮询从当前偏移继续。
+    setClearKey((key) => key + 1);
   }
 
   return (
@@ -174,339 +211,329 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
         <h1 className={styles.pageTitle}>{t("采集日志", "Collection logs")}</h1>
         <p className={styles.pageSummary}>
           {t(
-            "Agent 采集到的日志原文。链路是 agentd → 数据面（warp-parse）→ 网关内部接入端点，最终落在",
-            "Raw logs collected by agents. The path is agentd → data plane (warp-parse) → the gateway's internal ingest endpoint, ending up in ",
+            "数据面（warp-parse）写出的日志文件，按 ",
+            "Log files written by the data plane (warp-parse), followed like ",
           )}
-          <strong>
-            {t(
-              "网关主机上的本地 NDJSON 文件",
-              "a local NDJSON file on the gateway host",
-            )}
-          </strong>
+          <code className={styles.code}>tail -f</code>
           {t(
-            "（没有数据库表）—— 这里读的是文件",
-            " (no database table) — this page reads the file's ",
+            " 的方式跟随。链路是 agentd → 数据面 → file sink 落盘，最终文件在 ",
+            ". The path is agentd → data plane → file sink, ending up in ",
           )}
-          <strong>{t("尾部窗口", "tail window")}</strong>
-          {t("，返回最新的 N 条。", " and returns the newest N entries.")}
+          <strong>{t("宿主 data-plane-run/data/out_dat", "host data-plane-run/data/out_dat")}</strong>
+          {t(
+            "（没有数据库表）—— 这里直接读文件，看到的就是采集输出的原文。",
+            " (no database table) — this page reads the file directly, so what you see is exactly what was collected.",
+          )}
         </p>
         <p className={styles.pageThresholds}>
+          {t("只列可读文本：", "Only readable text is listed: ")}
+          <code className={styles.code}>*.log</code>
+          {" / "}
+          <code className={styles.code}>*.json</code>
+          {" / "}
+          <code className={styles.code}>*.jsonl</code>
           {t(
-            "每条的两个时间不同：",
-            "Each record carries two different timestamps: ",
+            " 等；二进制 sink 的产物不出现。首次打开只取文件尾部窗口（不会把整份日志拉进浏览器），之后每次只追加新写入的字节。",
+            " and similar; binary sink outputs are excluded. The first load takes a tail window (the whole file is not pulled into the browser); after that only newly written bytes are appended.",
           )}
-          <strong>{t("观测时刻", "observed")}</strong>
-          {t("是 Agent 自己采到它的时刻，", " is when the agent collected it, ")}
-          <strong>{t("到达网关", "received")}</strong>
+          {" "}
           {t(
-            "是网关把它写入磁盘的时刻，中间隔着上行链路与数据面处理。一条多行日志在文件里仍是一行（换行被转义），这里按原文保留换行展示。",
-            " is when the gateway wrote it to disk — the uplink and data plane processing happen in between. A multi-line log stays one line in the file (newlines are escaped); this page shows the original line breaks. ",
+            "「暂停」只停页面轮询，不动数据面；文件被轮转 / 截断时页面会自动从头重新跟随。顶部下拉选择要跟随的输出文件（数量有限，不占侧栏），过滤输入框按行做字面包含匹配（等价 ",
+            "“Pause” only stops page polling, not the data plane; when the file is rotated or truncated the page automatically restarts from the top of the new file. Pick the output file to follow from the dropdown at the top (a small finite set, no sidebar), and use the filter input for a per-line literal substring match (equivalent to ",
           )}
-          <code className={styles.code}>family</code>
-          {t(" 是这条来自哪个", " says which ")}
-          <strong>{t("采集面", "collection family")}</strong>
+          <code className={styles.code}>tail -f … | grep "xxx"</code>
           {t(
-            "（点它即可只看该面），",
-            " the record came from (click it to filter by that family). ",
-          )}
-          <code className={styles.code}>category</code>
-          {t(
-            " 是日志类别，正文规则未就绪时恒为",
-            " is the log category; until the body rules are ready it is always ",
-          )}
-          <code className={styles.code}>agent.log</code>
-          {t(
-            " —— 几张日志面一起跑时，只有前一个字段能把它们分开。",
-            " — when several log families run at once, only the former field can tell them apart.",
+            "），只在已加载窗口内生效。",
+            "), within the loaded window only.",
           )}
         </p>
       </header>
 
-      <section className={styles.section}>
-        <div className={styles.toolbar}>
-          <form className={styles.picker} onSubmit={handleSubmit}>
-            <label className={styles.pickerLabel} htmlFor="agent-logs-filter">
-              {t("机器", "Machine")}
-            </label>
-            <input
-              id="agent-logs-filter"
-              className={styles.pickerInput}
-              list="agent-logs-agent-options"
-              placeholder={t("agent_id，留空 = 所有 Agent", "agent_id; empty = all agents")}
-              value={agentDraft}
-              onChange={(event) => setAgentDraft(event.target.value)}
-              autoComplete="off"
-            />
-            <datalist id="agent-logs-agent-options">
-              {knownAgents.map((id) => (
-                <option key={id} value={id} />
-              ))}
-            </datalist>
-            <label className={styles.pickerLabel} htmlFor="agent-logs-family-filter">
-              {t("采集面", "Collection family")}
-            </label>
-            <input
-              id="agent-logs-family-filter"
-              className={styles.pickerInput}
-              list="agent-logs-family-options"
-              placeholder={t(
-                "family，如 ServiceLifecycle；留空 = 所有面",
-                "family, e.g. ServiceLifecycle; empty = all families",
+      {error ? (
+        isRateLimitedError(error) ? (
+          <RateLimitNotice error={error} />
+        ) : (
+          <div className={styles.errorBanner} role="alert">
+            {loadErrorMessage(error)}
+          </div>
+        )
+      ) : null}
+
+      {listLoading && !outputs ? <SkeletonRows count={2} /> : null}
+
+      {!listLoading && !outputs && !listError ? (
+        <div className={styles.idleNotice} role="status">
+          {getAdminApiToken()
+            ? t(
+                "尚未取到输出文件列表，用「刷新」重试。",
+                "The output file list is not loaded yet. Use “Refresh” to retry.",
+              )
+            : t(
+                "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
+                "No Admin Token set: data is requested from the admin API only after you fill it in via the key button in the top bar, so nothing is shown here.",
               )}
-              value={familyDraft}
-              onChange={(event) => setFamilyDraft(event.target.value)}
+        </div>
+      ) : null}
+
+      {outputs && !outputs.available ? (
+        <div className={styles.empty} role="status">
+          <strong className={styles.emptyTitle}>
+            {t("还没有输出目录", "No output directory yet")}
+          </strong>
+          <span className={styles.emptyText}>
+            {t("网关没有看到 ", "The gateway cannot see ")} <code className={styles.code}>{outputs.dir}</code>
+            {t(
+              "。如果数据面刚启动、还没有写出过任何记录，这是正常状态；如果一直如此，请确认栈已把宿主 data-plane-run/data 挂进 gateway 容器，且 wparse 的 file sink 确实在往这里写。",
+              ". This is normal right after the data plane starts and before any record is written; if it persists, make sure the stack mounts host data-plane-run/data into the gateway container and that wparse's file sink is writing here.",
+            )}
+          </span>
+        </div>
+      ) : null}
+
+      {outputs?.available && files.length === 0 ? (
+        <div className={styles.empty} role="status">
+          <strong className={styles.emptyTitle}>
+            {t("输出目录里还没有文本文件", "No text files in the output directory")}
+          </strong>
+          <span className={styles.emptyText}>
+            {t("目录 ", "The directory ")} <code className={styles.code}>{outputs.dir}</code>
+            {t(
+              " 是空的（或只有二进制输出）。确认数据面在运行、已有 Agent 上报，并检查 file sink 是否配置为往 data/out_dat 写。",
+              " is empty (or only contains binary output). Make sure the data plane is running, agents are reporting, and the file sink writes to data/out_dat.",
+            )}
+          </span>
+        </div>
+      ) : null}
+
+      {outputs?.available && files.length > 0 ? (
+        <section className={styles.tailPanel}>
+          <div className={styles.tailToolbar}>
+            <div className={styles.filePicker}>
+              <label className={styles.tailLabel} htmlFor="log-file-select">
+                {t("文件", "File")}
+              </label>
+              <select
+                id="log-file-select"
+                className={styles.fileSelect}
+                value={activePath}
+                title={fullPath}
+                onChange={(event) => selectFile(event.target.value)}
+              >
+                {files.map((file) => (
+                  <option key={file.path} value={file.path}>
+                    {file.path} · {formatBytes(file.size)}
+                  </option>
+                ))}
+              </select>
+              <CopyButton
+                className={styles.copyButton}
+                text={fullPath}
+                label={t("复制路径", "Copy path")}
+              />
+            </div>
+            <div className={styles.tailActions}>
+              <span
+                className={
+                  follow
+                    ? `${styles.statusBadge} ${styles.statusLive}`
+                    : styles.statusBadge
+                }
+                role="status"
+              >
+                {follow ? t("跟随中", "Live") : t("已暂停", "Paused")}
+              </span>
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={() => setFollow((value) => !value)}
+              >
+                {follow ? t("暂停", "Pause") : t("继续", "Resume")}
+              </button>
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={refreshAll}
+              >
+                {t("刷新", "Refresh")}
+              </button>
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={() => setAutoScroll((value) => !value)}
+                aria-pressed={autoScroll}
+              >
+                {autoScroll
+                  ? t("自动滚动：开", "Auto-scroll: on")
+                  : t("自动滚动：关", "Auto-scroll: off")}
+              </button>
+              <button
+                type="button"
+                className={styles.actionButton}
+                onClick={clearScreen}
+              >
+                {t("清空", "Clear")}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.filterBar}>
+            <label className={styles.filterLabel} htmlFor="log-filter">
+              {t("过滤", "Filter")}
+            </label>
+            <input
+              id="log-filter"
+              className={styles.filterInput}
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              placeholder={t(
+                '按行包含匹配，如 grep "xxx"；输入即生效',
+                'Per-line substring match, like grep "xxx"; applies as you type',
+              )}
               autoComplete="off"
+              spellCheck={false}
             />
-            <datalist id="agent-logs-family-options">
-              {knownFamilies.map((name) => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-            <button type="submit" className={styles.pickerButton}>
-              {t("筛选", "Filter")}
+            <button
+              type="button"
+              className={
+                caseSensitive
+                  ? `${styles.filterToggle} ${styles.filterToggleActive}`
+                  : styles.filterToggle
+              }
+              aria-pressed={caseSensitive}
+              title={t("区分大小写", "Case-sensitive")}
+              onClick={() => setCaseSensitive((value) => !value)}
+            >
+              Aa
             </button>
             {filterActive ? (
               <button
                 type="button"
-                className={styles.pickerGhost}
-                onClick={clearFilter}
+                className={styles.filterClear}
+                onClick={() => setFilter("")}
               >
-                {t("清除", "Clear")}
+                {t("清除过滤", "Clear filter")}
               </button>
             ) : null}
-          </form>
-
-          <div className={styles.limitPicker}>
-            <span className={styles.limitLabel}>{t("条数", "Limit")}</span>
-            <div
-              className={styles.limitOptions}
-              role="group"
-              aria-label={t("返回条数上限", "Result limit")}
-            >
-              {LIMITS.map((value) => {
-                const active = value === limit;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    aria-pressed={active}
-                    className={
-                      active
-                        ? `${styles.limitOption} ${styles.limitOptionActive}`
-                        : styles.limitOption
-                    }
-                    onClick={() => setLimit(value)}
-                  >
-                    {value}
-                  </button>
-                );
-              })}
-            </div>
+            <span className={styles.filterCount} role="status">
+              {filterActive
+                ? t(
+                    "匹配 {matched} / 共 {total} 行（仅已加载窗口）",
+                    "{matched} of {total} lines (loaded window only)",
+                    { matched: filtered.lines.length, total: filtered.totalLines },
+                  )
+                : t("共 {total} 行", "{total} lines", {
+                    total: filtered.totalLines,
+                  })}
+            </span>
           </div>
-        </div>
 
-        {isError ? (
-          isRateLimitedError(error) ? (
-            <RateLimitNotice error={error} />
-          ) : (
-            <div className={styles.errorBanner} role="alert">
-              {loadErrorMessage(error)}
-            </div>
-          )
-        ) : null}
-
-        {isLoading ? <SkeletonRows count={3} /> : null}
-
-        {!isLoading && !isError && !data ? (
-          <div className={styles.idleNotice} role="status">
-            {getAdminApiToken()
-              ? t(
-                  "尚未取到日志，用右上角「刷新」重试。",
-                  "No logs loaded yet. Use “Refresh” in the top right to retry.",
-                )
-              : t(
-                  "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
-                  "No Admin Token set: data is requested from the admin API only after you fill it in via the key button in the top bar, so nothing is shown here.",
+          <div className={styles.tailMeta} role="status">
+            <span>
+              {t("大小", "Size")} <strong>{formatBytes(tail.size)}</strong>
+            </span>
+            <span>
+              {t("读至偏移", "Read offset")}{" "}
+              <strong>{formatBytes(tail.nextOffset)}</strong>
+              {pendingAfter > 0 ? (
+                <span className={styles.tailPending}>
+                  {" · "}
+                  {t("待读 {bytes}", "{bytes} pending", {
+                    bytes: formatBytes(pendingAfter),
+                  })}
+                </span>
+              ) : null}
+            </span>
+            <span>
+              {t("修改", "Modified")}{" "}
+              <strong>{formatTimestamp(tail.modified ?? activeFile?.modified ?? null)}</strong>
+            </span>
+            <span>
+              {t("显示", "Showing")} <strong>{filtered.lines.length}</strong>{" "}
+              {t("行", "lines")}
+            </span>
+            {outputs.truncated ? (
+              <span className={styles.fileSelectNote}>
+                {t(
+                  "文件选择已截断（最多 512 个）",
+                  "File choices truncated (at most 512)",
                 )}
+              </span>
+            ) : null}
           </div>
-        ) : null}
 
-        {data ? (
-          <>
-            {data.truncated ? (
-              // 不是错误，但必须醒目：它改变「这是不是全部日志」的判断。
+            {tail.skippedBefore > 0 && tail.text ? (
               <div className={styles.truncatedNotice} role="status">
                 <span>
                   {t(
-                    "只返回了最近 {returned} 条（本次上限 {limit}）：",
-                    "Only the newest {returned} entries were returned (limit {limit}): ",
-                    { returned: logs.length, limit: data.limit },
+                    "只载入了文件尾部：更早的 {bytes} 没有加载，",
+                    "Only the tail of the file is loaded: the earlier {bytes} were not loaded. ",
+                    { bytes: formatBytes(tail.skippedBefore) },
                   )}
                   <strong>
-                    {t("更早的日志没有返回", "older logs were not returned")}
+                    {t(
+                      "页面不会把整份日志拉进浏览器",
+                      "The page does not pull the whole log into the browser",
+                    )}
                   </strong>
                   {t(
-                    "。想看更早的记录，把「条数」调大，或直接到下面的日志文件里",
-                    ". To see older records, raise the limit or go straight to the log file below and use ",
-                  )}{" "}
-                  <code className={styles.code}>tail</code> /{" "}
-                  <code className={styles.code}>grep</code>
-                  {t("。", ".")}
+                    "；需要完整历史时去宿主上 tail / grep 该文件。",
+                    "; for the full history, tail / grep the file on the host.",
+                  )}
                 </span>
               </div>
             ) : null}
 
-            <div className={styles.fileBar}>
-              <span className={styles.fileLabel}>{t("日志文件", "Log file")}</span>
-              <code className={styles.filePath}>{data.file}</code>
-              <CopyButton
-                className={styles.copyButton}
-                text={data.file}
-                label={t("复制路径", "Copy path")}
-              />
-            </div>
+            {tail.resetCount > 0 ? (
+              <div className={styles.resetNotice} role="status">
+                {t(
+                  "检测到文件被轮转 / 截断（{count} 次）：已清空旧内容，从新文件开头继续跟随。",
+                  "The file was rotated / truncated ({count} times): old content was cleared and following restarted from the top of the new file.",
+                  { count: tail.resetCount },
+                )}
+              </div>
+            ) : null}
 
-            {logs.length === 0 ? (
-              filterActive ? (
-                // 请求成功、只是这一窗里没有这台机器 —— 与「从来没上报过」是两回事。
-                <div className={styles.empty} role="status">
-                  <strong className={styles.emptyTitle}>
-                    {t("筛选没有匹配到记录", "No records match the filter")}
-                  </strong>
-                  <span className={styles.emptyText}>
-                    {t(
-                      "返回的最新 {limit} 条里没有符合当前筛选（{summary}）的记录。这不等于这台机器从来没上报过 —— 只是文件尾部窗口内没有它。可以清除筛选看全部，或把「条数」调大。",
-                      "None of the newest {limit} returned entries match the current filter ({summary}). This does not mean the machine has never reported — it is just absent from the file's tail window. Clear the filter to see everything, or raise the limit.",
-                      { limit: data.limit, summary: filterSummary },
-                    )}
-                  </span>
-                </div>
+            <pre
+              ref={terminalRef}
+              className={styles.terminal}
+              aria-label={t("输出内容", "Output content")}
+              tabIndex={0}
+            >
+              {terminalText ? (
+                terminalText
+              ) : tail.isLoading ? (
+                <span className={styles.terminalIdle}>
+                  {t("读取中…", "Reading…")}
+                </span>
+              ) : filterActive && tail.text ? (
+                // 过滤后为空与“文件为空”是两回事：说清楚是没匹配到，给出命中口径。
+                <span className={styles.terminalIdle}>
+                  {t(
+                    "没有匹配「{filter}」的行（窗口内共 {total} 行）",
+                    "No line matches “{filter}” ({total} lines in the window)",
+                    { filter, total: filtered.totalLines },
+                  )}
+                </span>
+              ) : tail.size > 0 ? (
+                // 文件有内容、但一屏里没有完整的行（例如尾部只有半行）：
+                // 不能说“文件为空”，否则人会以为 wparse 没写东西。
+                <span className={styles.terminalIdle}>
+                  {t(
+                    "已到文件末尾：当前窗口内没有完整的行，等待新内容…",
+                    "At end of file: no complete line in the current window; waiting for new content…",
+                  )}
+                </span>
               ) : (
-                <div className={styles.empty} role="status">
-                  <strong className={styles.emptyTitle}>
-                    {t("还没有采集到日志", "No logs collected yet")}
-                  </strong>
-                  <span className={styles.emptyText}>
-                    {t(
-                      "网关的日志文件里暂时是空的。这与「读不到」不同：请求成功了，只是还没有 Agent 通过数据面上报过日志。确认 Agent 已启动、已配置数据面上送地址、且数据面（warp-parse）在运行；上报后用右上角「刷新」重取。",
-                      "The gateway's log file is empty for now. That is different from “cannot read”: the request succeeded, agents simply have not reported any logs through the data plane yet. Make sure the agent is running, a data plane uplink address is configured, and the data plane (warp-parse) is running; after it reports, use “Refresh” in the top right to reload.",
-                    )}
-                  </span>
-                </div>
-              )
-            ) : (
-              <>
-                <div className={styles.resultCount}>
-                  {t("按写入顺序（旧 → 新）显示最近", "Showing the newest")}{" "}
-                  <strong>{logs.length}</strong>{" "}
-                  {t("条", "entries in write order (old → new)")}
-                  {agentId ? (
-                    <>
-                      {" "}
-                      · {t("仅机器", "machine")} <strong>{agentId}</strong>
-                    </>
-                  ) : null}
-                  {family ? (
-                    <>
-                      {" "}
-                      · {t("仅面", "family")} <strong>{family}</strong>
-                    </>
-                  ) : null}
-                  {filterActive
-                    ? null
-                    : t(" · 所有 Agent / 所有面", " · all agents / all families")}
-                  {uniformLogSource ? (
-                    <>
-                      {" "}
-                      · {t("来源", "source")}{" "}
-                      <strong>{uniformLogSource}</strong>
-                    </>
-                  ) : null}
-                </div>
-
-                <div className={styles.recordList}>
-                  {logs.map((record, index) => (
-                    <article
-                      key={`${record.agentId}#${record.seq}@${record.receivedAt}-${index}`}
-                      className={styles.recordCard}
-                    >
-                      <header className={styles.recordHead}>
-                        <span className={styles.recordAgent}>{record.agentId}</span>
-                        {record.family ? (
-                          <button
-                            type="button"
-                            className={styles.recordFamily}
-                            title={t(
-                              "只看这个采集面的记录",
-                              "Show only records from this collection family",
-                            )}
-                            onClick={() => filterByFamily(record.family)}
-                          >
-                            {record.family}
-                          </button>
-                        ) : (
-                          // 空面是**有语义**的：它不是平台派活来的（本机手工配置的输入），
-                          // 留白会让人当成字段丢了。
-                          <span
-                            className={styles.recordFamilyNone}
-                            title={t(
-                              "帧里没有采集面：不是平台派活来的（本机手工配置的输入）",
-                              "The frame has no collection family: it does not come from platform-assigned work (locally configured input)",
-                            )}
-                          >
-                            {t("无面", "No family")}
-                          </span>
-                        )}
-                        {record.unit ? (
-                          <span className={styles.recordUnit}>{record.unit}</span>
-                        ) : null}
-                        <span
-                          className={styles.recordCategory}
-                          title={t(
-                            "日志类别：正文规则未就绪时恒为 agent.log",
-                            "Log category: always agent.log until the body rules are ready",
-                          )}
-                        >
-                          {record.category}
-                        </span>
-                        <span className={styles.recordSeq}>seq {record.seq}</span>
-                        <span className={styles.recordTime}>
-                          <span className={styles.recordTimeLabel}>
-                            {t("观测时刻", "Observed")}
-                          </span>
-                          {formatTimestamp(record.observedAt)}
-                        </span>
-                        <span className={styles.recordTime}>
-                          <span className={styles.recordTimeLabel}>
-                            {/* 英文标签刻意短：这一行要并排放两个时间 + 五个标识，
-                                "Observed at" / "Arrived at gateway" 会把第二个时间挤到下一行；
-                                正文里的两个词也同步改短（observed / received），免得解释与行内标签对不上。 */}
-                            {t("到达网关", "Received")}
-                          </span>
-                          {formatTimestamp(record.receivedAt)}
-                        </span>
-                        {/* 来源原先每条都独占一行。按契约定它当前恒为「Agent 日志-原文」
-                            （见 `AgentLogRecord.logDesc`），两百条里重复两百遍只是噪声。
-                            因此只在**它与上一条不同**时标一次：内容没变就不占行，变了也不会漏。 */}
-                        {!uniformLogSource &&
-                        (index === 0 ||
-                          logs[index - 1]?.logDesc !== record.logDesc) ? (
-                          <span className={styles.recordSource}>
-                            {t("来源 · {desc}", "Source · {desc}", {
-                              desc: record.logDesc,
-                            })}
-                          </span>
-                        ) : null}
-                      </header>
-                      <pre className={styles.recordRaw}>{record.raw}</pre>
-                    </article>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        ) : null}
-      </section>
+                <span className={styles.terminalIdle}>
+                  {t(
+                    "文件暂时为空，等待数据面写入…",
+                    "The file is empty for now; waiting for the data plane to write…",
+                  )}
+                </span>
+              )}
+            </pre>
+        </section>
+      ) : null}
     </div>
   );
 }

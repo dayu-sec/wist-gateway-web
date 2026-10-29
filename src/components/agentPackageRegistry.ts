@@ -1,5 +1,6 @@
 import type {
   AgentInstallPackagePlatform,
+  CompatReport,
   InstallPackageView,
 } from "../api/admin";
 import { findCurrentPackage, type VersionOption } from "./agentUpgradePackages";
@@ -39,6 +40,14 @@ export interface ManagedPackageRow {
   status: ManagedPackageStatus;
   /** 该版本最近一次录入时间，行按它倒序（与「最近录入」的口径一致）。 */
   recordedAt: string;
+  /**
+   * 该版本的兼容性报告（取该版本第一个带报告的平台录入）。
+   *
+   * 同版本多平台的包，网关在录入时对每个平台各算一次；报告只取决于网关版本与包内
+   * `compat.json`，同一版本各平台必然一致，所以取第一份就能代表整行。
+   * 老网关不带这个字段 → null（页面显示“未检查”）。
+   */
+  compatibility: CompatReport | null;
 }
 
 function newerFirst(left: string, right: string): number {
@@ -74,7 +83,11 @@ export function managedPackageRows(
       platforms: [],
       status: "archived",
       recordedAt: entry.createdAt,
+      compatibility: null,
     };
+    if (!row.compatibility && entry.compatibility) {
+      row.compatibility = entry.compatibility;
+    }
     const live = liveIdByPlatform.get(platform) === entry.packageId;
     row.platforms.push({
       platform,

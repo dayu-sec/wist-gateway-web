@@ -3,7 +3,6 @@ import { t } from "../i18n";
 
 interface SubsystemTotalAgentMetricProps {
   value: number;
-  hint?: string;
   loading?: boolean;
 }
 
@@ -17,20 +16,12 @@ interface SubsystemTotalAgentMetricProps {
  */
 export function SubsystemTotalAgentMetric({
   value,
-  hint,
   loading,
 }: SubsystemTotalAgentMetricProps) {
   return (
     <MetricTile
       label={t("已接入 Agent", "Enrolled agents")}
       value={String(value)}
-      hint={
-        hint ??
-        t(
-          "网关已登记的 Agent 总数（含离线；卡片列表另有上限）",
-          "Total agents registered with the gateway (including offline; the card list has its own limit)",
-        )
-      }
       tone="accent"
       loading={loading}
     />

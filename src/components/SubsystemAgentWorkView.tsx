@@ -1,21 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import type {
-  AgentLocalOneShotWorkView,
   AgentLocalStandingWorkView,
   AgentLocalTaskView,
   AgentLocalWorkView,
   AgentWorkView,
   ContentCatalogView,
   MachineClass,
-  OneShotWork,
   StandingWork,
   StandingWorkStatus,
 } from "../types";
 import type { GrantableFamily } from "./agentWorkStatus";
-import type {
-  GrantOneShotWorkCommand,
-  GrantStandingWorkCommand,
-} from "../api/admin";
+import type { GrantStandingWorkCommand } from "../api/admin";
 import {
   STANDING_STATUS_LABEL,
   STANDING_STATUS_TONE,
@@ -27,10 +29,7 @@ import {
   standingAckState,
   duplicatedCollectedPaths,
   grantableFamilies,
-  localExecutionLabel,
   metricIntervalSeconds,
-  oneShotStatusLabel,
-  oneShotStatusTone,
   platformForMachineClass,
   sourceText,
   specCounts,
@@ -53,6 +52,25 @@ export interface WorkActionCommand {
   reasonCode?: string;
 }
 
+/** 读出当前卡片网格实际有几列：同行的卡片分组要用它，不能写死 2 列。 */
+function useGridColumnCount(ref: RefObject<HTMLElement | null>): number {
+  const [columns, setColumns] = useState(1);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const read = () => {
+      const template = getComputedStyle(element).gridTemplateColumns;
+      const count = template.split(" ").filter(Boolean).length;
+      setColumns(count > 0 ? count : 1);
+    };
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+  return columns;
+}
+
 interface SubsystemAgentWorkViewProps {
   agentWorkView: AgentWorkView;
   /** 采集内容目录；`null` = 未加载/未装载（表单会说明并禁用）。 */
@@ -71,7 +89,6 @@ interface SubsystemAgentWorkViewProps {
   onGrantStanding: (command: GrantStandingWorkCommand) => void;
   /** 一次授权多份还没授权的常驻工作（面名列表）。 */
   onGrantAll: (families: string[]) => void;
-  onGrantOneShot: (command: GrantOneShotWorkCommand) => void;
 }
 
 function formatTimestamp(value: string): string {
@@ -119,10 +136,25 @@ export function SubsystemAgentWorkView({
   onAction,
   onGrantStanding,
   onGrantAll,
-  onGrantOneShot,
 }: SubsystemAgentWorkViewProps) {
   const [revokeTarget, setRevokeTarget] = useState<string | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
+  const cardListRef = useRef<HTMLUListElement>(null);
+  const columns = useGridColumnCount(cardListRef);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const expandRow = useCallback((row: number) => {
+    setExpandedRows((current) =>
+      current.has(row) ? current : new Set(current).add(row),
+    );
+  }, []);
+  const toggleRow = useCallback((row: number) => {
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(row)) next.delete(row);
+      else next.add(row);
+      return next;
+    });
+  }, []);
   // 面名与说明来自知识库（网关随内容目录返回），不是前端硬编码：新增面不用发前端。
   // 旧网关不返回词表时这里是空索引，卡片回落成面 ID。
   const familyText = useMemo(
@@ -188,14 +220,6 @@ export function SubsystemAgentWorkView({
           </span>
           <span className={styles.summaryHint}>
             {t("个采集面在下发中", "collection families being delivered")}
-          </span>
-        </div>
-        <div className={styles.summaryItem}>
-          <span className={styles.summaryLabel}>
-            {t("未了结的一次性工作", "Unsettled one-shot work")}
-          </span>
-          <span className={styles.summaryValue}>
-            {agentWorkView.oneShot.length}
           </span>
         </div>
         <div
@@ -281,31 +305,45 @@ export function SubsystemAgentWorkView({
             )}
           </p>
         ) : (
-          <ul className={styles.cardList}>
-            {agentWorkView.standing.map((work) => (
-              <StandingWorkCard
-                key={work.workId}
-                work={work}
-                local={local}
-                sharedPaths={sharedPaths}
-                familyText={familyText}
-                pending={pending}
-                onAction={onAction}
-                revokeTarget={revokeTarget}
-                revokeReason={revokeReason}
-                setRevokeTarget={setRevokeTarget}
-                setRevokeReason={setRevokeReason}
-              />
-            ))}
-            {ungranted.map((entry) => (
-              <GrantCandidateCard
-                key={entry.family}
-                entry={entry}
-                familyText={familyText}
-                pending={pending}
-                onSubmit={onGrantStanding}
-              />
-            ))}
+          <ul className={styles.cardList} ref={cardListRef}>
+            {agentWorkView.standing.map((work, index) => {
+              const row = Math.floor(index / columns);
+              return (
+                <StandingWorkCard
+                  key={work.workId}
+                  work={work}
+                  local={local}
+                  sharedPaths={sharedPaths}
+                  familyText={familyText}
+                  pending={pending}
+                  onAction={onAction}
+                  revokeTarget={revokeTarget}
+                  revokeReason={revokeReason}
+                  setRevokeTarget={setRevokeTarget}
+                  setRevokeReason={setRevokeReason}
+                  row={row}
+                  expanded={expandedRows.has(row)}
+                  onToggle={() => toggleRow(row)}
+                  onRequestExpand={expandRow}
+                />
+              );
+            })}
+            {ungranted.map((entry, index) => {
+              const row = Math.floor(
+                (agentWorkView.standing.length + index) / columns,
+              );
+              return (
+                <GrantCandidateCard
+                  key={entry.family}
+                  entry={entry}
+                  familyText={familyText}
+                  pending={pending}
+                  onSubmit={onGrantStanding}
+                  expanded={expandedRows.has(row)}
+                  onToggle={() => toggleRow(row)}
+                />
+              );
+            })}
           </ul>
         )}
 
@@ -392,123 +430,6 @@ export function SubsystemAgentWorkView({
           orphanStanding={orphanStanding}
           manualInputs={manualInputs}
         />
-      ) : null}
-
-      <section
-        className={styles.section}
-        aria-labelledby="agent-work-oneshot-title"
-      >
-        <header className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle} id="agent-work-oneshot-title">
-            {t("一次性工作", "One-shot work")}
-          </h2>
-          <span className={styles.sectionHint}>
-            {t(
-              "有计划开始时间与绝对截止，有明确终态；暂停也照走截止。每张卡下面的「本机实际」是 agentd 自报的执行阶段",
-              "It has a planned start time, an absolute deadline, and a definite terminal state; the deadline keeps running while paused. The “Local actual” line under each card is the execution stage agentd reports about itself",
-            )}
-          </span>
-        </header>
-
-        <p className={styles.gapNotice}>
-          {t("当前 agentd 只执行 ", "Today agentd only executes ")}
-          <span className={styles.mono}>upgrade</span>
-          {t(
-            " 这一种动作（其余动作派下去会停在「已派发」）；升级由分离进程 ",
-            " (any other action stops at “dispatched”); upgrades are performed by the separate process ",
-          )}
-          <span className={styles.mono}>wist-upgrader</span>
-          {t(
-            " 执行，进度与终态经 ",
-            ", and progress and the terminal state are reported through ",
-          )}
-          <span className={styles.mono}>work:result</span>
-          {t(
-            " 回报 —— 回滚在控制面上记为「失败」，说明里写清回到哪一版。",
-            " — a rollback is recorded as “failed” on the control plane, with the version rolled back to stated in the detail.",
-          )}
-        </p>
-
-        {agentWorkView.oneShot.length === 0 ? (
-          <p className={styles.emptyNotice}>
-            {t("没有未了结的一次性工作。", "No unsettled one-shot work.")}
-          </p>
-        ) : (
-          <ul className={styles.cardList}>
-            {agentWorkView.oneShot.map((work) => (
-              <OneShotWorkCard
-                key={work.workId}
-                work={work}
-                local={local}
-                pending={pending}
-                onAction={onAction}
-              />
-            ))}
-          </ul>
-        )}
-
-        <GrantOneShotForm pending={pending} onSubmit={onGrantOneShot} />
-      </section>
-
-      {agentWorkView.retiredStanding.length > 0 ||
-      agentWorkView.settledOneShot.length > 0 ? (
-        <section
-          className={styles.section}
-          aria-labelledby="agent-work-history-title"
-        >
-          <details className={styles.history}>
-            <summary className={styles.historySummary}>
-              <span
-                className={styles.sectionTitle}
-                id="agent-work-history-title"
-              >
-                {t("历史留痕", "Audit history")}
-              </span>
-              <span className={styles.sectionHint}>
-                {t(
-                  "已撤回 / 已被取代的常驻工作 {standing} 条，已了结的一次性工作 {oneShot} 条",
-                  "{standing} revoked / superseded standing work items, {oneShot} settled one-shot work items",
-                  {
-                    standing: agentWorkView.retiredStanding.length,
-                    oneShot: agentWorkView.settledOneShot.length,
-                  },
-                )}
-              </span>
-            </summary>
-            <ul className={styles.historyList}>
-              {agentWorkView.retiredStanding.map((work) => (
-                <li key={work.workId} className={styles.historyItem}>
-                  <span className={styles.mono}>{work.family}</span>
-                  <span
-                    className={`${styles.badge} ${toneClass(STANDING_STATUS_TONE[work.status])}`}
-                  >
-                    {STANDING_STATUS_LABEL[work.status]}
-                  </span>
-                  <span className={styles.historyMeta}>
-                    {t("版本 {version}", "Version {version}", {
-                      version: work.planVersion,
-                    })}{" "}
-                    · {work.updatedBy} · {formatTimestamp(work.updatedAt)}
-                  </span>
-                </li>
-              ))}
-              {agentWorkView.settledOneShot.map((work) => (
-                <li key={work.workId} className={styles.historyItem}>
-                  <span className={styles.mono}>{work.action}</span>
-                  <span
-                    className={`${styles.badge} ${toneClass(oneShotStatusTone(work.status))}`}
-                  >
-                    {oneShotStatusLabel(work.status)}
-                  </span>
-                  <span className={styles.historyMeta}>
-                    {work.issuedBy} · {formatTimestamp(work.issuedAt)}
-                    {work.result?.detail ? ` · ${work.result.detail}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </details>
-        </section>
       ) : null}
     </div>
   );
@@ -707,6 +628,11 @@ interface StandingWorkCardProps {
   revokeReason: string;
   setRevokeTarget: (workId: string | null) => void;
   setRevokeReason: (reason: string) => void;
+  /** 卡片所在的视觉行：同一行共用展开状态。 */
+  row: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onRequestExpand: (row: number) => void;
 }
 
 function StandingWorkCard({
@@ -720,6 +646,10 @@ function StandingWorkCard({
   revokeReason,
   setRevokeTarget,
   setRevokeReason,
+  row,
+  expanded,
+  onToggle,
+  onRequestExpand,
 }: StandingWorkCardProps) {
   const ackState = standingAckState(work, Date.now());
   const counts = specCounts(work.spec);
@@ -764,13 +694,14 @@ function StandingWorkCard({
         localAckBehind ||
         filesMismatch)) ||
     sharedFiles.length > 0;
-  const [expanded, setExpanded] = useState(hasProblem);
+  // 展开状态提到父级按「视觉行」共享：点一张卡，同一行的卡一起展开。
+  // 有本地不一致 / 参数错误 / 撤回确认时自动展开整行，不把问题藏进收起态。
   useEffect(() => {
-    if (hasProblem) setExpanded(true);
-  }, [hasProblem]);
+    if (hasProblem) onRequestExpand(row);
+  }, [hasProblem, row, onRequestExpand]);
   useEffect(() => {
-    if (revokeTarget === work.workId) setExpanded(true);
-  }, [revokeTarget, work.workId]);
+    if (revokeTarget === work.workId) onRequestExpand(row);
+  }, [revokeTarget, work.workId, row, onRequestExpand]);
   const detailsId = `standing-${work.workId}-details`;
   const familySummary = collectionFamilySummary(work.family, familyText);
   return (
@@ -809,7 +740,7 @@ function StandingWorkCard({
         className={`${styles.cardHeader} ${styles.cardToggle}`}
         aria-expanded={expanded}
         aria-controls={detailsId}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={onToggle}
       >
         <span className={styles.workName}>
           {collectionFamilyName(work.family, familyText)}
@@ -1161,132 +1092,14 @@ function StandingWorkCard({
   );
 }
 
-interface OneShotWorkCardProps {
-  work: OneShotWork;
-  /** agentd 自报（解析成功才是非 null）；`null` = 这份自报看不到，卡片不出现「本机实际」行。 */
-  local: AgentLocalWorkView | null;
-  pending: boolean;
-  onAction: (command: WorkActionCommand) => void;
-}
-
-function OneShotWorkCard({
-  work,
-  local,
-  pending,
-  onAction,
-}: OneShotWorkCardProps) {
-  // 本机侧的执行阶段：网关只知道「已派发/已接受」，它知道的是「开始执行了没有」。
-  const localWork: AgentLocalOneShotWorkView | null = local
-    ? (local.oneShot.find((entry) => entry.workId === work.workId) ?? null)
-    : null;
-  return (
-    <li className={styles.card}>
-      <div className={styles.cardHeader}>
-        <span className={styles.family}>{work.action}</span>
-        <span
-          className={`${styles.badge} ${toneClass(oneShotStatusTone(work.status))}`}
-        >
-          {oneShotStatusLabel(work.status)}
-        </span>
-        <span
-          className={`${styles.badge} ${toneClass(work.interruptible ? "ok" : "unknown")}`}
-        >
-          {work.interruptible
-            ? t("可中断", "Interruptible")
-            : t("不可中断（拒绝暂停）", "Not interruptible (rejects pause)")}
-        </span>
-      </div>
-      <dl className={styles.factGrid}>
-        <div className={styles.factRow}>
-          <dt>{t("参数", "Parameters")}</dt>
-          <dd className={styles.mono}>{work.spec}</dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>
-            {t("计划开始 / 绝对截止", "Planned start / absolute deadline")}
-          </dt>
-          <dd>
-            {formatTimestamp(work.scheduledAt)} →{" "}
-            {formatTimestamp(work.deadlineAt)}
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>{t("执行预算 / 累计暂停", "Execution budget / total paused")}</dt>
-          <dd className={styles.mono}>
-            {work.timeoutSeconds}s / {work.pausedTotalSeconds}s
-          </dd>
-        </div>
-        <div className={styles.factRow}>
-          <dt>{t("派发人", "Dispatched by")}</dt>
-          <dd>
-            {work.issuedBy} · {formatTimestamp(work.issuedAt)}
-          </dd>
-        </div>
-        {work.result ? (
-          <div className={styles.factRow}>
-            <dt>{t("执行结果", "Execution result")}</dt>
-            <dd>
-              <span
-                className={`${styles.badge} ${toneClass(oneShotStatusTone(work.result.status))}`}
-              >
-                {oneShotStatusLabel(work.result.status)}
-              </span>{" "}
-              {work.result.detail ? `${work.result.detail} · ` : ""}
-              {formatTimestamp(work.result.reportedAt)}
-            </dd>
-          </div>
-        ) : null}
-        {local ? (
-          <div className={styles.factRow}>
-            <dt>{t("本机实际", "Local actual")}</dt>
-            <dd>
-              {localWork === null ? (
-                <span className={`${styles.badge} ${styles.toneWarn}`}>
-                  {t(
-                    "本机未报这件活",
-                    "The machine has not reported this work item",
-                  )}
-                </span>
-              ) : (
-                <>
-                  <span
-                    className={`${styles.badge} ${toneClass(
-                      oneShotStatusTone(localWork.status),
-                    )}`}
-                  >
-                    {oneShotStatusLabel(localWork.status)}
-                  </span>{" "}
-                  <span className={styles.mono}>
-                    {t("执行阶段 {stage}", "Execution stage {stage}", {
-                      stage: localExecutionLabel(localWork.execution),
-                    })}
-                  </span>
-                </>
-              )}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-      <div className={styles.cardActions}>
-        <button
-          type="button"
-          className={styles.dangerButton}
-          disabled={pending}
-          onClick={() => onAction({ kind: "revoke", workId: work.workId })}
-        >
-          {t("取消这件活", "Cancel this work item")}
-        </button>
-      </div>
-    </li>
-  );
-}
-
 interface GrantCandidateCardProps {
   entry: GrantableFamily;
   /** 面名与说明（来自知识库；缺项回落成面 ID）。 */
   familyText: CollectionFamilyTextIndex;
   pending: boolean;
   onSubmit: (command: GrantStandingWorkCommand) => void;
+  expanded: boolean;
+  onToggle: () => void;
 }
 
 /**
@@ -1305,9 +1118,10 @@ function GrantCandidateCard({
   familyText,
   pending,
   onSubmit,
+  expanded,
+  onToggle,
 }: GrantCandidateCardProps) {
   const familySummary = collectionFamilySummary(entry.family, familyText);
-  const [expanded, setExpanded] = useState(false);
   const detailsId = `grant-${entry.family}-details`;
   return (
     <li className={styles.card}>
@@ -1316,7 +1130,7 @@ function GrantCandidateCard({
         className={`${styles.cardHeader} ${styles.cardToggle}`}
         aria-expanded={expanded}
         aria-controls={detailsId}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={onToggle}
       >
         <span className={styles.workName}>
           {collectionFamilyName(entry.family, familyText)}
@@ -1377,90 +1191,5 @@ function GrantCandidateCard({
         </div>
       ) : null}
     </li>
-  );
-}
-
-interface GrantOneShotFormProps {
-  pending: boolean;
-  onSubmit: (command: GrantOneShotWorkCommand) => void;
-}
-
-/** 默认截止：24 小时后。留空会被网关拒（没有截止的一次性工作与常驻工作无从分辨）。 */
-function defaultDeadline(): string {
-  const at = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  at.setSeconds(0, 0);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
-}
-
-function GrantOneShotForm({ pending, onSubmit }: GrantOneShotFormProps) {
-  const [action, setAction] = useState("upgrade");
-  const [spec, setSpec] = useState("");
-  const [deadline, setDeadline] = useState(defaultDeadline);
-  const [timeoutSeconds, setTimeoutSeconds] = useState("600");
-
-  return (
-    <div className={styles.form}>
-      <div className={styles.formRow}>
-        <label className={styles.fieldLabel}>
-          {t("动作", "Action")}
-          <input
-            className={styles.input}
-            value={action}
-            onChange={(event) => setAction(event.target.value)}
-          />
-        </label>
-        <label className={styles.fieldLabel}>
-          {t("参数", "Parameters")}
-          <input
-            className={styles.input}
-            value={spec}
-            placeholder={t(
-              "例如目标版本 0.1.4",
-              "For example: target version 0.1.4",
-            )}
-            onChange={(event) => setSpec(event.target.value)}
-          />
-        </label>
-        <label className={styles.fieldLabel}>
-          {t("绝对截止", "Absolute deadline")}
-          <input
-            className={styles.input}
-            type="datetime-local"
-            value={deadline}
-            onChange={(event) => setDeadline(event.target.value)}
-          />
-        </label>
-        <label className={styles.fieldLabel}>
-          {t("执行预算（秒）", "Execution budget (seconds)")}
-          <input
-            className={styles.input}
-            value={timeoutSeconds}
-            onChange={(event) => setTimeoutSeconds(event.target.value)}
-          />
-        </label>
-        <button
-          type="button"
-          className={styles.primaryButton}
-          disabled={pending || !action.trim() || !spec.trim()}
-          onClick={() => {
-            // `datetime-local` 是本地时间且没有时区：转成带时区的 RFC3339，
-            // 否则网关按 UTC 解析，截止时间会整体偏移。
-            const deadlineAt = new Date(deadline).toISOString();
-            onSubmit({
-              action: action.trim(),
-              spec: spec.trim(),
-              deadlineAt,
-              timeoutSeconds: Number.parseInt(timeoutSeconds, 10) || 0,
-            });
-            setSpec("");
-          }}
-        >
-          {pending
-            ? t("提交中…", "Submitting…")
-            : t("派发这件活", "Dispatch this work item")}
-        </button>
-      </div>
-    </div>
   );
 }

@@ -5,6 +5,14 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { initLocale, useLocale } from "./i18n";
 import { initTheme } from "./theme";
+import "@fontsource/ibm-plex-sans/latin-400.css";
+import "@fontsource/ibm-plex-sans/latin-500.css";
+import "@fontsource/ibm-plex-sans/latin-600.css";
+import "@fontsource/ibm-plex-sans/latin-700.css";
+import "@fontsource/ibm-plex-mono/latin-400.css";
+import "@fontsource/ibm-plex-mono/latin-500.css";
+import "@fontsource/ibm-plex-mono/latin-600.css";
+import "@fontsource/ibm-plex-mono/latin-700.css";
 import "./index.css";
 
 const queryClient = new QueryClient();

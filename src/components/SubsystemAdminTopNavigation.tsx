@@ -136,7 +136,7 @@ function IconSoftware() {
   );
 }
 
-/** 采集日志：日志文件外形 —— Agent 采集原文在网关侧落盘的结果。 */
+/** 采集日志：日志文件外形 —— 数据面（wparse）输出文件的 tail -f。 */
 function IconLogs() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">

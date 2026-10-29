@@ -128,6 +128,12 @@
   padding: 0 24px;
 }
 
+/* 与 Agent 总览 / 工作摘要的 KPI 一致：标签、数字、口径说明都居中。 */
+.summary > div {
+  align-items: center;
+  text-align: center;
+}
+
 /* ---------- 三列拓扑 ---------- */
 
 /* ---------- 分节 ---------- */
@@ -204,7 +210,9 @@
    规则多时不会拉成一条很长很窄的列表。等高逻辑同 .boardPair。 */
 .boardSingle .columnBody {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  /* 解析规则名通常很长：每列至少 520px，1180 内容宽下放两列，
+     再窄就自然回落单列。输出层仍用 .boardPair 的三列。 */
+  grid-template-columns: repeat(auto-fill, minmax(520px, 1fr));
   align-content: start;
   align-items: stretch;
   max-height: 42vh;
@@ -520,8 +528,8 @@
 
 .groupStats {
   display: grid;
-  /* 速率 / 累计 / 曲线三列固定宽度：不同分组、不同子规则的数字才能纵向对齐。 */
-  grid-template-columns: 66px 46px 42px;
+  /* 速率 / 累计两列固定宽度：与子规则同列，分组头与明细的数字纵向对齐。 */
+  grid-template-columns: 82px 58px;
   align-items: center;
   gap: 8px;
   padding: 0 8px 0 10px;
@@ -555,7 +563,7 @@
 .nodeBody {
   display: grid;
   /* 名称 / 速率 / 累计：后两列固定，长规则名只影响自己的行高，不推歪数字列。 */
-  grid-template-columns: minmax(0, 1fr) 66px 46px;
+  grid-template-columns: minmax(0, 1fr) 82px 58px;
   align-items: center;
   gap: 2px 8px;
   width: 100%;
@@ -590,6 +598,7 @@
 
 .rate {
   text-align: right;
+  white-space: nowrap;
   /* 不用等宽字体：数值里带「万 / 亿」单位，等宽字体缺 CJK 字形会掉回
      另一套字体、字号明显偏小。正文 + 表格数字同样能保证列对齐。 */
   /* 速率用**本层的主色**（来源=蓝、输出=绿、解析=紫，就是列头那个圆点与曲线同色）：
@@ -605,6 +614,7 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
 }
 
 .childCount {
@@ -612,33 +622,6 @@
   color: var(--text-4);
   font-size: 11px;
   white-space: nowrap;
-}
-
-.plotButton,
-.plotButtonActive {
-  justify-self: end;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.plotButton {
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-4);
-}
-
-.plotButton:hover:not(:disabled) {
-  border-color: var(--accent-border);
-  color: var(--text-2);
-}
-
-.plotButtonActive {
-  border: 1px solid var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
 }
 
 .empty {

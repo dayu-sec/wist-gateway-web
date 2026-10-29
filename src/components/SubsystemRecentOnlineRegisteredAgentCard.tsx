@@ -107,12 +107,6 @@ export function SubsystemRecentOnlineRegisteredAgentCard({
           </span>
         </div>
       </div>
-      <div className={styles.durationBlock}>
-        <span className={styles.durationLabel}>{t("上线时长", "Uptime")}</span>
-        <strong className={styles.duration}>
-          {formatDuration(agent.onlineDurationSeconds)}
-        </strong>
-      </div>
       <div className={styles.metrics}>
         <div className={styles.metric}>
           <span className={styles.metricLabel}>{t("内存", "Memory")}</span>

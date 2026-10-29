@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   type QueryClient,
   useMutation,
@@ -35,6 +35,8 @@ import {
   fetchBackendVersion,
   fetchContentCatalog,
   fetchDataPlaneFile,
+  fetchDataPlaneOutputTail,
+  fetchDataPlaneOutputs,
   fetchDataPlaneTree,
   fetchDiscoverySnapshot,
   fetchInstallPackages,
@@ -271,6 +273,179 @@ export function useDataPlaneTree() {
     enabled,
     staleTime: 10_000,
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * 数据面输出文件（「采集日志」页）：文件列表 + `tail -f`
+ * ------------------------------------------------------------------ */
+
+/** 输出文件列表。文件在增长、新文件会出现，所以跟着页面轮询（10s 足够）。 */
+export function useDataPlaneOutputs() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["data-plane-outputs"],
+    queryFn: fetchDataPlaneOutputs,
+    enabled,
+    refetchInterval: enabled ? 10_000 : false,
+    staleTime: 5_000,
+  });
+}
+
+/** 单次 tail 的窗口：256 KiB 够放几百到几千行。 */
+const TAIL_MAX_BYTES = 256 * 1024;
+/** 轮询间隔：接近 `tail -f`，又不是每 100ms 打一次管理面。 */
+const TAIL_POLL_MS = 1_000;
+/** 页面里最多保留多少字符，防止一个不停增长的文件把浏览器内存吃满。 */
+const TAIL_MAX_CHARS = 512 * 1024;
+
+export interface DataPlaneOutputTailState {
+  /** 已累积的正文（超出上限时从头部裁掉整行）。 */
+  text: string;
+  /** 最近一次分片在文件里的起始偏移。 */
+  offset: number;
+  /** 下一次请求要带的偏移。 */
+  nextOffset: number;
+  /** 文件当前大小。 */
+  size: number;
+  modified: string | null;
+  /** 首次加载时跳过的字节数：>0 说明更早的内容没有加载。 */
+  skippedBefore: number;
+  /** 文件被轮转/截断后从头重读的次数。 */
+  resetCount: number;
+  isLoading: boolean;
+  error: unknown;
+}
+
+const EMPTY_TAIL: DataPlaneOutputTailState = {
+  text: "",
+  offset: 0,
+  nextOffset: 0,
+  size: 0,
+  modified: null,
+  skippedBefore: 0,
+  resetCount: 0,
+  isLoading: false,
+  error: null,
+};
+
+/** 当前标签页是否可见：隐藏时停掉 tail 轮询，切回来立刻补一次。 */
+function useDocumentVisible(): boolean {
+  const [visible, setVisible] = useState(() =>
+    typeof document === "undefined" ? true : !document.hidden,
+  );
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const onChange = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onChange);
+    return () => document.removeEventListener("visibilitychange", onChange);
+  }, []);
+  return visible;
+}
+
+/** 从头部裁到整行，别让保留窗口从半行开始。 */
+function capTailText(text: string): string {
+  if (text.length <= TAIL_MAX_CHARS) return text;
+  let start = text.length - TAIL_MAX_CHARS;
+  // 不要把代理对（emoji 等）切成两半。
+  const code = text.charCodeAt(start);
+  if (code >= 0xdc00 && code <= 0xdfff) start += 1;
+  const slice = text.slice(start);
+  const newline = slice.indexOf("\n");
+  return newline >= 0 ? slice.slice(newline + 1) : slice;
+}
+
+/**
+ * 跟随一个输出文件（`tail -f`）。
+ *
+ * - `path` 变化 / Admin Token 变化时**重置**：偏移从「文件尾部窗口」重新开始；
+ * - `follow = false` 时不再轮询，但改变 `refreshKey` 会立刻取一次（页面「刷新」用）；
+ * - 文件被轮转（大小小于已读偏移）时服务端回 `reset`，这里清空已显示内容重新跟随。
+ */
+export function useDataPlaneOutputTail(
+  path: string | null,
+  follow: boolean,
+  refreshKey = 0,
+  clearKey = 0,
+) {
+  const [authVersion, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const visible = useDocumentVisible();
+  const enabled = Boolean(getAdminApiToken()) && Boolean(path) && visible;
+  const [tail, setTail] = useState<DataPlaneOutputTailState>(EMPTY_TAIL);
+  const offsetRef = useRef<number | null>(null);
+
+  // 换文件 / 换凭据：偏移与已显示内容都必须归零，否则新文件会从旧偏移接着读。
+  useEffect(() => {
+    offsetRef.current = null;
+    setTail(EMPTY_TAIL);
+  }, [path, authVersion]);
+
+  // 「清空」只清屏：偏移不动，下一次轮询接着读新内容（不会把历史重新拉回来）。
+  useEffect(() => {
+    setTail((previous) => ({ ...previous, text: "" }));
+  }, [clearKey]);
+
+  useEffect(() => {
+    if (!enabled || !path) return;
+    const target = path;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const tick = async () => {
+      if (cancelled) return;
+      try {
+        const chunk = await fetchDataPlaneOutputTail(
+          target,
+          offsetRef.current ?? undefined,
+          TAIL_MAX_BYTES,
+        );
+        if (cancelled) return;
+        const first = offsetRef.current === null;
+        offsetRef.current = chunk.nextOffset;
+        setTail((previous) => ({
+          text: capTailText(
+            chunk.reset ? chunk.content : previous.text + chunk.content,
+          ),
+          offset: chunk.offset,
+          nextOffset: chunk.nextOffset,
+          size: chunk.size,
+          modified: chunk.modified,
+          skippedBefore:
+            first || chunk.reset ? chunk.offset : previous.skippedBefore,
+          resetCount: previous.resetCount + (chunk.reset ? 1 : 0),
+          isLoading: false,
+          error: null,
+        }));
+      } catch (error) {
+        if (!cancelled) {
+          setTail((previous) => ({ ...previous, isLoading: false, error }));
+        }
+      } finally {
+        if (!cancelled && follow) timer = setTimeout(tick, TAIL_POLL_MS);
+      }
+    };
+
+    setTail((previous) => ({ ...previous, isLoading: true }));
+    void tick();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [enabled, path, follow, refreshKey, authVersion]);
+
+  return tail;
 }
 
 /** 单个配置 / 规则文件（`path` 为空时不请求）。 */

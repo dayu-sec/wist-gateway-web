@@ -125,31 +125,6 @@
   color: var(--warning);
 }
 
-.durationBlock {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
-}
-
-.durationLabel {
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.duration {
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 17px;
-  font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-}
-
 .details {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

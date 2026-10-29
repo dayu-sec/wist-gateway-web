@@ -1,3 +1,4 @@
+import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAgentInstallPackage, useInstallPackages } from "../hooks";
 import { t } from "../i18n";
@@ -8,6 +9,8 @@ import {
   missingPlatforms,
   type ManagedPackageStatus,
 } from "./agentPackageRegistry";
+import { CompatibilityBadge, CompatibilityDetail } from "./Compatibility";
+import { compatSummary } from "./compatReport";
 import { LoadNotice, timestampText } from "./agentPackageUi";
 import styles from "./SubsystemAgentPackages.module.css";
 
@@ -54,6 +57,8 @@ function statusClass(status: ManagedPackageStatus): string {
 export function SubsystemAgentPackageListPage() {
   const installPackage = useAgentInstallPackage();
   const packages = useInstallPackages();
+  // 展开的兼容性详情（key = 版本）：一行一个版本。
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const current = installPackage.data?.packages ?? [];
   const history = packages.data ?? [];
@@ -119,41 +124,70 @@ export function SubsystemAgentPackageListPage() {
                   <span>{t("版本", "Version")}</span>
                   <span>{t("平台", "Platforms")}</span>
                   <span>{t("状态", "Status")}</span>
+                  <span>{t("兼容性", "Compatibility")}</span>
                   <span>{t("录入时间", "Recorded at")}</span>
                 </div>
                 {rows.map((row) => (
-                  <div key={row.version} className={styles.registryRow}>
-                    <strong className={styles.registryComponent}>
-                      {COMPONENT_NAME}
-                    </strong>
-                    <span className={styles.registryVersion}>{row.version}</span>
-                    <span className={styles.registryPlatform}>
-                      {row.platforms.map((platform, index) => (
-                        <span
-                          key={`${platform.platform || "none"}/${index}`}
-                          className={
-                            platform.live
-                              ? `${styles.platformChip} ${styles.platformChipLive}`
-                              : styles.platformChip
-                          }
-                          // 在用的那一份顺手把本机缓存路径带出来（录入页的「最近录入」看来源，这里看落盘位置）。
-                          title={platform.cachedPath ?? platform.entry.source}
-                        >
-                          {platform.platform === ""
-                            ? "—"
-                            : platformLabel(platform.platform)}
-                        </span>
-                      ))}
-                    </span>
-                    <span className={styles.registryStatus}>
-                      <span className={statusClass(row.status)}>
-                        {statusLabel(row.status)}
+                  <Fragment key={row.version}>
+                    <div className={styles.registryRow}>
+                      <strong className={styles.registryComponent}>
+                        {COMPONENT_NAME}
+                      </strong>
+                      <span className={styles.registryVersion}>{row.version}</span>
+                      <span className={styles.registryPlatform}>
+                        {row.platforms.map((platform, index) => (
+                          <span
+                            key={`${platform.platform || "none"}/${index}`}
+                            className={
+                              platform.live
+                                ? `${styles.platformChip} ${styles.platformChipLive}`
+                                : styles.platformChip
+                            }
+                            // 在用的那一份顺手把本机缓存路径带出来（录入页的「最近录入」看来源，这里看落盘位置）。
+                            title={platform.cachedPath ?? platform.entry.source}
+                          >
+                            {platform.platform === ""
+                              ? "—"
+                              : platformLabel(platform.platform)}
+                          </span>
+                        ))}
                       </span>
-                    </span>
-                    <span className={styles.registryTime}>
-                      {timestampText(row.recordedAt)}
-                    </span>
-                  </div>
+                      <span className={styles.registryStatus}>
+                        <span className={statusClass(row.status)}>
+                          {statusLabel(row.status)}
+                        </span>
+                      </span>
+                      <span className={styles.registryCompat}>
+                        <button
+                          type="button"
+                          className={styles.compatToggle}
+                          aria-expanded={expanded === row.version}
+                          onClick={() =>
+                            setExpanded(
+                              expanded === row.version ? null : row.version,
+                            )
+                          }
+                          title={t(
+                            "声明的兼容范围 + 检查结果",
+                            "Declared compatibility ranges + check results",
+                          )}
+                        >
+                          <CompatibilityBadge report={row.compatibility} />
+                          <span className={styles.compatSummary}>
+                            {compatSummary(row.compatibility)}
+                          </span>
+                        </button>
+                      </span>
+                      <span className={styles.registryTime}>
+                        {timestampText(row.recordedAt)}
+                      </span>
+                    </div>
+                    {expanded === row.version ? (
+                      <div className={styles.compatDetail}>
+                        <CompatibilityDetail report={row.compatibility} />
+                      </div>
+                    ) : null}
+                  </Fragment>
                 ))}
               </div>
 

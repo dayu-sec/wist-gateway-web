@@ -115,15 +115,15 @@ React Query 缓存里，不会重新拉。
 | `/install` | 安装 Agent |
 | `/link-upstream` | 链接上级（接入上级控制中心） |
 | `/gateway-info` | Gateway 信息（网关对外地址，只读 / 数据面上送地址与开关，可改） |
-| `/install-package` | 安装包管理（已托管包：组件 / 版本 / 平台 / 状态 / 录入时间） |
+| `/install-package` | 安装包管理（已托管包：组件 / 版本 / 平台 / 状态 / 兼容性 / 录入时间） |
 | `/install-package/add` | 安装包录入（三平台一次录入 + GitHub Release 一键填充 + 最近录入） |
-| `/knowledge` | 知识库（策展内容：录入包 / 切换生效版本 / 锁旧版的工作） |
+| `/knowledge` | 知识库（策展内容：录入包 / 切换生效版本 / 锁旧版的工作 / 包兼容性） |
 | `/init` | 已改名 `/link-upstream`，保留重定向 |
 | `/gateway-init`、`/uplink`、`/agent-init` | 已改名 `/gateway-info`，保留重定向 |
 | `/hosts` | 主机列表 |
 | `/software` | 资产清单 |
 | `/pipeline` | 数据采集管线（吞吐 / 配置与规则） |
-| `/logs` | 采集日志 |
+| `/logs` | 采集日志（下拉选文件 + tail 数据面输出；支持 `grep` 式行过滤） |
 | `/work` | 采集工作（按主机查看在采什么、授权/暂停/撤回） |
 | `/collection-grants` | 采集授权（按采集面选主机，批量授权） |
 | `/fleet` | Agent 机队（在册 Agent，含离线；删除离线机器，不可恢复） |

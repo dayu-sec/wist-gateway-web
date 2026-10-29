@@ -53,140 +53,14 @@
   font-size: 11.5px;
 }
 
-.section {
+/* ---------- tail 面板：搜索区（选文件 + 过滤）+ 元信息 + 终端 ---------- */
+
+.tailPanel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   width: calc(100% - 48px);
   max-width: calc(var(--content-max) - 48px);
   margin: 0 auto;
-}
-
-/* ---------- 工具条：机器筛选 + 条数选择 ---------- */
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px 18px;
-  flex-wrap: wrap;
-}
-
-.picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 420px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-2);
-}
-
-.pickerLabel {
-  color: var(--text-3);
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.pickerInput {
-  flex: 1 1 240px;
-  min-width: 200px;
-  padding: 7px 10px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-}
-
-.pickerInput:focus-visible {
-  outline: none;
-  box-shadow: var(--ring);
-}
-
-.pickerButton,
-.pickerGhost {
-  padding: 7px 13px;
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.pickerGhost {
-  border-color: var(--border-strong);
-  background: transparent;
-  color: var(--text-3);
-}
-
-.limitPicker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-
-.limitLabel {
-  color: var(--text-3);
-  font-size: 12.5px;
-  font-weight: 700;
-}
-
-.limitOptions {
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-}
-
-.limitOption {
-  padding: 5px 12px;
-  border: none;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-
-.limitOption:hover {
-  color: var(--text);
-}
-
-.limitOptionActive {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: 700;
-}
-
-/* ---------- 结果 / 记录 ---------- */
-
-.resultCount {
-  color: var(--text-4);
-  font-size: 12px;
-}
-
-.resultCount strong {
-  color: var(--text-2);
-  font-family: var(--font-mono);
-}
-
-/* 一屏常见 200 条：每条一张描边卡片会读成「两百个孤立的块」，也把行距撑到 12px。
-   改成一个容器、行间只留 1px 分隔线 —— 扫读时视线沿着一条竖线往下走，不被卡片边界打断。
-   悬停时才亮左侧 2px 主色：定位当前行，又不用让每行都挂一条色带。 */
-.recordList {
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -194,182 +68,51 @@
   box-shadow: var(--shadow-sm);
 }
 
-.recordCard {
+.tailToolbar {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 14px 11px;
-  border: 0;
-  border-bottom: 1px solid var(--border);
-  border-left: 2px solid transparent;
-  background: transparent;
-  transition:
-    background 0.12s ease,
-    border-left-color 0.12s ease;
-}
-
-.recordCard:last-child {
-  border-bottom: 0;
-}
-
-.recordCard:hover {
-  border-left-color: var(--accent-border);
-  background: var(--overlay-soft);
-}
-
-.recordHead {
-  display: flex;
-  align-items: baseline;
-  gap: 6px 10px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
   flex-wrap: wrap;
+  padding: 10px 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
-.recordAgent {
+.filePicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 360px;
+}
+
+.tailLabel {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 可观测的输出文件是**有限**的（几个 sink 各一份）：
+   下拉选择足够，不占一列侧栏；浏览器原生支持键入首字母快速定位。 */
+.fileSelect {
+  flex: 1 1 240px;
+  min-width: 180px;
+  max-width: 420px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
+  font-size: 12px;
+  text-overflow: ellipsis;
 }
 
-/* 采集面：卡片上的主标识，可点击 —— 点一下只看这个面。
-   正文规则未就绪时 `category` 恒为泛化的 `agent.log`，面才是能分开两个面的那个字段。 */
-.recordFamily {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 9px;
-  border: 1px solid var(--accent-border);
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.recordFamily:hover {
-  border-color: var(--accent-strong);
-}
-
-.recordFamily:focus-visible {
+.fileSelect:focus-visible {
   outline: none;
   box-shadow: var(--ring);
-}
-
-/* 无面：不是错误，但要说清它是「非派活来源」，不能留白让人当成字段丢了。 */
-.recordFamilyNone {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 999px;
-  color: var(--text-4);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-/* 采集单元 id：附在面标后的细字，用来对照模型里的 unit_id。 */
-.recordUnit {
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-/* 日志类别：降为次要标识（它们当前恒为 agent.log，写在一个面标旁边不该争抢注意力）。 */
-.recordCategory {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.recordSeq {
-  color: var(--text-4);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-.recordTime {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* 时间标签用常规字体：它是中文词，不是标识符。 */
-.recordTimeLabel {
-  color: var(--text-4);
-  font-family: var(--font);
-  font-size: 11px;
-}
-
-/* 原文块：等宽、保留换行、长行换行不横向溢出 —— 多行记录必须一眼看得出边界。 */
-.recordRaw {
-  margin: 0;
-  padding: 9px 11px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--code-bg);
-  color: var(--code-text);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* 来源：头部末尾的弱标签（原先在正文下单占一行，见组件里的说明）。
-   靠右对齐 —— 它是这条记录的「出处」，与左侧的身份字段分列两端，扫读时不抢戏。 */
-.recordSource {
-  margin-left: auto;
-  color: var(--text-4);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-/* ---------- 日志文件路径 ---------- */
-
-.fileBar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 9px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.fileLabel {
-  color: var(--text-3);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.filePath {
-  flex: 1 1 260px;
-  min-width: 0;
-  color: var(--text-2);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .copyButton {
@@ -396,34 +139,226 @@
   outline: none;
 }
 
-/* ---------- 状态块（彼此可区分：空 / 未授权 / 报错 / 截断） ---------- */
-
-.empty {
+.tailActions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 6px;
-  padding: 16px 18px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface-2);
+  flex-wrap: wrap;
 }
 
-.emptyTitle {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.emptyText {
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
   color: var(--text-3);
-  font-size: 12.5px;
-  line-height: 1.75;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.emptyText strong {
+.statusLive {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.actionButton {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.actionButton:hover {
+  border-color: var(--accent-border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.actionButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.tailMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px 16px;
+  flex-wrap: wrap;
+  padding: 7px 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.tailMeta strong {
   color: var(--text-2);
   font-family: var(--font-mono);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tailPending {
+  color: var(--warn);
+}
+
+/* 行过滤：输入即生效，等价 `tail -f | grep`。 */
+.filterBar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 8px 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.filterLabel {
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.filterInput {
+  flex: 1 1 240px;
+  min-width: 180px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.filterInput:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.filterInput::placeholder {
+  color: var(--text-4);
+}
+
+.filterToggle {
+  flex: 0 0 auto;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filterToggle:hover {
+  color: var(--text);
+}
+
+.filterToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.filterToggleActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.filterClear {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.filterClear:hover {
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+
+.filterClear:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.filterCount {
+  margin-left: auto;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 文件选择被截断：不是错误，但要说清下拉不是全集。 */
+.fileSelectNote {
+  margin-left: auto;
+  color: var(--warn);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* 终端：固定高度内滚动，长行自动折行（不横向滚动，手机上也读得下去）。 */
+.terminal {
+  flex: 1 1 auto;
+  min-height: 320px;
+  max-height: 62vh;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.terminal:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent-border);
+}
+
+.terminalIdle {
+  color: var(--text-4);
+  font-family: var(--font);
+  font-style: italic;
+}
+
+/* ---------- 状态块（彼此可区分：空 / 未授权 / 报错 / 截断） ---------- */
+
+.idleNotice,
+.errorBanner,
+.truncatedNotice,
+.resetNotice {
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
 }
 
 .idleNotice {
@@ -445,19 +380,61 @@
   font-weight: 600;
 }
 
-/* 截断提示：不是错误，但必须醒目 —— 它改变「这份日志是不是全集」的判断。 */
-.truncatedNotice {
+.empty {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 13px;
-  border: 1px solid var(--warn-border);
+  flex-direction: column;
+  gap: 6px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  padding: 16px 18px;
+  border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.emptyTitle {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.emptyText {
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.75;
+}
+
+/* 截断提示：不是错误，但改变「这是不是全部」的判断。 */
+.truncatedNotice {
+  padding: 8px 13px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
   background: var(--warn-soft);
   color: var(--warn);
-  font-size: 12.5px;
+  font-size: 12px;
   line-height: 1.7;
+}
+
+.resetNotice {
+  padding: 8px 13px;
+  border: 1px solid var(--info);
+  border-radius: var(--radius-sm);
+  background: var(--info-soft);
+  color: var(--info);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* 这两个提示在 tail 面板内部：宽度由父级决定，别再套一层页面宽度。 */
+.truncatedNotice,
+.resetNotice {
+  width: auto;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
 }
 
 /* ---------- 骨架 ---------- */
@@ -466,6 +443,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
 }
 
 .skeletonRow {
@@ -474,4 +454,15 @@
   border-radius: var(--radius);
   background: var(--surface-2);
   opacity: 0.6;
+}
+
+@media (max-width: 900px) {
+  .fileSelect {
+    max-width: none;
+  }
+
+  .terminal {
+    min-height: 260px;
+    max-height: 55vh;
+  }
 }

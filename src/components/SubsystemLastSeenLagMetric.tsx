@@ -4,7 +4,6 @@ import { t } from "../i18n";
 
 interface SubsystemLastSeenLagMetricProps {
   seconds?: number;
-  hint?: string;
   loading?: boolean;
 }
 
@@ -16,7 +15,6 @@ interface SubsystemLastSeenLagMetricProps {
  */
 export function SubsystemLastSeenLagMetric({
   seconds,
-  hint,
   loading,
 }: SubsystemLastSeenLagMetricProps) {
   const { text } = formatRelativeSeconds(seconds);
@@ -25,13 +23,6 @@ export function SubsystemLastSeenLagMetric({
     <MetricTile
       label={t("最久未重新上线", "Longest since last online")}
       value={text}
-      hint={
-        hint ??
-        t(
-          "所有 Agent 中距最近一次上线最久的时长，会随持续在线而增长",
-          "Longest elapsed time since an agent last came online, across all agents; it grows while agents stay online",
-        )
-      }
       tone="unknown"
       loading={loading}
     />

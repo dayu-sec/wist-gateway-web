@@ -12,7 +12,6 @@ import {
   useClassifyAgentPurpose,
   useContentCatalog,
   useGrantAllStandingWork,
-  useGrantOneShotWork,
   useGrantStandingWork,
   useWorkAction,
 } from "../hooks";
@@ -96,7 +95,10 @@ function actionErrorMessage(error: unknown): string {
         {
           detail:
             error.detail ??
-            t("请刷新后按当前状态重试。", "Refresh and retry per the current status."),
+            t(
+              "请刷新后按当前状态重试。",
+              "Refresh and retry per the current status.",
+            ),
         },
       );
     if (error.status === 400)
@@ -156,7 +158,6 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
   const purpose = useAgentPurpose(agentId);
   const grantStanding = useGrantStandingWork(agentId);
   const grantAllStanding = useGrantAllStandingWork(agentId);
-  const grantOneShot = useGrantOneShotWork(agentId);
   const workAction = useWorkAction(agentId);
   const classify = useClassifyAgentPurpose(agentId);
 
@@ -169,33 +170,34 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
   const pending =
     grantStanding.isPending ||
     grantAllStanding.isPending ||
-    grantOneShot.isPending ||
     workAction.isPending;
   const mutationError =
     grantStanding.error ??
     grantAllStanding.error ??
-    grantOneShot.error ??
     workAction.error ??
     classify.error;
   const notice = mutateNotice({
     all: grantAllStanding.data,
     standing: grantStanding.data,
-    oneShot: grantOneShot.data,
     action: workAction.data,
   });
   // 多网卡主机一次能报十几条 IP，运行态这里也只挑主地址，全量进 tooltip。
   const runtimeAddress = summarizeAddresses(runtime.data?.ipAddresses ?? []);
+  // 主标题用主机名（运维认机器靠它和 IP，agent_id 只是排障关联键）。
+  const displayHost =
+    runtime.data?.hostname?.trim() ||
+    agentId ||
+    t("未指定主机", "Unspecified host");
 
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span> {t("返回机队视图", "Back to fleet view")}
+          <span aria-hidden="true">←</span>{" "}
+          {t("返回机队视图", "Back to fleet view")}
         </Link>
         <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>
-            {agentId || t("未指定主机", "Unspecified host")}
-          </h1>
+          <h1 className={styles.pageTitle}>{displayHost}</h1>
           <span className={styles.scopeBadge}>
             {t(
               "采集工作：授权 / 确认 / 漂移",
@@ -213,28 +215,25 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/metrics`}
           >
-            {t("主机指标", "Host metrics")}{" "}
-            <span aria-hidden="true">→</span>
+            {t("主机指标", "Host metrics")} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <div className={styles.metaRow}>
           {runtime.data ? (
             <span className={styles.metaItem}>
-              {t("主机", "Host")}{" "}
-              <strong>{runtime.data.hostname || "—"}</strong>
-              {runtimeAddress.primary ? (
-                <>
-                  {" · "}
-                  <strong title={runtimeAddress.full || undefined}>
-                    {runtimeAddress.primary}
-                    {runtimeAddress.others > 0
-                      ? ` +${runtimeAddress.others}`
-                      : ""}
-                  </strong>
-                </>
-              ) : null}
+              {t("IP", "IP")}{" "}
+              <strong title={runtimeAddress.full || undefined}>
+                {runtimeAddress.primary ?? "—"}
+                {runtimeAddress.others > 0 ? ` +${runtimeAddress.others}` : ""}
+              </strong>
             </span>
           ) : null}
+          <span className={styles.metaItem}>
+            {t("Agent ID", "Agent ID")}{" "}
+            <span className={styles.metaId} title={agentId}>
+              {agentId}
+            </span>
+          </span>
           {work.data ? (
             <span className={styles.metaItem}>
               {t("视图生成", "View generated")}{" "}
@@ -252,12 +251,11 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
 
       {unknownAgent ? (
         <section className={styles.unknownAgent} role="alert">
-          <h2 className={styles.unknownTitle}>{t("未知 Agent", "Unknown Agent")}</h2>
+          <h2 className={styles.unknownTitle}>
+            {t("未知 Agent", "Unknown Agent")}
+          </h2>
           <p className={styles.unknownText}>
-            {t(
-              "网关里没有 ",
-              "The gateway has no registration record for ",
-            )}
+            {t("网关里没有 ", "The gateway has no registration record for ")}
             <strong>{agentId}</strong>
             {t(
               " 这台 Agent 的注册记录（HTTP 404）。没有注册记录就没有可授权工作的对象。",
@@ -346,8 +344,9 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
             actionNotice={null}
             onGrantStanding={(command) => grantStanding.mutate(command)}
             onGrantAll={(families) => grantAllStanding.mutate(families)}
-            onGrantOneShot={(command) => grantOneShot.mutate(command)}
-            onAction={(command: WorkActionCommand) => workAction.mutate(command)}
+            onAction={(command: WorkActionCommand) =>
+              workAction.mutate(command)
+            }
           />
         </div>
       ) : null}
@@ -359,7 +358,6 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
 function mutateNotice(input: {
   all?: GrantStandingWorkAllOutcome;
   standing?: { workId: string; planVersion: number; status: string };
-  oneShot?: { workId: string; status: string };
   action?: { workId: string; status: string };
 }): string | null {
   // 批量结果排在前面：它是「一口气授权了这一批」的完整交代，比单张卡的回执信息量大。
@@ -400,13 +398,6 @@ function mutateNotice(input: {
         workId: input.standing.workId,
         planVersion: input.standing.planVersion,
       },
-    );
-  }
-  if (input.oneShot) {
-    return t(
-      "一次性工作 {workId} 已派发（状态 {status}）。",
-      "One-shot work {workId} dispatched (status {status}).",
-      { workId: input.oneShot.workId, status: input.oneShot.status },
     );
   }
   if (input.action) {

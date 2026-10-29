@@ -3,7 +3,6 @@ import { t } from "../i18n";
 
 interface SubsystemUnhealthyAgentMetricProps {
   value: number;
-  hint?: string;
   loading?: boolean;
 }
 
@@ -14,20 +13,12 @@ interface SubsystemUnhealthyAgentMetricProps {
  */
 export function SubsystemUnhealthyAgentMetric({
   value,
-  hint,
   loading,
 }: SubsystemUnhealthyAgentMetricProps) {
   return (
     <MetricTile
       label={t("异常 Agent 数", "Unhealthy agents")}
       value={String(value)}
-      hint={
-        hint ??
-        t(
-          "由网关侧异常判定规则统计，当前规则尚未启用",
-          "Counted by gateway-side health rules; those rules are not enabled yet",
-        )
-      }
       tone={value > 0 ? "crit" : "unknown"}
       loading={loading}
     />

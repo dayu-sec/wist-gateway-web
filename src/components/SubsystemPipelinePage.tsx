@@ -562,8 +562,6 @@ function GroupCard({
   const isLoss = group.kind === "loss";
   // 只有真的在丢数据时才标红；0 值的损失分组属于健康状态。
   const isLossActive = isLoss && group.rate > 0;
-  const selectionId = `${layer}:${group.id}`;
-  const isSelected = selected?.id === selectionId;
   const classes = [styles.group];
   if (isLoss) classes.push(styles.groupLoss);
   if (isLossActive) classes.push(styles.groupLossActive);
@@ -600,21 +598,6 @@ function GroupCard({
       <div className={styles.groupStats}>
         <span className={styles.rate}>{formatRate(group.rate)}</span>
         <span className={styles.total}>{formatCount(group.total)}</span>
-        <button
-          type="button"
-          className={isSelected ? styles.plotButtonActive : styles.plotButton}
-          onClick={() => {
-            onSelect({
-              id: selectionId,
-              label: group.label,
-              layer,
-              series: group.series,
-              totalSeries: group.totalSeries,
-            });
-          }}
-        >
-          {t("曲线", "Chart")}
-        </button>
       </div>
 
       {expanded ? (

@@ -115,11 +115,13 @@
   --ring: 0 0 0 3px rgba(139, 92, 246, 0.32);
   --ring-crit: 0 0 0 3px rgba(248, 113, 113, 0.3);
 
+  /* 面板字体：IBM Plex Sans / Mono 随包本地加载（不依赖外网），
+     Latin 与数字用同一套技术型字面；中文回落系统 CJK。 */
   --font:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter",
-    "Helvetica Neue", Arial, sans-serif;
+    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono:
-    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     "Liberation Mono", monospace;
 
   --sidebar-width: 236px;
@@ -223,7 +225,8 @@
 
   /* 阴影：浅色下要更轻更散，否则每个卡片都像浮起来。 */
   --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
-  --shadow: 0 4px 12px -4px rgba(16, 24, 40, 0.12), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow:
+    0 4px 12px -4px rgba(16, 24, 40, 0.12), 0 1px 2px rgba(16, 24, 40, 0.04);
   --shadow-lg: 0 18px 44px rgba(16, 24, 40, 0.16);
   --ring: 0 0 0 3px rgba(79, 70, 229, 0.28);
   --ring-crit: 0 0 0 3px rgba(192, 38, 38, 0.25);

@@ -13,6 +13,7 @@ import {
 } from "../hooks";
 import { ContentFamilyOverview } from "./ContentFamilyOverview";
 import { CopyButton } from "./CopyButton";
+import { CompatibilityBadge, CompatibilityDetail } from "./Compatibility";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { t } from "../i18n";
 import { sha256Error } from "../sha256";
@@ -651,6 +652,7 @@ export function SubsystemKnowledgePage() {
                               {t("摘要 / 验签", "Digest / signature")}
                             </th>
                             <th scope="col">{t("录入", "Recorded")}</th>
+                            <th scope="col">{t("兼容性", "Compatibility")}</th>
                             <th scope="col">{t("状态", "Status")}</th>
                             <th scope="col" className={styles.thAction}>
                               <span className={styles.srOnly}>
@@ -699,6 +701,17 @@ export function SubsystemKnowledgePage() {
                                   <span className={styles.createdAt}>
                                     {timestampText(pkg.createdAt)}
                                   </span>
+                                </td>
+                                <td>
+                                  <CompatibilityBadge report={pkg.compatibility} />
+                                  <details className={styles.compatDetails}>
+                                    <summary className={styles.compatSummary}>
+                                      {t("范围与检查", "Ranges & checks")}
+                                    </summary>
+                                    <CompatibilityDetail
+                                      report={pkg.compatibility}
+                                    />
+                                  </details>
                                 </td>
                                 <td>
                                   {isActive ? (

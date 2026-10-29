@@ -9,6 +9,15 @@
   padding: 0 24px;
 }
 
+/* KPI 卡只留「标签 + 数字」：数字和标签居中，去掉解释性小字后不再需要底部留白。 */
+.container > div {
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 88px;
+  text-align: center;
+}
+
 @media (max-width: 1020px) {
   .container {
     grid-template-columns: repeat(2, minmax(0, 1fr));

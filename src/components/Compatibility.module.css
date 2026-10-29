@@ -1,0 +1,173 @@
+/* 兼容性展示（安装包页 / 知识库页共用）：徽标 + 详情面板。
+   颜色只引用令牌：ok=绿 / warn=黄 / error=红 / unknown=灰。 */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.toneOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.toneWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.toneCrit {
+  border-color: var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.toneUnknown {
+  background: var(--unknown-soft);
+  color: var(--text-3);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  font-size: 11.5px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.summary {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.checkedAt {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.rowLabel {
+  color: var(--text-4);
+  line-height: 1.7;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.chipPeer {
+  color: var(--text-2);
+}
+
+.chipValue {
+  color: var(--text-3);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  padding: 5px 8px;
+  border-left: 2px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+
+.severityOk {
+  border-left-color: var(--ok);
+}
+
+.severityWarn {
+  border-left-color: var(--warn);
+}
+
+.severityError {
+  border-left-color: var(--crit);
+}
+
+.severityTag {
+  color: var(--text-4);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.severityOk .severityTag {
+  color: var(--ok);
+}
+
+.severityWarn .severityTag {
+  color: var(--warn);
+}
+
+.severityError .severityTag {
+  color: var(--crit);
+}
+
+.checkMessage {
+  color: var(--text-2);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.checkDetail {
+  grid-column: 2;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.6;
+}

@@ -1189,6 +1189,110 @@ export interface InstallPackageView {
   agentPackageUrl: string;
   createdBy: string;
   createdAt: string;
+  /** 按**当前网关版本**算出的兼容性报告（包内没有 `compat.json` → `unknown`；
+   *  旧后端不带这个字段 → null，页面显示「未检查」）。 */
+  compatibility: CompatReport | null;
+}
+
+/** 兼容性结论（与 `wist-release::compat::CompatStatus` 同值）。 */
+export type CompatStatus = "ok" | "warn" | "error" | "unknown";
+
+/** 单条检查的严重级别。 */
+export type CompatSeverity = "ok" | "warn" | "error";
+
+/** 一条具体检查：某个 peer 的声明范围 vs 当前实际版本。 */
+export interface CompatCheck {
+  package: string;
+  version: string;
+  /** 对端组件名；无声明时是 `*`。 */
+  peer: string;
+  /** 声明的范围；无声明时是 `*`。 */
+  required: string;
+  /** 当前实际版本；拿不到时为空串。 */
+  actual: string;
+  ok: boolean;
+  severity: CompatSeverity;
+  /** 可读结论（页面直接展示这句话）。 */
+  message: string;
+}
+
+/** 一次兼容性检查的完整报告（可直接渲染）。 */
+export interface CompatReport {
+  status: CompatStatus;
+  checkedAt: string;
+  /** 检查时掌握的 peer 版本（`component → version`）。 */
+  current: Record<string, string>;
+  checks: CompatCheck[];
+}
+
+const COMPAT_STATUSES: readonly CompatStatus[] = [
+  "ok",
+  "warn",
+  "error",
+  "unknown",
+];
+
+/** `component → range` 这种平表；缺 / 不是对象 → 空表。 */
+function normalizeStringMap(payload: unknown): Record<string, string> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {};
+  }
+  const map: Record<string, string> = {};
+  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+    if (value === null || value === undefined) continue;
+    map[key] = String(value);
+  }
+  return map;
+}
+
+/**
+ * 兼容性报告 → 视图类型。
+ *
+ * 缺 `status` / 认不出的 `status` → `null`（页面显示“未检查”）：**不臆造 `ok`**。
+ * 老网关不带这个字段，不能因此让整个列表读失败。
+ */
+export function normalizeCompatReport(payload: unknown): CompatReport | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return null;
+  }
+  const record = payload as Record<string, unknown>;
+  const status = record.status;
+  if (typeof status !== "string") return null;
+  if (!COMPAT_STATUSES.includes(status as CompatStatus)) return null;
+  const rawChecks = record.checks;
+  return {
+    status: status as CompatStatus,
+    checkedAt:
+      typeof record.checked_at === "string"
+        ? record.checked_at
+        : typeof record.checkedAt === "string"
+          ? record.checkedAt
+          : "",
+    current: normalizeStringMap(record.current),
+    checks: Array.isArray(rawChecks)
+      ? rawChecks
+          .filter((item) => item && typeof item === "object")
+          .map((item) => {
+            const check = item as Record<string, unknown>;
+            return {
+              package: optionalStringValue(check.package),
+              version: optionalStringValue(check.version),
+              peer: optionalStringValue(check.peer),
+              required: optionalStringValue(check.required),
+              actual: optionalStringValue(check.actual),
+              ok: check.ok === true,
+              severity: (typeof check.severity === "string"
+                ? check.severity
+                : "warn") as CompatSeverity,
+              message: optionalStringValue(check.message),
+            };
+          })
+      : [],
+  };
+}
+
+function optionalStringValue(value: unknown): string {
+  return value === null || value === undefined ? "" : String(value);
 }
 
 function normalizeInstallPackage(
@@ -1221,6 +1325,7 @@ function normalizeInstallPackage(
       record.created_at ?? record.createdAt,
       `${at}.createdAt`,
     ),
+    compatibility: normalizeCompatReport(record.compatibility),
   };
 }
 
@@ -2766,6 +2871,129 @@ export async function fetchDataPlaneTree(): Promise<DataPlaneTree> {
     workDir: typeof payload.work_dir === "string" ? payload.work_dir : "",
     entries,
     truncated: payload.truncated === true,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * 数据面输出文件（wparse file sink 的落点）
+ *
+ * 输出目录 `data/out_dat`（宿主 `data-plane-run/data`）由栈只读挂到网关
+ * `/data-plane/data`，网关按 `work_dir/data/out_dat` 推导。页面「采集日志」
+ * 用它做 tail -f：列文本文件 + 按字节偏移增量取新内容。
+ *
+ * 不列二进制输出（`file_arrow_sink` 等）：浏览器里没有可读性。
+ * ------------------------------------------------------------------ */
+
+/** 输出目录里的一个文本文件（相对输出目录的路径）。 */
+export interface DataPlaneOutputFile {
+  path: string;
+  size: number;
+  /** RFC3339；拿不到时为 null。 */
+  modified: string | null;
+}
+
+export interface DataPlaneOutputs {
+  /** 输出目录（容器内路径）。 */
+  dir: string;
+  /** 目录是否存在。false = 数据面还没写出过文件（不是网关故障）。 */
+  available: boolean;
+  files: DataPlaneOutputFile[];
+  /** 条目数触顶：只列了前 512 条。 */
+  truncated: boolean;
+}
+
+/** 一次 tail 的分片。 */
+export interface DataPlaneOutputChunk {
+  path: string;
+  dir: string;
+  /** 本次内容在文件里的起始字节偏移。 */
+  offset: number;
+  /** 下一次请求要带的偏移。 */
+  nextOffset: number;
+  size: number;
+  modified: string | null;
+  content: string;
+  /** 本片之后还有多少字节未读（文件在读取期间继续增长时也可能非零）。 */
+  pendingAfter: number;
+  /** 客户端偏移已超过文件大小：文件被轮转 / 截断，已从新文件开头重读。 */
+  reset: boolean;
+}
+
+/** 输出目录里的文本文件列表。 */
+export async function fetchDataPlaneOutputs(): Promise<DataPlaneOutputs> {
+  const payload = requireRecord(
+    await requestJson<unknown>("/api/v1/admin/data-plane/output/files"),
+    "data plane outputs",
+  );
+  if (!Array.isArray(payload.files)) {
+    throw new Error("Invalid API response: data plane output files");
+  }
+  return {
+    dir: requiredString(payload.dir, "data plane outputs.dir"),
+    available: requiredBoolean(
+      payload.available,
+      "data plane outputs.available",
+    ),
+    files: payload.files.map((item, index) => {
+      const record = requireRecord(item, `data plane output #${index}`);
+      return {
+        path: requiredString(record.path, `data plane output #${index}.path`),
+        size: requiredNumber(record.size, `data plane output #${index}.size`),
+        modified: nullableString(
+          record.modified,
+          `data plane output #${index}.modified`,
+        ),
+      } satisfies DataPlaneOutputFile;
+    }),
+    truncated: requiredBoolean(
+      payload.truncated,
+      "data plane outputs.truncated",
+    ),
+  };
+}
+
+/**
+ * 取一段输出文本。
+ *
+ * `offset` 省略 = 首次 tail（服务端取文件尾部窗口并跳到下一行行首）；之后把上一次的
+ * `nextOffset` 带回来即可增量读取。`maxBytes` 由服务端夹到 1 KiB..1 MiB（默认 256 KiB）。
+ */
+export async function fetchDataPlaneOutputTail(
+  path: string,
+  offset?: number,
+  maxBytes?: number,
+): Promise<DataPlaneOutputChunk> {
+  const params = new URLSearchParams({ path });
+  if (offset !== undefined) params.set("offset", String(offset));
+  if (maxBytes !== undefined) params.set("max_bytes", String(maxBytes));
+  const payload = requireRecord(
+    await requestJson<unknown>(
+      `/api/v1/admin/data-plane/output/tail?${params.toString()}`,
+    ),
+    "data plane output tail",
+  );
+  return {
+    path: presentStringField(payload, ["path"], "data plane output.path"),
+    dir: presentStringField(payload, ["dir"], "data plane output.dir"),
+    offset: presentNumberField(payload, ["offset"], "data plane output.offset"),
+    nextOffset: presentNumberField(
+      payload,
+      ["next_offset", "nextOffset"],
+      "data plane output.nextOffset",
+    ),
+    size: presentNumberField(payload, ["size"], "data plane output.size"),
+    modified: nullableStringField(
+      payload,
+      ["modified"],
+      "data plane output.modified",
+    ),
+    content: presentStringField(payload, ["content"], "data plane output.content"),
+    pendingAfter: presentNumberField(
+      payload,
+      ["pending_after", "pendingAfter"],
+      "data plane output.pendingAfter",
+    ),
+    reset: presentBooleanField(payload, ["reset"], "data plane output.reset"),
   };
 }
 
@@ -4714,6 +4942,8 @@ export interface KnowledgePackageView {
   available: boolean;
   /** 副本里实际有哪些文件（逐条 sha256）；副本不在时为空。 */
   files: KnowledgeFileView[];
+  /** 按**当前网关版本**算出的兼容性报告（没有 `compat.json` → `unknown`）。 */
+  compatibility: CompatReport | null;
 }
 
 /** 包副本里的一个文件。 */
@@ -4987,6 +5217,8 @@ export function normalizeKnowledgePackage(
       presentField(record, ["files"], "knowledgePackage.files"),
       "knowledgePackage.files",
     ).map(normalizeKnowledgeFile),
+    // 兼容性：网关总是带（没有 `compat.json` 时是 `unknown`）；老后端缺字段 → null。
+    compatibility: normalizeCompatReport(record.compatibility),
   };
 }
 
