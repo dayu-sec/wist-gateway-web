@@ -1,0 +1,395 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  gap: 18px;
+  padding-bottom: 56px;
+}
+
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--page-pad-top) var(--page-pad-x) 0;
+}
+
+.back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--accent-strong);
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.agentId {
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12.5px;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 760px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.linkRow {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.inlineLink {
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.inlineLink:hover {
+  color: var(--accent-strong);
+}
+
+.section {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 16px var(--page-pad-x);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 750;
+  color: var(--text-2);
+}
+
+.form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.fieldNarrow {
+  min-width: 96px;
+  max-width: 120px;
+}
+
+.field select,
+.field input {
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.primaryButton,
+.secondaryButton {
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 750;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.primaryButton {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: #fff;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.secondaryButton:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.note {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.error {
+  margin: 0;
+  color: var(--crit);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 不是错误，是「做了也拿不到完整结果」的前提：用警告色，不要用危险色。 */
+.warn {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.statusGrid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.statusGrid dt {
+  color: var(--text-4);
+  font-weight: 700;
+}
+
+.statusGrid dd {
+  margin: 0;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.statusPill {
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.statusDetail {
+  color: var(--text-3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--text-4);
+  font-weight: 700;
+}
+
+.table td {
+  color: var(--text-2);
+}
+
+.rowSelected {
+  background: var(--accent-soft);
+}
+
+.overall_ok,
+.finding_ok {
+  color: var(--ok);
+  font-weight: 750;
+}
+
+.overall_warn,
+.finding_warn {
+  color: var(--warn);
+  font-weight: 750;
+}
+
+.overall_fail,
+.finding_fail {
+  color: var(--crit);
+  font-weight: 750;
+}
+
+.overall_unknown,
+.finding_unknown {
+  color: var(--unknown);
+  font-weight: 750;
+}
+
+.counts {
+  margin-left: 8px;
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.verdictCell {
+  max-width: 420px;
+}
+
+.reportPanel {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reportHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reportTitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--text-2);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.reportVerdict {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rawReport {
+  margin: 0;
+  background: var(--code-bg);
+  color: var(--code-text);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  max-height: 480px;
+}
+
+.finding {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.findingHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.findingHead span {
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.findingDetail,
+.findingHint {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.findingHint {
+  color: var(--text-4);
+}
+
+.rowsTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.rowsTable th,
+.rowsTable td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rowsTable th {
+  color: var(--text-4);
+  font-weight: 700;
+}
+
+.rowsTable td {
+  color: var(--text-2);
+  word-break: break-all;
+}

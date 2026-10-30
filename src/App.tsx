@@ -15,6 +15,7 @@ import { SubsystemAgentHostListPage } from "./components/SubsystemAgentHostListP
 import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareInventoryPage";
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
+import { SubsystemAgentInvestigationsPage } from "./components/SubsystemAgentInvestigationsPage";
 import { SubsystemCollectionGrantPage } from "./components/SubsystemCollectionGrantPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
@@ -76,6 +77,10 @@ export function App() {
         <Route
           path="/agents/:agentId/work"
           element={<SubsystemAgentWorkPage />}
+        />
+        <Route
+          path="/agents/:agentId/investigations"
+          element={<SubsystemAgentInvestigationsPage />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

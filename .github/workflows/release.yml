@@ -55,6 +55,10 @@ jobs:
       - name: Test (admin token mechanism)
         run: npm run test:admin-token
 
+      # 一次性调查（下发 / 状态 / 报告 + 菜单可用性）是用户可见的新页面，契约测试离线可跑。
+      - name: Test (investigation contract)
+        run: npm run test:investigations
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]

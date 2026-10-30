@@ -100,3 +100,9 @@ jobs:
       # 否则粘过去的命令会静默降级成普通安装（证书根本不会换）。
       - name: Test (install command contract)
         run: npm run test:install-command
+
+      # 一次性调查：下发/状态/报告三个端点的路径与形状，`null` 语义（无下发 vs 等待认领 vs 无结果），
+      # 空 `path` 不发送（否则 agentd 会当非法路径拒掉整条命令），
+      # 以及菜单可用性的 `allowed_topics` / `capabilities` / `retention_days`（`[]` 是“全禁”、`null` 是“旧网关”）。
+      - name: Test (investigation contract)
+        run: npm run test:investigations

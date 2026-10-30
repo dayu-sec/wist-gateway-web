@@ -24,6 +24,9 @@ import {
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
   fetchAgentInstallPackage,
+  fetchAgentInvestigationReport,
+  fetchAgentInvestigations,
+  launchAgentInvestigation,
   fetchAgentOverview,
   fetchAgentPurpose,
   fetchAgentRevocations,
@@ -76,11 +79,13 @@ import {
   viewGatewaySelfStateHistory,
   type ActivateKnowledgePackageCommand,
   type AgentFactRefreshCommand,
+  type AgentInvestigationsView,
   type CollectionPreflightView,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
   type GrantStandingWorkCommand,
+  type LaunchInvestigationInput,
   type RecordKnowledgePackageCommand,
   type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
@@ -1691,4 +1696,79 @@ function invalidateKnowledge(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: ["knowledge"] });
   void queryClient.invalidateQueries({ queryKey: ["knowledge-packages"] });
   void queryClient.invalidateQueries({ queryKey: ["knowledge-locks"] });
+}
+
+// ── 一次性调查（`investigate`）───────────────────────────────────────────────
+
+/** 报告是**数据面**异步产物：认领后还要等「agent 发帧 → wparse 落盘」，所以要比命令轮询久。 */
+const INVESTIGATION_POLL_MS = 3_000;
+const INVESTIGATION_REPORT_GRACE_MS = 60_000;
+
+/**
+ * 什么时候还要继续轮询调查状态。
+ *
+ * 三个终态要分开：
+ *   · 报告已经在这个 command_id 上 → 停；
+ *   · 命令还没结果（`outcome === null`）→ 等认领 / 正在跑；
+ *   · 有结果但报告没到 → 只再等一个宽限窗（通道可能慢，也可能数据面根本没接这条），
+ *     超时就停 —— 页面会明确说「报告未到」，而不是无限转圈。
+ */
+function investigationRefetchInterval(
+  view: AgentInvestigationsView | undefined,
+): number | false {
+  if (!view) return false;
+  const command = view.latestCommand;
+  if (command.commandId === null) return false;
+  if (view.reports.some((report) => report.commandId === command.commandId)) {
+    return false;
+  }
+  if (command.outcome === null) return INVESTIGATION_POLL_MS;
+  const since = command.acknowledgedAt ?? command.requestedAt;
+  if (since === null) return false;
+  const at = Date.parse(since);
+  if (!Number.isFinite(at)) return false;
+  return Date.now() - at >= INVESTIGATION_REPORT_GRACE_MS
+    ? false
+    : INVESTIGATION_POLL_MS;
+}
+
+/** 某台 Agent 的「最近一次调查 + 报告列表」。 */
+export function useAgentInvestigations(agentId: string, enabled = true) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["agent-investigations", agentId],
+    queryFn: () => fetchAgentInvestigations(agentId),
+    enabled: authenticated && enabled && Boolean(agentId),
+    refetchInterval: (query) =>
+      investigationRefetchInterval(query.state.data),
+    retry: factRefreshRetry,
+  });
+}
+
+/** 发起一次调查；成功后立刻把返回值种进缓存，页面不必等第一次 GET。 */
+export function useLaunchAgentInvestigation(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: LaunchInvestigationInput) =>
+      launchAgentInvestigation(agentId, input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-investigations", agentId],
+      });
+    },
+  });
+}
+
+/** 一份完整报告（按 `command_id` 取；`null` = 不请求）。 */
+export function useAgentInvestigationReport(
+  agentId: string,
+  commandId: string | null,
+) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["agent-investigation-report", agentId, commandId],
+    queryFn: () => fetchAgentInvestigationReport(agentId, commandId as string),
+    enabled: authenticated && Boolean(agentId) && commandId !== null,
+    retry: factRefreshRetry,
+  });
 }

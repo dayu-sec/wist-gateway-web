@@ -131,6 +131,8 @@ React Query 缓存里，不会重新拉。
 | `/upgrade/:planId` | 升级计划详情 |
 | `/agents/:agentId/metrics` | 主机指标详情 |
 | `/agents/:agentId/purpose` | Agent 用途 |
+| `/agents/:agentId/work` | 采集工作（在采什么 / 授权 / 暂停 / 撤回） |
+| `/agents/:agentId/investigations` | 一次性调查（下发只读取证 + 看 wparse 落盘的报告） |
 
 ## 代码生成
 

@@ -47,6 +47,15 @@ function describeRoute(pathname: string): RouteMeta {
       ],
     };
   }
+  if (matchPath("/agents/:agentId/investigations", pathname)) {
+    return {
+      section: "monitoring",
+      crumbs: [
+        t("主机指标", "Host metrics"),
+        t("一次性调查", "One-off investigation"),
+      ],
+    };
+  }
   if (matchPath("/upgrade/:planId", pathname)) {
     return {
       section: "ops",

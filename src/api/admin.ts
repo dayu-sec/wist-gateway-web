@@ -5332,3 +5332,303 @@ export async function fetchKnowledgeLocks(): Promise<KnowledgeLocksView> {
   const payload = await requestJson<unknown>("/api/v1/admin/knowledge/locks");
   return normalizeKnowledgeLocks(payload);
 }
+
+// ── 一次性调查（`investigate`）───────────────────────────────────────────────
+//
+// 两条腿：**下发/状态**走控制面命令通道（与 `fact-refresh` 同形），**完整报告**是数据面
+// 产物（wparse 落到网关本机 `data/ivsrep/`，网关只读）。所以：
+//   · `latestCommand.outcome === null` = 还没认领 / 正在跑；
+//   · `outcome !== null` 但 `reports` 里没有它 = 查完了、报告还在路上（或数据面没接上）；
+//   · 两者都要能显示，不能把「报告没到」显示成「调查没做」。
+
+/** 调查命令的终态词表与 `fact-refresh` **同一套**（`wist_api::status::command_outcome`）。 */
+export type AgentInvestigationOutcome = AgentFactRefreshOutcome;
+
+/** 最近一次调查下发（`null` 的语义与 `AgentFactRefreshCommand` 一致）。 */
+export interface AgentInvestigationCommand {
+  agentId: string;
+  commandId: string | null;
+  kind: string | null;
+  /** 谁发起的（审计）：`admin:<token 指纹>`；`null` / 空串 = 本机命令或历史记录。 */
+  requestedBy: string | null;
+  requestedAt: string | null;
+  acknowledgedAt: string | null;
+  outcome: AgentInvestigationOutcome | null;
+  detail: string | null;
+}
+
+/**
+ * Agent 自报的调查能力（`surfaces` 与 agentd 的 `investigate::TOPICS` 同源）。
+ *
+ * `privileged = false` 不代表不能查，而是**部分答案**（例：非 root 看不到别的用户的目录大小）。
+ */
+export interface AgentInvestigationCapabilities {
+  surfaces: string[];
+  privileged: boolean;
+}
+
+/** 报告的**列表视图**（不含正文：列表不为几十 KB 的证据表付费）。 */
+export interface AgentInvestigationReportSummary {
+  commandId: string;
+  topic: string;
+  observedAt: string;
+  /** `ok` / `warn` / `fail`；报告里没写就是 `unknown`。 */
+  overall: string;
+  verdict: string;
+  findingsOk: number;
+  findingsWarn: number;
+  findingsFail: number;
+}
+
+export interface AgentInvestigationsView {
+  agentId: string;
+  /**
+   * 这台 Agent 自报的调查能力；`null` = 还没上报（旧 agentd / 刚升级）。
+   *
+   * 与 `allowedTopics` 一起构成菜单可用性：**两者交集**才是真正可点的面。
+   */
+  capabilities: AgentInvestigationCapabilities | null;
+  /**
+   * 本网关允许的面（`[investigations] allowed_topics` ∩ 词表）。
+   *
+   * `null` = 网关**没下发这个字段** —— 于是 `[]`（一个都不许）与「网关是 S2 构建」不会被混成同一件事。
+   */
+  allowedTopics: string[] | null;
+  /** 报告可见保留天数（`0` = 不限）；`null` = 网关没下发这个字段（S2 构建）。 */
+  retentionDays: number | null;
+  /** 报告目录有没有挂进来；没挂时 `path` 为 `null`（页面要能说出这一点）。 */
+  reportDir: { configured: boolean; path: string | null };
+  latestCommand: AgentInvestigationCommand;
+  reports: AgentInvestigationReportSummary[];
+}
+
+/** 完整报告：`report` 是 agentd 的原样对象（未知版本时页面降级成原文展示）。 */
+export interface AgentInvestigationReport {
+  agentId: string;
+  commandId: string;
+  report: unknown;
+}
+
+export interface LaunchInvestigationInput {
+  /** 缺省 `disk`（网关只认词表里的题目）。 */
+  topic?: string;
+  /** 扫描根；必须是绝对路径。留空 = 由题目自己挑。 */
+  path?: string;
+  top?: number;
+  minSize?: number;
+  depth?: number;
+  maxSeconds?: number;
+}
+
+function normalizeInvestigationCommand(
+  payload: unknown,
+  agentId: string,
+): AgentInvestigationCommand {
+  const record = requiredRecord(payload, "agentInvestigationCommand");
+  const outcome = record.outcome ?? null;
+  return {
+    agentId,
+    commandId: nullableString(
+      record.command_id,
+      "agentInvestigationCommand.command_id",
+    ),
+    kind: nullableString(record.kind, "agentInvestigationCommand.kind"),
+    requestedBy: nullableString(
+      record.requested_by,
+      "agentInvestigationCommand.requested_by",
+    ),
+    requestedAt: nullableString(
+      record.requested_at,
+      "agentInvestigationCommand.requested_at",
+    ),
+    acknowledgedAt: nullableString(
+      record.acknowledged_at,
+      "agentInvestigationCommand.acknowledged_at",
+    ),
+    outcome:
+      outcome === null
+        ? null
+        : requiredAgentFactRefreshOutcome(
+            outcome,
+            "agentInvestigationCommand.outcome",
+          ),
+    detail: nullableString(record.detail, "agentInvestigationCommand.detail"),
+  };
+}
+
+function normalizeInvestigationReportSummary(
+  value: unknown,
+): AgentInvestigationReportSummary {
+  const record = requiredRecord(value, "agentInvestigationReport");
+  return {
+    commandId: requiredString(
+      record.command_id,
+      "agentInvestigationReport.command_id",
+    ),
+    topic: requiredString(record.topic, "agentInvestigationReport.topic"),
+    observedAt: requiredString(
+      record.observed_at,
+      "agentInvestigationReport.observed_at",
+    ),
+    overall:
+      typeof record.overall === "string"
+        ? record.overall
+        : "unknown",
+    verdict: typeof record.verdict === "string" ? record.verdict : "",
+    findingsOk: requiredNumber(
+      record.findings_ok,
+      "agentInvestigationReport.findings_ok",
+    ),
+    findingsWarn: requiredNumber(
+      record.findings_warn,
+      "agentInvestigationReport.findings_warn",
+    ),
+    findingsFail: requiredNumber(
+      record.findings_fail,
+      "agentInvestigationReport.findings_fail",
+    ),
+  };
+}
+
+function normalizeInvestigationCapabilities(
+  value: unknown,
+  fieldName: string,
+): AgentInvestigationCapabilities | null {
+  // `null` / 缺字段 = 「没上报」：菜单据此置灰，但不能把整个页面读失败。
+  if (value === null || value === undefined) return null;
+  const record = requiredRecord(value, fieldName);
+  return {
+    surfaces: requiredStringArray(record.surfaces, `${fieldName}.surfaces`),
+    privileged: requiredBoolean(record.privileged, `${fieldName}.privileged`),
+  };
+}
+
+/** 键**可以不存在**的字符串数组：缺字段/`null` → `null`（「不知道」），**不是** `[]`（「一个都没有」）。 */
+function optionalStringArrayOrNull(
+  value: unknown,
+  fieldName: string,
+): string[] | null {
+  if (value === null || value === undefined) return null;
+  return requiredStringArray(value, fieldName);
+}
+
+/** 键**可以不存在**的数字：缺字段/`null` → `null`。有值就必须是数字（类型漂移不静默）。 */
+function optionalNumber(value: unknown, fieldName: string): number | null {
+  if (value === null || value === undefined) return null;
+  return requiredNumber(value, fieldName);
+}
+
+export function normalizeAgentInvestigations(
+  payload: unknown,
+): AgentInvestigationsView {
+  const record = requiredRecord(payload, "agentInvestigations");
+  const dir = requiredRecord(record.report_dir, "agentInvestigations.report_dir");
+  const reports = record.reports;
+  if (!Array.isArray(reports)) {
+    throw new Error("Invalid API response: missing agentInvestigations.reports");
+  }
+  const agentId = requiredString(record.agent_id, "agentInvestigations.agent_id");
+  return {
+    agentId,
+    capabilities: normalizeInvestigationCapabilities(
+      record.capabilities,
+      "agentInvestigations.capabilities",
+    ),
+    allowedTopics: optionalStringArrayOrNull(
+      record.allowed_topics,
+      "agentInvestigations.allowed_topics",
+    ),
+    retentionDays: optionalNumber(
+      record.retention_days,
+      "agentInvestigations.retention_days",
+    ),
+    reportDir: {
+      configured: requiredBoolean(
+        dir.configured,
+        "agentInvestigations.report_dir.configured",
+      ),
+      path: nullableString(
+        dir.path,
+        "agentInvestigations.report_dir.path",
+      ),
+    },
+    // 命令视图里的 `agent_id` 在**外层**（它是同一台机器的列表），不重复下发。
+    latestCommand: normalizeInvestigationCommand(record.latest_command, agentId),
+    reports: reports.map(normalizeInvestigationReportSummary),
+  };
+}
+
+/** 某台 Agent 的「最近一次调查 + 报告列表」（页面轮询这一个端点）。 */
+export async function fetchAgentInvestigations(
+  agentId: string,
+): Promise<AgentInvestigationsView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/investigations`,
+  );
+  return normalizeAgentInvestigations(payload);
+}
+
+/**
+ * 发起一次调查。
+ *
+ * 与「重采事实」一样，命令**不是立刻推送**：agent 在下一个状态上报回执里认领（≤3s）。
+ * 这里的返回值只代表「命令已入队」；报告要等数据面写进网关本机目录后才拿得到。
+ */
+export async function launchAgentInvestigation(
+  agentId: string,
+  input: LaunchInvestigationInput = {},
+): Promise<{
+  agentId: string;
+  capabilities: AgentInvestigationCapabilities | null;
+  allowedTopics: string[] | null;
+  command: AgentInvestigationCommand;
+}> {
+  const body: Record<string, unknown> = {};
+  if (input.topic !== undefined) body.topic = input.topic;
+  if (input.path !== undefined && input.path.trim() !== "")
+    body.path = input.path.trim();
+  if (input.top !== undefined) body.top = input.top;
+  if (input.minSize !== undefined) body.min_size = input.minSize;
+  if (input.depth !== undefined) body.depth = input.depth;
+  if (input.maxSeconds !== undefined) body.max_seconds = input.maxSeconds;
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/investigations`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  const record = requiredRecord(payload, "agentInvestigationLaunch");
+  const responseAgentId = requiredString(
+    record.agent_id,
+    "agentInvestigationLaunch.agent_id",
+  );
+  return {
+    agentId: responseAgentId,
+    capabilities: normalizeInvestigationCapabilities(
+      record.capabilities,
+      "agentInvestigationLaunch.capabilities",
+    ),
+    allowedTopics: optionalStringArrayOrNull(
+      record.allowed_topics,
+      "agentInvestigationLaunch.allowed_topics",
+    ),
+    command: normalizeInvestigationCommand(record.command, responseAgentId),
+  };
+}
+
+/** 读回一份完整报告（证据表原样返回）。 */
+export async function fetchAgentInvestigationReport(
+  agentId: string,
+  commandId: string,
+): Promise<AgentInvestigationReport> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/investigations/${encodeURIComponent(commandId)}`,
+  );
+  const record = requiredRecord(payload, "agentInvestigationReport");
+  return {
+    agentId: requiredString(record.agent_id, "agentInvestigationReport.agent_id"),
+    commandId: requiredString(
+      record.command_id,
+      "agentInvestigationReport.command_id",
+    ),
+    report: record.report,
+  };
+}
