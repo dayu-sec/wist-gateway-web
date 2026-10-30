@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fetchBackendVersion, normalizeBackendVersion } from "../src/api/admin";
 
 // 契约测试：网关（后端）与部署栈的版本端点 `GET /api/v1/version`。
@@ -106,6 +107,20 @@ try {
 }
 if (!rejectedBlankStackVersion) {
   throw new Error("a blank stack_version must be rejected");
+}
+
+// 仓内版本一致性：`version.txt` 是 gx 的版本源，`package.json` 由 `gx adm v_feat` 同步。
+// 两者不一致 = 有人只改了其中一个。发版之后最难发现（tag 已指向旧版本的文件），所以在 CI 里钉住；
+// 顺带提醒：只改 version.txt 时镜像里的版本号（`APP_VERSION=<tag>`）与本地构建会不一致。
+const repoRoot = new URL("..", import.meta.url).pathname;
+const versionFile = readFileSync(`${repoRoot}/version.txt`, "utf8").trim();
+const pkg = JSON.parse(readFileSync(`${repoRoot}/package.json`, "utf8")) as {
+  version?: unknown;
+};
+if (versionFile !== pkg.version) {
+  throw new Error(
+    `version.txt(${versionFile}) 与 package.json(${String(pkg.version)}) 不一致：用 gx adm v_feat 升版，别手工改`, 
+  );
 }
 
 console.log("gateway version contract test passed");
