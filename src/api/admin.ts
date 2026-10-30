@@ -5380,6 +5380,14 @@ export interface AgentInvestigationReportSummary {
   findingsFail: number;
 }
 
+/** 本 agent 的调查额度（页面据此解释 429，并让人看到「还剩几次」）。 */
+export interface AgentInvestigationQuota {
+  /** `[investigations] max_per_agent_per_hour`；`0` = 不限。 */
+  limitPerHour: number;
+  /** 最近一小时已发起次数；`null` = 网关数不出来（不影响其余展示）。 */
+  usedLastHour: number | null;
+}
+
 export interface AgentInvestigationsView {
   agentId: string;
   /**
@@ -5394,6 +5402,8 @@ export interface AgentInvestigationsView {
    * `null` = 网关**没下发这个字段** —— 于是 `[]`（一个都不许）与「网关是 S2 构建」不会被混成同一件事。
    */
   allowedTopics: string[] | null;
+  /** 本 agent 的额度使用情况；`null` = 网关没下发这个字段（S2 构建）。 */
+  quota: AgentInvestigationQuota | null;
   /** 报告可见保留天数（`0` = 不限）；`null` = 网关没下发这个字段（S2 构建）。 */
   retentionDays: number | null;
   /** 报告目录有没有挂进来；没挂时 `path` 为 `null`（页面要能说出这一点）。 */
@@ -5503,6 +5513,24 @@ function normalizeInvestigationCapabilities(
   };
 }
 
+function normalizeInvestigationQuota(
+  value: unknown,
+  fieldName: string,
+): AgentInvestigationQuota | null {
+  if (value === null || value === undefined) return null;
+  const record = requiredRecord(value, fieldName);
+  return {
+    limitPerHour: requiredNumber(
+      record.limit_per_hour,
+      `${fieldName}.limit_per_hour`,
+    ),
+    usedLastHour: optionalNumber(
+      record.used_last_hour,
+      `${fieldName}.used_last_hour`,
+    ),
+  };
+}
+
 /** 键**可以不存在**的字符串数组：缺字段/`null` → `null`（「不知道」），**不是** `[]`（「一个都没有」）。 */
 function optionalStringArrayOrNull(
   value: unknown,
@@ -5537,6 +5565,10 @@ export function normalizeAgentInvestigations(
     allowedTopics: optionalStringArrayOrNull(
       record.allowed_topics,
       "agentInvestigations.allowed_topics",
+    ),
+    quota: normalizeInvestigationQuota(
+      record.quota,
+      "agentInvestigations.quota",
     ),
     retentionDays: optionalNumber(
       record.retention_days,

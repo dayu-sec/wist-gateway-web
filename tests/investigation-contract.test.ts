@@ -65,6 +65,7 @@ function listPayload() {
     agent_id: "agent-x",
     capabilities: { surfaces: ["disk"], privileged: true },
     allowed_topics: ["disk"],
+    quota: { limit_per_hour: 12, used_last_hour: 3 },
     retention_days: 7,
     report_dir: {
       configured: true,
@@ -109,6 +110,8 @@ async function main() {
   assert(view.reports[0].overall === "warn", "overall 应透传");
   assert(view.latestCommand.requestedBy === "admin:9f2c1a7b3d40", "requested_by 应透传（审计回显）");
   assert(view.allowedTopics?.join(",") === "disk", "allowed_topics 应解析成数组");
+  assert(view.quota?.limitPerHour === 12, "quota.limit_per_hour 应透传（页面靠它解释 429）");
+  assert(view.quota?.usedLastHour === 3, "quota.used_last_hour 应透传");
   assert(view.retentionDays === 7, "retention_days 应透传");
   assert(view.capabilities?.privileged === true, "capabilities.privileged 应透传");
   assert(view.capabilities?.surfaces.join(",") === "disk", "capabilities.surfaces 应透传");
@@ -122,6 +125,7 @@ async function main() {
   });
   assert(legacy.allowedTopics === null, "缺 allowed_topics 必须读成 null（不是 []）");
   assert(legacy.retentionDays === null, "缺 retention_days 必须读成 null");
+  assert(legacy.quota === null, "缺 quota 必须读成 null（旧网关）");
   assert(legacy.capabilities === null, "缺 capabilities 必须读成 null");
 
   // ①c 空允许集是**真的**「一个都不许」：不能与上一例混为一谈
@@ -216,6 +220,18 @@ async function main() {
     threw = true;
   }
   assert(threw, "allowed_topics 非字符串数组应抛错");
+
+  // ⑤d 额度漂移（缺 limit_per_hour）也要冒出来：否则页面会把它显示成“不限”。
+  threw = false;
+  try {
+    normalizeAgentInvestigations({
+      ...listPayload(),
+      quota: { used_last_hour: 3 },
+    });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "quota 缺 limit_per_hour 应抛错");
 
   // ⑥ 404 透传成 ApiError（页面据此区分「旧网关」与「未知主机」）
   responder = () => new Response("unknown agent agent-x", { status: 404 });

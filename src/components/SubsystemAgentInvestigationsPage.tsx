@@ -457,6 +457,57 @@ export function SubsystemAgentInvestigationsPage(
         {launch.error ? (
           <p className={styles.error}>{actionErrorMessage(launch.error)}</p>
         ) : null}
+
+        {/*
+         * 授权与额度：以前只有一条 403/429 的报错，人得去翻代码才知道“找哪个开关”。这里把
+         * **生效值** 直接列出来，并在下面一行写清改哪里 —— 控制台只读，改完重启。
+         */}
+        {view ? (
+          <>
+            <dl className={styles.statusGrid}>
+              <dt>{t("允许的面", "Allowed surfaces")}</dt>
+              <dd>
+                {view.allowedTopics === null
+                  ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
+                  : view.allowedTopics.length === 0
+                    ? t("一个都不许", "None")
+                    : view.allowedTopics.map(topicLabel).join("、")}
+              </dd>
+              <dt>{t("本小时额度", "Hourly quota")}</dt>
+              <dd>
+                {view.quota === null
+                  ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
+                  : view.quota.limitPerHour === 0
+                    ? t("不限", "Unlimited")
+                    : `${view.quota.usedLastHour ?? "—"} / ${view.quota.limitPerHour}`}
+              </dd>
+              <dt>{t("报告保留", "Report retention")}</dt>
+              <dd>
+                {view.retentionDays === null
+                  ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
+                  : view.retentionDays === 0
+                    ? t("不限", "Unlimited")
+                    : t("{days} 天", "{days} day(s)", { days: view.retentionDays })}
+              </dd>
+              <dt>{t("Agent 自报能力", "Agent capabilities")}</dt>
+              <dd>
+                {capabilities === null
+                  ? t("尚未上报（旧 agentd / 刚升级）", "Not reported yet (old agentd / just upgraded)")
+                  : `${capabilities.surfaces.map(topicLabel).join("、")}${
+                      capabilities.privileged
+                        ? t("（root：完整答案）", " (root: complete answers)")
+                        : t("（非 root：部分答案）", " (non-root: partial answers)")
+                    }`}
+              </dd>
+            </dl>
+            <p className={styles.note}>
+              {t(
+                "这些是网关的生效值，改它们要改网关配置的 [investigations] 段（allowed_topics / max_per_agent_per_hour / report_retention_days），改完重启网关。",
+                "These are the gateway's effective values. Change them in the gateway config's [investigations] section (allowed_topics / max_per_agent_per_hour / report_retention_days), then restart the gateway.",
+              )}
+            </p>
+          </>
+        ) : null}
       </div>
 
       <div className={styles.section}>

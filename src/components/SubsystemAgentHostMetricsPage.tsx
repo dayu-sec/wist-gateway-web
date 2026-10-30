@@ -120,8 +120,9 @@ export function SubsystemAgentHostMetricsPage({}: SubsystemAgentHostMetricsPageP
             <span className={styles.liveDot} aria-hidden="true" />
             {t("5 秒自动刷新", "Auto refresh every 5 s")}
           </span>
-          {/* 三张 per-Agent 页面（主机指标 / 采集工作 / 用途）互为入口：
-              这一页是「机器怎么样」，下一步常是「它在采什么」，所以采集在前、用途在后。
+          {/* 三张 per-Agent 页面（主机指标 / 采集工作 / 用途 / 调查）互为入口：
+              这一页是「机器怎么样」，下一步常是「它在采什么」或「盘满了是谁占的」，
+              所以采集在前、用途居中、调查在后（调查是「出事了才去」的去处）。
               标签与机队列表、Agent 卡片保持同一套短词（不再加「查看」前缀）。 */}
           <Link
             className={styles.crossLink}
@@ -129,14 +130,22 @@ export function SubsystemAgentHostMetricsPage({}: SubsystemAgentHostMetricsPageP
           >
             {t("采集工作", "Collection work")} <span aria-hidden="true">→</span>
           </Link>
-          {/* 两个入口各带一个箭头，挨着放会被读成一条链（采集 → 用途）；
-              一根竖线把「两个独立去处」这件事说清楚。 */}
+          {/* 各入口带一个箭头，挨着放会被读成一条链（采集 → 用途）；
+              那根竖线把「几个独立去处」这件事说清楚。 */}
           <span className={styles.crossDivider} aria-hidden="true" />
           <Link
             className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/purpose`}
           >
             {t("用途", "Purpose")} <span aria-hidden="true">→</span>
+          </Link>
+          <span className={styles.crossDivider} aria-hidden="true" />
+          <Link
+            className={styles.crossLink}
+            to={`/agents/${encodeURIComponent(agentId)}/investigations`}
+          >
+            {t("一次性调查", "One-off investigation")}{" "}
+            <span aria-hidden="true">→</span>
           </Link>
         </div>
         <div className={styles.metaRow}>
