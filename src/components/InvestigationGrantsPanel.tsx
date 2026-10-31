@@ -10,12 +10,16 @@ import { t } from "../i18n";
 import styles from "./InvestigationGrantsPanel.module.css";
 
 /** 网关只认词表里的题目（新增题目要网关 + agentd 两侧一起加）。 */
-const TOPICS = ["disk"] as const;
+const TOPICS = ["disk", "load"] as const;
 
 function topicLabel(topic: string): string {
-  return topic === "disk"
-    ? t("disk（磁盘与文件）", "disk (storage & files)")
-    : topic;
+  if (topic === "disk") {
+    return t("disk（磁盘与文件）", "disk (storage & files)");
+  }
+  if (topic === "load") {
+    return t("load（负载、CPU 与内存）", "load (CPU & memory)");
+  }
+  return topic;
 }
 
 interface InvestigationGrantsPanelProps {

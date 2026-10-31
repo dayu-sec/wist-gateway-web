@@ -5,6 +5,15 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.25.0-alpha] - 2026-10-31
+
+### 新增（调查页 / 授权页认识 `load` 题）
+
+- `SubsystemAgentInvestigationsPage` 与 `InvestigationGrantsPanel` 的 `TOPICS` 加 `load`，
+  文案「load（负载、CPU 与内存）」；授权页的勾选、调查页的题目下拉与报告标题都自动多一项。
+- 配套：网关 ≥ `0.30.0-alpha`（词表） + agentd ≥ `0.14.0-alpha`（实现）。
+  旧 agentd 不会报这个能力，页面按「能力 ∩ 允许集」自然不显示——不会出现“点了没反应”。
+
 ## [0.24.0-alpha] - 2026-10-30
 
 ### 变更（授权页：采集面与调查面合并为两个 tab）
