@@ -38,7 +38,10 @@ export function InvestigationGrantsPanel({
 }: InvestigationGrantsPanelProps) {
   const agentsQuery = useRegisteredAgents();
   const agents = useMemo(
-    () => (agentsQuery.data ?? []).slice().sort((a, b) => a.agentId.localeCompare(b.agentId)),
+    () =>
+      (agentsQuery.data ?? [])
+        .slice()
+        .sort((a, b) => a.agentId.localeCompare(b.agentId)),
     [agentsQuery.data],
   );
   const [picked, setPicked] = useState<string | null>(initialAgentId);
@@ -52,7 +55,7 @@ export function InvestigationGrantsPanel({
   /** 继承时勾选状态就是网关默认（不是空）—— 否则人会以为“一个都没开”。 */
   const serverTopics = data?.grant?.inherited
     ? (ceiling ?? [])
-    : (data?.grant?.topics ?? (ceiling ?? []));
+    : (data?.grant?.topics ?? ceiling ?? []);
   const [draft, setDraft] = useState<string[] | null>(null);
   const setGrant = useSetAgentInvestigationGrant(agentId);
   const resetGrant = useResetAgentInvestigationGrant(agentId);
@@ -73,7 +76,9 @@ export function InvestigationGrantsPanel({
   return (
     <section className={styles.container}>
       <header className={styles.header}>
-        <h1 className={styles.title}>{t("调查授权", "Investigation grants")}</h1>
+        <h1 className={styles.title}>
+          {t("调查授权", "Investigation grants")}
+        </h1>
         <p className={styles.summary}>
           {t(
             "按机器决定「这台能不能查、能查哪几面」。网关配置里的 allowed_topics 是上界（环境策略，改完重启），这里只能在它之内收窄，改动即时生效，只影响下发。",
@@ -82,9 +87,21 @@ export function InvestigationGrantsPanel({
         </p>
       </header>
 
-      <div className={styles.picker}>
-        <label className={styles.field}>
-          <span>{t("主机", "Host")}</span>
+      <section className={styles.selector} aria-label={t("主机", "Host")}>
+        <div className={styles.selectorCopy}>
+          <div className={styles.selectorTitleRow}>
+            <h2 className={styles.selectorTitle}>{t("主机", "Host")}</h2>
+            <span className={styles.selectorCount}>{agents.length}</span>
+          </div>
+          <p className={styles.selectorHint}>
+            {t(
+              "选择要配置调查授权的主机；改动即时生效，只影响下发。",
+              "Select the host whose investigation grant you want to edit; changes take effect immediately and only affect dispatching.",
+            )}
+          </p>
+        </div>
+        <label className={styles.hostField}>
+          <span className={styles.srOnly}>{t("主机", "Host")}</span>
           <select
             value={agentId}
             onChange={(event) => {
@@ -94,20 +111,27 @@ export function InvestigationGrantsPanel({
             disabled={agents.length === 0}
           >
             {agents.length === 0 ? (
-              <option value="">{t("还没有已登记的 Agent", "No registered agents yet")}</option>
+              <option value="">
+                {t("还没有已登记的 Agent", "No registered agents yet")}
+              </option>
             ) : null}
             {agents.map((agent) => (
               <option key={agent.agentId} value={agent.agentId}>
-                {agent.hostname ? `${agent.hostname} · ${agent.agentId}` : agent.agentId}
+                {agent.hostname
+                  ? `${agent.hostname} · ${agent.agentId}`
+                  : agent.agentId}
               </option>
             ))}
           </select>
         </label>
-      </div>
+      </section>
 
       {agentsQuery.isError ? (
         <p className={styles.error}>
-          {t("读取主机列表失败，请检查 Admin Token 与网关。", "Failed to load hosts; check the Admin Token and the gateway.")}
+          {t(
+            "读取主机列表失败，请检查 Admin Token 与网关。",
+            "Failed to load hosts; check the Admin Token and the gateway.",
+          )}
         </p>
       ) : null}
 
@@ -119,34 +143,53 @@ export function InvestigationGrantsPanel({
         </p>
       ) : data ? (
         <>
-          <dl className={styles.grid}>
-            <dt>{t("允许的面（上界）", "Allowed surfaces (ceiling)")}</dt>
-            <dd>
-              {ceiling === null
-                ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
-                : ceiling.length === 0
-                  ? t("一个都不许", "None")
-                  : ceiling.map(topicLabel).join("、")}
-            </dd>
-            <dt>{t("本小时额度", "Hourly quota")}</dt>
-            <dd>
-              {data.quota === null
-                ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
-                : data.quota.limitPerHour === 0
-                  ? t("不限", "Unlimited")
-                  : `${data.quota.usedLastHour ?? "—"} / ${data.quota.limitPerHour}`}
-            </dd>
-            <dt>{t("Agent 自报能力", "Agent capabilities")}</dt>
-            <dd>
-              {capabilities === null
-                ? t("尚未上报（旧 agentd / 刚升级）", "Not reported yet (old agentd / just upgraded)")
-                : `${capabilities.surfaces.map(topicLabel).join("、")}${
-                    capabilities.privileged
-                      ? t("（root：完整答案）", " (root: complete answers)")
-                      : t("（非 root：部分答案）", " (non-root: partial answers)")
-                  }`}
-            </dd>
-          </dl>
+          <section className={styles.infoCard}>
+            <header className={styles.infoHead}>
+              <h2 className={styles.infoTitle}>
+                {t("权限与能力", "Permissions and capabilities")}
+              </h2>
+              <p className={styles.infoHint}>
+                {t(
+                  "网关配置给的上界、本小时额度和 Agent 本机自报能力。",
+                  "The gateway's ceiling, this hour's quota, and what the agent reports it can do.",
+                )}
+              </p>
+            </header>
+            <dl className={styles.grid}>
+              <dt>{t("允许的面（上界）", "Allowed surfaces (ceiling)")}</dt>
+              <dd>
+                {ceiling === null
+                  ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
+                  : ceiling.length === 0
+                    ? t("一个都不许", "None")
+                    : ceiling.map(topicLabel).join("、")}
+              </dd>
+              <dt>{t("本小时额度", "Hourly quota")}</dt>
+              <dd>
+                {data.quota === null
+                  ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
+                  : data.quota.limitPerHour === 0
+                    ? t("不限", "Unlimited")
+                    : `${data.quota.usedLastHour ?? "—"} / ${data.quota.limitPerHour}`}
+              </dd>
+              <dt>{t("Agent 自报能力", "Agent capabilities")}</dt>
+              <dd>
+                {capabilities === null
+                  ? t(
+                      "尚未上报（旧 agentd / 刚升级）",
+                      "Not reported yet (old agentd / just upgraded)",
+                    )
+                  : `${capabilities.surfaces.map(topicLabel).join("、")}${
+                      capabilities.privileged
+                        ? t("（root：完整答案）", " (root: complete answers)")
+                        : t(
+                            "（非 root：部分答案）",
+                            " (non-root: partial answers)",
+                          )
+                    }`}
+              </dd>
+            </dl>
+          </section>
 
           {data.grant === null ? (
             <p className={styles.warn}>
@@ -158,7 +201,9 @@ export function InvestigationGrantsPanel({
           ) : (
             <div className={styles.grantBox}>
               <div className={styles.grantHead}>
-                <strong>{t("这台机器开哪几面", "Surfaces enabled on this host")}</strong>
+                <strong>
+                  {t("这台机器开哪几面", "Surfaces enabled on this host")}
+                </strong>
                 <span className={styles.badge}>
                   {data.grant.inherited
                     ? t("继承网关默认", "Inherits gateway default")
@@ -166,7 +211,8 @@ export function InvestigationGrantsPanel({
                 </span>
                 {data.grant.updatedBy ? (
                   <span className={styles.note}>
-                    {t("最近修改", "Last change")}: <code>{data.grant.updatedBy}</code>{" "}
+                    {t("最近修改", "Last change")}:{" "}
+                    <code>{data.grant.updatedBy}</code>{" "}
                     {data.grant.updatedAt ?? "—"}
                   </span>
                 ) : null}
@@ -174,7 +220,8 @@ export function InvestigationGrantsPanel({
               <div className={styles.options}>
                 {TOPICS.map((topic) => {
                   const inCeiling = (ceiling ?? []).includes(topic);
-                  const supported = capabilities?.surfaces.includes(topic) ?? false;
+                  const supported =
+                    capabilities?.surfaces.includes(topic) ?? false;
                   return (
                     <label
                       key={topic}
@@ -212,24 +259,35 @@ export function InvestigationGrantsPanel({
                   type="button"
                   className={styles.primaryButton}
                   disabled={!hasToken || pending || !dirty}
-                  onClick={() => setGrant.mutate(selected, { onSuccess: resetDraft })}
+                  onClick={() =>
+                    setGrant.mutate(selected, { onSuccess: resetDraft })
+                  }
                 >
-                  {setGrant.isPending ? t("保存中…", "Saving…") : t("保存授权", "Save grant")}
+                  {setGrant.isPending
+                    ? t("保存中…", "Saving…")
+                    : t("保存授权", "Save grant")}
                 </button>
                 <button
                   type="button"
                   className={styles.secondaryButton}
                   disabled={
-                    !hasToken || pending || ((data.grant?.inherited ?? true) && draft === null)
+                    !hasToken ||
+                    pending ||
+                    ((data.grant?.inherited ?? true) && draft === null)
                   }
-                  onClick={() => resetGrant.mutate(undefined, { onSuccess: resetDraft })}
+                  onClick={() =>
+                    resetGrant.mutate(undefined, { onSuccess: resetDraft })
+                  }
                 >
                   {t("恢复继承", "Inherit again")}
                 </button>
               </div>
               {setGrant.error || resetGrant.error ? (
                 <p className={styles.error}>
-                  {t("保存失败：参数越界或网络异常（上界与词表见上表）。", "Save failed: out of range or network error (see the ceiling above).")}
+                  {t(
+                    "保存失败：参数越界或网络异常（上界与词表见上表）。",
+                    "Save failed: out of range or network error (see the ceiling above).",
+                  )}
                 </p>
               ) : null}
             </div>
