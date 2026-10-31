@@ -27,6 +27,8 @@ import {
   fetchAgentInvestigationReport,
   fetchAgentInvestigations,
   launchAgentInvestigation,
+  resetAgentInvestigationGrant,
+  setAgentInvestigationGrant,
   fetchAgentOverview,
   fetchAgentPurpose,
   fetchAgentRevocations,
@@ -1770,5 +1772,36 @@ export function useAgentInvestigationReport(
     queryFn: () => fetchAgentInvestigationReport(agentId, commandId as string),
     enabled: authenticated && Boolean(agentId) && commandId !== null,
     retry: factRefreshRetry,
+  });
+}
+
+/**
+ * 保存这台机器的调查允许集（**下界**，只影响下发）。
+ *
+ * 成功后失效调查视图：生效集由网关算（上界 ∩ 本机授权 ∩ 能力），页面不自己拼。
+ */
+export function useSetAgentInvestigationGrant(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (topics: string[]) =>
+      setAgentInvestigationGrant(agentId, topics),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-investigations", agentId],
+      });
+    },
+  });
+}
+
+/** 恢复**继承网关默认**（删本机行 = 跟着配置走）。 */
+export function useResetAgentInvestigationGrant(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => resetAgentInvestigationGrant(agentId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-investigations", agentId],
+      });
+    },
   });
 }

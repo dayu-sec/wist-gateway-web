@@ -5,7 +5,10 @@ import {
   useAgentInvestigationReport,
   useAgentInvestigations,
   useLaunchAgentInvestigation,
+  useResetAgentInvestigationGrant,
+  useSetAgentInvestigationGrant,
 } from "../hooks";
+import type { AgentInvestigationsView } from "../api";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { t } from "../i18n";
 import styles from "./SubsystemAgentInvestigationsPage.module.css";
@@ -242,6 +245,128 @@ function readReportBody(report: unknown): ReportBody | null {
   };
 }
 
+interface GrantEditorProps {
+  agentId: string;
+  view: AgentInvestigationsView;
+  hasToken: boolean;
+}
+
+/**
+ * 这台机器的调查授权编辑器（**下界**：只能在上界之内收窄）。
+ *
+ * 草稿 `draft` 只为“本地改动”存在：`null` 时直接读服务器值，保存/恢复成功后再回到 `null`，
+ * 于是别处改过（或宽限期重拉）时页面不会拿着旧草稿不放。
+ */
+function GrantEditor({ agentId, view, hasToken }: GrantEditorProps) {
+  const setGrant = useSetAgentInvestigationGrant(agentId);
+  const resetGrant = useResetAgentInvestigationGrant(agentId);
+  const ceiling = view.allowedTopics ?? [];
+  /** 继承时勾选状态就是网关默认（不是空）—— 否则人会以为“一个都没开”。 */
+  const serverTopics = view.grant?.inherited
+    ? ceiling
+    : (view.grant?.topics ?? []);
+  const [draft, setDraft] = useState<string[] | null>(null);
+  const selected = draft ?? serverTopics;
+  const dirty =
+    draft !== null &&
+    [...draft].sort().join("\n") !== [...serverTopics].sort().join("\n");
+  const pending = setGrant.isPending || resetGrant.isPending;
+  const toggle = (topic: string) => {
+    setDraft(
+      selected.includes(topic)
+        ? selected.filter((item) => item !== topic)
+        : [...selected, topic],
+    );
+  };
+
+  return (
+    <div className={styles.grantBox}>
+      <div className={styles.grantHead}>
+        <strong>{t("这台机器的调查授权", "Per-agent investigation grant")}</strong>
+        <span className={styles.grantBadge}>
+          {view.grant?.inherited
+            ? t("继承网关默认", "Inherits gateway default")
+            : t("本机自定义", "Custom for this agent")}
+        </span>
+        {view.grant?.updatedBy ? (
+          <span className={styles.note}>
+            {t("最近修改", "Last change")}: <code>{view.grant.updatedBy}</code>{" "}
+            {view.grant.updatedAt ?? "—"}
+          </span>
+        ) : null}
+      </div>
+      <div className={styles.grantOptions}>
+        {TOPICS.map((topic) => {
+          const inCeiling = ceiling.includes(topic);
+          const supported = view.capabilities?.surfaces.includes(topic) ?? false;
+          return (
+            <label
+              key={topic}
+              className={styles.grantOption}
+              title={
+                inCeiling
+                  ? undefined
+                  : t(
+                      "网关没有开启这个面，先改配置",
+                      "disabled on this gateway: change the config first",
+                    )
+              }
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(topic)}
+                disabled={!hasToken || pending || !inCeiling}
+                onChange={() => toggle(topic)}
+              />
+              <span>{topicLabel(topic)}</span>
+              {!supported ? (
+                <span className={styles.grantHint}>
+                  {t(
+                    "Agent 未上报：勾上也要等它升级才会生效",
+                    "agent has not reported it: takes effect only after the agent is upgraded",
+                  )}
+                </span>
+              ) : null}
+            </label>
+          );
+        })}
+      </div>
+      <div className={styles.grantActions}>
+        <button
+          type="button"
+          className={styles.primaryButton}
+          disabled={!hasToken || pending || !dirty}
+          onClick={() =>
+            setGrant.mutate(selected, { onSuccess: () => setDraft(null) })
+          }
+        >
+          {setGrant.isPending ? t("保存中…", "Saving…") : t("保存授权", "Save grant")}
+        </button>
+        <button
+          type="button"
+          className={styles.secondaryButton}
+          disabled={
+            !hasToken ||
+            pending ||
+            ((view.grant?.inherited ?? true) && draft === null)
+          }
+          onClick={() =>
+            resetGrant.mutate(undefined, { onSuccess: () => setDraft(null) })
+          }
+        >
+          {t("恢复继承", "Inherit again")}
+        </button>
+      </div>
+      {setGrant.error ? (
+        <p className={styles.error}>{actionErrorMessage(setGrant.error)}</p>
+      ) : null}
+      {resetGrant.error ? (
+        <p className={styles.error}>{actionErrorMessage(resetGrant.error)}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function SubsystemAgentInvestigationsPage(
   _props: SubsystemAgentInvestigationsPageProps,
 ) {
@@ -284,6 +409,30 @@ export function SubsystemAgentInvestigationsPage(
           reason: t(
             "本网关没有开启这个调查面",
             "this gateway has not enabled it",
+          ),
+        };
+      }
+      if (!legacyGateway && view.effectiveTopics !== null) {
+        if (view.effectiveTopics.includes(item)) {
+          return { topic: item, selectable: true, reason: "" };
+        }
+        // 生效集漏了它：要么机器不会，要么这台机器没被授权 —— 两句得分开说。
+        if (!capabilities?.surfaces.includes(item)) {
+          return {
+            topic: item,
+            selectable: false,
+            reason: t(
+              "这台 Agent 没有上报这个调查面（旧 agentd / 未实现）",
+              "this agent has not reported it (old agentd / not implemented)",
+            ),
+          };
+        }
+        return {
+          topic: item,
+          selectable: false,
+          reason: t(
+            "这台机器未被授权（在下面勾选并保存）",
+            "not granted to this agent (tick it below and save)",
           ),
         };
       }
@@ -506,6 +655,9 @@ export function SubsystemAgentInvestigationsPage(
                 "These are the gateway's effective values. Change them in the gateway config's [investigations] section (allowed_topics / max_per_agent_per_hour / report_retention_days), then restart the gateway.",
               )}
             </p>
+            {view.allowedTopics !== null && view.grant !== null ? (
+              <GrantEditor agentId={agentId} view={view} hasToken={hasToken} />
+            ) : null}
           </>
         ) : null}
       </div>

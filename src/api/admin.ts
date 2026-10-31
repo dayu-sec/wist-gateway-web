@@ -5380,6 +5380,28 @@ export interface AgentInvestigationReportSummary {
   findingsFail: number;
 }
 
+/**
+ * 按 agent 的调查授权（G1 的第二层）。
+ *
+ * `inherited = true` = 没有本机行，**跟随网关默认**（`[investigations] allowed_topics`）；
+ * `topics = []` 且 `inherited = false` = 这台机器**显式全关** —— 两件事在页面上要说清。
+ */
+export interface AgentInvestigationGrant {
+  inherited: boolean;
+  topics: string[];
+  updatedAt: string | null;
+  /** 谁改的（`admin:<token 指纹>`，不可反推）。 */
+  updatedBy: string | null;
+}
+
+/** 保存/恢复继承后的回包：一次性拿回允许集与**生效集**（页面直接刷新菜单）。 */
+export interface AgentInvestigationGrantView {
+  agentId: string;
+  grant: AgentInvestigationGrant;
+  /** 真正能跑的面 = 上界 ∩ 本机授权 ∩ agent 自报能力。 */
+  effectiveTopics: string[];
+}
+
 /** 本 agent 的调查额度（页面据此解释 429，并让人看到「还剩几次」）。 */
 export interface AgentInvestigationQuota {
   /** `[investigations] max_per_agent_per_hour`；`0` = 不限。 */
@@ -5397,11 +5419,15 @@ export interface AgentInvestigationsView {
    */
   capabilities: AgentInvestigationCapabilities | null;
   /**
-   * 本网关允许的面（`[investigations] allowed_topics` ∩ 词表）。
+   /** 本网关允许的面（`[investigations] allowed_topics` ∩ 词表）——**上界**。
    *
    * `null` = 网关**没下发这个字段** —— 于是 `[]`（一个都不许）与「网关是 S2 构建」不会被混成同一件事。
    */
   allowedTopics: string[] | null;
+  /** 按 agent 的允许集；`null` = 网关没下发这个字段（旧构建）。 */
+  grant: AgentInvestigationGrant | null;
+  /** 菜单该亮的集合（上界 ∩ 本机授权 ∩ 能力）；`null` = 旧构建，由页面自己算。 */
+  effectiveTopics: string[] | null;
   /** 本 agent 的额度使用情况；`null` = 网关没下发这个字段（S2 构建）。 */
   quota: AgentInvestigationQuota | null;
   /** 报告可见保留天数（`0` = 不限）；`null` = 网关没下发这个字段（S2 构建）。 */
@@ -5513,6 +5539,42 @@ function normalizeInvestigationCapabilities(
   };
 }
 
+function normalizeInvestigationGrant(
+  value: unknown,
+  fieldName: string,
+): AgentInvestigationGrant | null {
+  if (value === null || value === undefined) return null;
+  const record = requiredRecord(value, fieldName);
+  return {
+    inherited: requiredBoolean(record.inherited, `${fieldName}.inherited`),
+    topics: requiredStringArray(record.topics, `${fieldName}.topics`),
+    updatedAt: nullableString(record.updated_at, `${fieldName}.updated_at`),
+    updatedBy: nullableString(record.updated_by, `${fieldName}.updated_by`),
+  };
+}
+
+/** 保存/恢复继承的回包（两个写路径同一形状）。 */
+export function normalizeInvestigationGrantView(
+  payload: unknown,
+): AgentInvestigationGrantView {
+  const record = requiredRecord(payload, "agentInvestigationGrant");
+  const grant = normalizeInvestigationGrant(
+    record.grant,
+    "agentInvestigationGrant.grant",
+  );
+  if (grant === null) {
+    throw new Error("Invalid API response: missing agentInvestigationGrant.grant");
+  }
+  return {
+    agentId: requiredString(record.agent_id, "agentInvestigationGrant.agent_id"),
+    grant,
+    effectiveTopics: requiredStringArray(
+      record.effective_topics,
+      "agentInvestigationGrant.effective_topics",
+    ),
+  };
+}
+
 function normalizeInvestigationQuota(
   value: unknown,
   fieldName: string,
@@ -5565,6 +5627,14 @@ export function normalizeAgentInvestigations(
     allowedTopics: optionalStringArrayOrNull(
       record.allowed_topics,
       "agentInvestigations.allowed_topics",
+    ),
+    grant: normalizeInvestigationGrant(
+      record.grant,
+      "agentInvestigations.grant",
+    ),
+    effectiveTopics: optionalStringArrayOrNull(
+      record.effective_topics,
+      "agentInvestigations.effective_topics",
     ),
     quota: normalizeInvestigationQuota(
       record.quota,
@@ -5663,4 +5733,36 @@ export async function fetchAgentInvestigationReport(
     ),
     report: record.report,
   };
+}
+
+/**
+ * 设置这台机器的调查允许集（**下界**）。
+ *
+ * 只能在上界（`[investigations] allowed_topics`）之内收窄 —— 越界网关回 403，
+ * 不会静默夹住（否则页面看到的结果会与配置对不上）。`[]` = 显式全关。
+ */
+export async function setAgentInvestigationGrant(
+  agentId: string,
+  topics: string[],
+): Promise<AgentInvestigationGrantView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/investigations/grant`,
+    { method: "PUT", body: JSON.stringify({ topics }) },
+  );
+  return normalizeInvestigationGrantView(payload);
+}
+
+/**
+ * 恢复**继承网关默认**（删本机行）。
+ *
+ * 不存一份“当前默认的快照”：默认会被改（改配置重启），存快照就会与该网关的策略默默分叉。
+ */
+export async function resetAgentInvestigationGrant(
+  agentId: string,
+): Promise<AgentInvestigationGrantView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/investigations/grant`,
+    { method: "DELETE" },
+  );
+  return normalizeInvestigationGrantView(payload);
 }

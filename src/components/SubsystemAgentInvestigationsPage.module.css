@@ -393,3 +393,62 @@
   color: var(--text-2);
   word-break: break-all;
 }
+
+/* 按 agent 的授权编辑：勾选项 + 保存/恢复继承。 */
+.grantBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.02));
+}
+
+.grantHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.grantBadge {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+
+.grantOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.grantOption {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.grantOption input:disabled + span {
+  color: var(--text-4);
+}
+
+/* 「勾了也要等升级」这种附带条件：低于正文权重，但不能看不见。 */
+.grantHint {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.grantActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}

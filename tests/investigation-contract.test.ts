@@ -4,7 +4,9 @@ import {
   fetchAgentInvestigations,
   launchAgentInvestigation,
   normalizeAgentInvestigations,
+  resetAgentInvestigationGrant,
   setAdminApiToken,
+  setAgentInvestigationGrant,
 } from "../src/api/admin";
 
 // 契约测试：管理面「一次性调查」的读写路径与响应形状。
@@ -65,6 +67,13 @@ function listPayload() {
     agent_id: "agent-x",
     capabilities: { surfaces: ["disk"], privileged: true },
     allowed_topics: ["disk"],
+    grant: {
+      inherited: false,
+      topics: ["disk"],
+      updated_at: "2026-10-30T12:00:00+00:00",
+      updated_by: "admin:9f2c1a7b3d40",
+    },
+    effective_topics: ["disk"],
     quota: { limit_per_hour: 12, used_last_hour: 3 },
     retention_days: 7,
     report_dir: {
@@ -110,6 +119,13 @@ async function main() {
   assert(view.reports[0].overall === "warn", "overall 应透传");
   assert(view.latestCommand.requestedBy === "admin:9f2c1a7b3d40", "requested_by 应透传（审计回显）");
   assert(view.allowedTopics?.join(",") === "disk", "allowed_topics 应解析成数组");
+  assert(view.grant?.inherited === false, "grant.inherited 应透传");
+  assert(view.grant?.topics.join(",") === "disk", "grant.topics 应透传");
+  assert(
+    view.grant?.updatedBy === "admin:9f2c1a7b3d40",
+    "grant.updated_by 应透传（审计回显）",
+  );
+  assert(view.effectiveTopics?.join(",") === "disk", "effective_topics 应透传");
   assert(view.quota?.limitPerHour === 12, "quota.limit_per_hour 应透传（页面靠它解释 429）");
   assert(view.quota?.usedLastHour === 3, "quota.used_last_hour 应透传");
   assert(view.retentionDays === 7, "retention_days 应透传");
@@ -126,6 +142,8 @@ async function main() {
   assert(legacy.allowedTopics === null, "缺 allowed_topics 必须读成 null（不是 []）");
   assert(legacy.retentionDays === null, "缺 retention_days 必须读成 null");
   assert(legacy.quota === null, "缺 quota 必须读成 null（旧网关）");
+  assert(legacy.grant === null, "缺 grant 必须读成 null（旧网关）");
+  assert(legacy.effectiveTopics === null, "缺 effective_topics 必须读成 null");
   assert(legacy.capabilities === null, "缺 capabilities 必须读成 null");
 
   // ①c 空允许集是**真的**「一个都不许」：不能与上一例混为一谈
@@ -221,7 +239,17 @@ async function main() {
   }
   assert(threw, "allowed_topics 非字符串数组应抛错");
 
-  // ⑤d 额度漂移（缺 limit_per_hour）也要冒出来：否则页面会把它显示成“不限”。
+  // ⑤e 授权漂移（缺 inherited）也要冒出来：否则“继承/全关”会被读成同一件事。
+  threw = false;
+  try {
+    normalizeAgentInvestigations({
+      ...listPayload(),
+      grant: { topics: [] },
+    });
+  } catch {
+    threw = true;
+  }
+  assert(threw, "grant 缺 inherited 应抛错");
   threw = false;
   try {
     normalizeAgentInvestigations({
@@ -233,7 +261,43 @@ async function main() {
   }
   assert(threw, "quota 缺 limit_per_hour 应抛错");
 
-  // ⑥ 404 透传成 ApiError（页面据此区分「旧网关」与「未知主机」）
+  // ⑦ PUT / DELETE 授权：路径 / 方法 / body / 回包
+  const grantPayload = () => ({
+    agent_id: "agent-x",
+    grant: {
+      inherited: true,
+      topics: [],
+      updated_at: null,
+      updated_by: null,
+    },
+    effective_topics: ["disk"],
+  });
+
+  recorded = [];
+  responder = () => Response.json(grantPayload());
+  const saved = await setAgentInvestigationGrant("agent-x", ["disk"]);
+  assert(
+    recorded[0].url.endsWith("/api/v1/admin/agents/agent-x/investigations/grant"),
+    `PUT 路径不对：${recorded[0].url}`,
+  );
+  assert(recorded[0].method === "PUT", "授权必须用 PUT");
+  assert(
+    JSON.stringify(JSON.parse(recorded[0].body)) === JSON.stringify({ topics: ["disk"] }),
+    `PUT body 不对：${recorded[0].body}`,
+  );
+  assert(saved.grant.inherited === true, "回包 grant 应解析");
+  assert(saved.effectiveTopics.join(",") === "disk", "回包 effective_topics 应解析");
+
+  recorded = [];
+  responder = () => Response.json(grantPayload());
+  await resetAgentInvestigationGrant("agent-x");
+  assert(recorded[0].method === "DELETE", "恢复继承必须用 DELETE");
+  assert(
+    recorded[0].url.endsWith("/api/v1/admin/agents/agent-x/investigations/grant"),
+    `DELETE 路径不对：${recorded[0].url}`,
+  );
+
+  // ⑧ 404 透传成 ApiError（页面据此区分「旧网关」与「未知主机」）
   responder = () => new Response("unknown agent agent-x", { status: 404 });
   let error: unknown = null;
   try {
