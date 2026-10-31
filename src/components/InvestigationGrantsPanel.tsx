@@ -1,5 +1,12 @@
 import { useMemo, useState } from "react";
-import { getAdminApiToken } from "../api";
+import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
+import {
+  fetchAgentInvestigations,
+  getAdminApiToken,
+  setAgentInvestigationGrant,
+  type AgentInvestigationsView,
+  type AgentListEntryView,
+} from "../api";
 import {
   useAgentInvestigations,
   useRegisteredAgents,
@@ -7,10 +14,13 @@ import {
   useSetAgentInvestigationGrant,
 } from "../hooks";
 import { t } from "../i18n";
+import { summarizeAddresses } from "../lib/format";
 import styles from "./InvestigationGrantsPanel.module.css";
 
 /** 网关只认词表里的题目（新增题目要网关 + agentd 两侧一起加）。 */
 const TOPICS = ["disk", "load"] as const;
+/** 与采集授权的「一次最多检查 40 台」对齐：没有机队级聚合接口。 */
+const HOST_LIMIT = 40;
 
 function topicLabel(topic: string): string {
   if (topic === "disk") {
@@ -22,16 +32,24 @@ function topicLabel(topic: string): string {
   return topic;
 }
 
+function topicName(topic: string): string {
+  if (topic === "disk") return t("磁盘与文件", "Storage & files");
+  if (topic === "load") return t("负载、CPU 与内存", "CPU & memory");
+  return topic;
+}
+
 interface InvestigationGrantsPanelProps {
   /** 从别处深链进来时预选的主机（`?agent=<id>`）。 */
   initialAgentId?: string | null;
 }
 
+type Mode = "surface" | "host";
+
 /**
  * 调查授权（**按机器**的下界）。
  *
- * 为什么放在「授权」页而不是调查页：授权是**管理动作**（谁能在哪台机器上读什么），
- * 与「发起一次调查 / 看报告」是两件事 —— 放在一起会让人以为不授权就看不到已有报告。
+ * 与采集授权同构：默认**按调查面**选面 → 勾主机 → 批量开启；已开启的主机只读。
+ * 「按主机配置」保留原来的单机编辑（取消某个面 / 恢复继承），作为高级入口。
  */
 export function InvestigationGrantsPanel({
   initialAgentId = null,
@@ -44,15 +62,543 @@ export function InvestigationGrantsPanel({
         .sort((a, b) => a.agentId.localeCompare(b.agentId)),
     [agentsQuery.data],
   );
+  const hasToken = Boolean(getAdminApiToken());
+  // 深链带 agent 时直接进单机编辑；否则默认按调查面批量授权。
+  const [mode, setMode] = useState<Mode>(initialAgentId ? "host" : "surface");
+
+  return (
+    <section className={styles.container}>
+      <header className={styles.header}>
+        <div className={styles.headerCopy}>
+          <h1 className={styles.title}>
+            {t("调查授权", "Investigation grants")}
+          </h1>
+          <p className={styles.summary}>
+            {t(
+              "按调查面授权：选面、勾选可授权主机、批量开启；已开启的主机只读。网关配置里的 allowed_topics 是上界，这里只能在它之内收窄。需要取消某个面或恢复继承时，切到「按主机配置」。",
+              "Grant by investigation surface: pick a surface, select grantable hosts, and enable them in batch; hosts already enabled are read-only. The gateway's allowed_topics is the ceiling. To revoke a surface or restore inheritance, switch to “Configure by host”.",
+            )}
+          </p>
+        </div>
+        <button
+          type="button"
+          className={styles.secondaryLink}
+          onClick={() =>
+            setMode((current) => (current === "surface" ? "host" : "surface"))
+          }
+        >
+          {mode === "surface"
+            ? t("按主机配置", "Configure by host")
+            : t("按调查面授权", "Grant by surface")}{" "}
+          <span aria-hidden="true">→</span>
+        </button>
+      </header>
+
+      {agentsQuery.isError ? (
+        <p className={styles.error}>
+          {t(
+            "读取主机列表失败，请检查 Admin Token 与网关。",
+            "Failed to load hosts; check the Admin Token and the gateway.",
+          )}
+        </p>
+      ) : null}
+      {!hasToken ? (
+        <p className={styles.note}>
+          {t(
+            "未设置 Admin Token：先在右上角填入 Token 才能读取和修改授权。",
+            "No Admin Token is set: enter one from the top right before reading or changing grants.",
+          )}
+        </p>
+      ) : null}
+      {agentsQuery.isLoading && agents.length === 0 ? (
+        <p className={styles.note}>
+          {t("正在读取主机列表…", "Loading hosts…")}
+        </p>
+      ) : null}
+      {!agentsQuery.isLoading && agents.length === 0 ? (
+        <p className={styles.note}>
+          {t("还没有已登记的 Agent。", "No registered agents yet.")}
+        </p>
+      ) : null}
+
+      {agents.length > 0 && mode === "surface" ? (
+        <SurfaceGrantsView agents={agents} hasToken={hasToken} />
+      ) : null}
+      {agents.length > 0 && mode === "host" ? (
+        <HostGrantEditor
+          agents={agents}
+          initialAgentId={initialAgentId}
+          hasToken={hasToken}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+/* ========================================================================== */
+/* 按调查面批量授权                                                           */
+/* ========================================================================== */
+
+interface SurfaceHostState {
+  agent: AgentListEntryView;
+  view: AgentInvestigationsView | undefined;
+  loading: boolean;
+  error: boolean;
+  enabled: boolean;
+  canGrant: boolean;
+  inherited: boolean;
+  inCeiling: boolean;
+  supported: boolean | null;
+  reason: string | null;
+  topics: string[];
+  capability: string;
+  quota: string;
+}
+
+function hostSurfaceState(
+  agent: AgentListEntryView,
+  view: AgentInvestigationsView | undefined,
+  loading: boolean,
+  error: boolean,
+  surface: string,
+): SurfaceHostState {
+  if (loading || !view) {
+    return {
+      agent,
+      view,
+      loading,
+      error,
+      enabled: false,
+      canGrant: false,
+      inherited: true,
+      inCeiling: false,
+      supported: null,
+      reason: null,
+      topics: [],
+      capability: "—",
+      quota: "—",
+    };
+  }
+  const ceiling = view.allowedTopics;
+  const grant = view.grant;
+  const effective =
+    view.effectiveTopics ??
+    (grant?.inherited ? (ceiling ?? []) : (grant?.topics ?? []));
+  const enabled = effective.includes(surface);
+  const inCeiling = ceiling?.includes(surface) ?? false;
+  const supported = view.capabilities
+    ? view.capabilities.surfaces.includes(surface)
+    : null;
+  const canGrant = Boolean(grant) && inCeiling && !enabled;
+  let reason: string | null = null;
+  if (!grant) {
+    reason = t(
+      "网关是旧构建，不支持按机器授权",
+      "Old gateway: per-host grants unsupported",
+    );
+  } else if (ceiling === null) {
+    reason = t(
+      "网关没有下发允许面",
+      "The gateway did not report allowed surfaces",
+    );
+  } else if (!inCeiling) {
+    reason = t(
+      "网关没有开启这个面（allowed_topics）",
+      "This surface is not enabled on the gateway (allowed_topics)",
+    );
+  } else if (enabled) {
+    reason = grant.inherited
+      ? t("继承网关默认", "Inherits the gateway default")
+      : t("本机已自定义开启", "Explicitly enabled on this host");
+  } else if (!supported) {
+    reason = t(
+      "Agent 未上报这个面：勾选后等它升级才生效",
+      "The agent has not reported this surface; it takes effect after an upgrade",
+    );
+  }
+  const capability =
+    view.capabilities === null
+      ? t("能力未上报", "Capability not reported")
+      : `${view.capabilities.privileged ? t("root", "root") : t("非 root", "non-root")} · ${
+          supported
+            ? t("支持该面", "supports this surface")
+            : t("不支持该面", "does not support it")
+        }`;
+  const quota =
+    view.quota === null
+      ? t("额度未知", "Quota unknown")
+      : view.quota.limitPerHour === 0
+        ? t("额度不限", "Unlimited quota")
+        : t("额度 {used}/{limit}", "Quota {used}/{limit}", {
+            used: view.quota.usedLastHour ?? "—",
+            limit: view.quota.limitPerHour,
+          });
+  return {
+    agent,
+    view,
+    loading,
+    error,
+    enabled,
+    canGrant,
+    inherited: grant?.inherited ?? true,
+    inCeiling,
+    supported,
+    reason,
+    topics: grant ? (grant.inherited ? (ceiling ?? []) : grant.topics) : [],
+    capability,
+    quota,
+  };
+}
+
+function statusLabel(state: SurfaceHostState): string {
+  if (state.loading) return t("检查中…", "Checking…");
+  if (state.error) return t("读取失败", "Read failed");
+  if (state.enabled) return t("已开启", "Enabled");
+  if (state.canGrant) return t("可授权", "Grantable");
+  return t("不可授权", "Not grantable");
+}
+
+function statusClass(state: SurfaceHostState): string {
+  if (state.loading || state.error) return styles.stateMuted;
+  if (state.enabled) return styles.stateEnabled;
+  if (state.canGrant) return styles.stateGrantable;
+  return styles.stateBlocked;
+}
+
+function SurfaceGrantsView({
+  agents,
+  hasToken,
+}: {
+  agents: AgentListEntryView[];
+  hasToken: boolean;
+}) {
+  const [surface, setSurface] = useState<string>(TOPICS[0]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [notice, setNotice] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const limitedAgents = useMemo(() => agents.slice(0, HOST_LIMIT), [agents]);
+  const queries = useQueries({
+    queries: limitedAgents.map((agent) => ({
+      queryKey: ["agent-investigations", agent.agentId],
+      queryFn: () => fetchAgentInvestigations(agent.agentId),
+      enabled: hasToken && Boolean(agent.agentId),
+      retry: 1,
+    })),
+  });
+  const states = limitedAgents.map((agent, index) => {
+    const query = queries[index];
+    return hostSurfaceState(
+      agent,
+      query?.data,
+      Boolean(query?.isLoading),
+      Boolean(query?.isError),
+      surface,
+    );
+  });
+  const enabledCount = states.filter((state) => state.enabled).length;
+  const grantableCount = states.filter((state) => state.canGrant).length;
+  const grantableIds = states
+    .filter((state) => state.canGrant)
+    .map((state) => state.agent.agentId);
+  const allSelected =
+    grantableIds.length > 0 && grantableIds.every((id) => selected.has(id));
+
+  function chooseSurface(next: string) {
+    if (next === surface) return;
+    setSurface(next);
+    setSelected(new Set());
+    setNotice(null);
+  }
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(grantableIds));
+  }
+
+  const batch = useMutation({
+    mutationFn: async () => {
+      const targets = states.filter(
+        (state) => state.canGrant && selected.has(state.agent.agentId),
+      );
+      const results = await Promise.allSettled(
+        targets.map(async (state) => {
+          const grant = state.view?.grant;
+          if (!grant) throw new Error("no grant");
+          const current = grant.inherited
+            ? (state.view?.allowedTopics ?? [])
+            : grant.topics;
+          await setAgentInvestigationGrant(state.agent.agentId, [
+            ...new Set([...current, surface]),
+          ]);
+        }),
+      );
+      const failed = results.filter(
+        (result) => result.status === "rejected",
+      ).length;
+      return { total: targets.length, failed };
+    },
+    onSuccess: async ({ total, failed }) => {
+      setSelected(new Set());
+      setNotice(
+        failed === 0
+          ? t(
+              "已为 {n} 台主机开启「{surface}」。",
+              "Enabled “{surface}” on {n} hosts.",
+              { n: total, surface: topicName(surface) },
+            )
+          : t(
+              "已尝试 {total} 台，{failed} 台失败（其余成功）；请刷新后重试失败项。",
+              "Tried {total} hosts; {failed} failed (the rest succeeded). Refresh and retry the failed ones.",
+              { total, failed },
+            ),
+      );
+      await queryClient.invalidateQueries({
+        queryKey: ["agent-investigations"],
+      });
+    },
+    onError: () =>
+      setNotice(
+        t(
+          "批量授权失败，请检查网关与 Admin Token。",
+          "Batch grant failed; check the gateway and Admin Token.",
+        ),
+      ),
+  });
+  const pending = batch.isPending;
+
+  return (
+    <>
+      <section
+        className={styles.selector}
+        aria-label={t("调查面", "Investigation surfaces")}
+      >
+        <div className={styles.selectorCopy}>
+          <div className={styles.selectorTitleRow}>
+            <h2 className={styles.selectorTitle}>
+              {t("调查面", "Investigation surfaces")}
+            </h2>
+            <span className={styles.selectorCount}>{TOPICS.length}</span>
+          </div>
+          <p className={styles.selectorHint}>
+            {t(
+              "选面后勾选可授权主机，批量开启；已开启主机只读。",
+              "Pick a surface, select grantable hosts, and enable them in batch; already-enabled hosts are read-only.",
+            )}
+          </p>
+          <div
+            className={styles.surfaceTabs}
+            role="tablist"
+            aria-label={t("调查面", "Investigation surfaces")}
+          >
+            {TOPICS.map((topic) => {
+              const active = topic === surface;
+              const topicStates = limitedAgents.map((agent, index) =>
+                hostSurfaceState(
+                  agent,
+                  queries[index]?.data,
+                  Boolean(queries[index]?.isLoading),
+                  Boolean(queries[index]?.isError),
+                  topic,
+                ),
+              );
+              const enabled = topicStates.filter(
+                (state) => state.enabled,
+              ).length;
+              const grantable = topicStates.filter(
+                (state) => state.canGrant,
+              ).length;
+              return (
+                <button
+                  key={topic}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`${styles.surfaceTab} ${active ? styles.surfaceTabActive : ""}`}
+                  disabled={pending}
+                  onClick={() => chooseSurface(topic)}
+                >
+                  <span>{topicLabel(topic)}</span>
+                  <span className={styles.surfaceTabMeta}>
+                    {enabled} {t("已开启", "on")} · {grantable}{" "}
+                    {t("可授权", "grantable")}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section
+        className={styles.detail}
+        aria-label={t("调查面主机授权", "Investigation surface grants")}
+      >
+        <header className={styles.detailHead}>
+          <div className={styles.detailTitleRow}>
+            <div className={styles.detailTitleCopy}>
+              <h2 className={styles.detailTitle}>
+                {topicName(surface)}
+                <span className={styles.detailId}>{surface}</span>
+              </h2>
+              <p className={styles.detailSummary}>
+                {t(
+                  "按这个调查面查看主机：已开启只读；可授权主机勾选后批量开启；不可授权会说明上界或 Agent 能力原因。",
+                  "Hosts for this surface: enabled ones are read-only; select grantable hosts to enable in batch; blocked rows explain the ceiling or agent capability.",
+                )}
+              </p>
+            </div>
+            <span className={styles.countChip}>
+              {enabledCount} {t("已开启", "on")} · {grantableCount}{" "}
+              {t("可授权", "grantable")}
+            </span>
+          </div>
+        </header>
+
+        {limitedAgents.length < agents.length ? (
+          <p className={styles.limitNote}>
+            {t(
+              "只检查前 {shown} 台（共 {total} 台）；请用机队页确认范围。",
+              "Only the first {shown} of {total} hosts are checked; use the fleet page to narrow the scope.",
+              { shown: limitedAgents.length, total: agents.length },
+            )}
+          </p>
+        ) : null}
+
+        <div className={styles.listToolbar}>
+          <label className={styles.selectAll}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              disabled={pending || grantableIds.length === 0}
+              onChange={toggleAll}
+            />
+            <span>全选可授权</span>
+          </label>
+          <span className={styles.toolbarHint}>
+            {selected.size > 0
+              ? t("{n} 台已选", "{n} selected", { n: selected.size })
+              : t(
+                  "勾选可授权主机后批量开启",
+                  "Select grantable hosts to enable in batch",
+                )}
+          </span>
+        </div>
+
+        <div className={styles.hostList}>
+          {states.map((state) => {
+            const id = state.agent.agentId;
+            const addresses = summarizeAddresses(state.agent.ipAddresses ?? []);
+            const checked = state.enabled || selected.has(id);
+            return (
+              <div
+                key={id}
+                className={`${styles.hostRow} ${state.enabled ? styles.hostRowEnabled : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  className={styles.hostCheck}
+                  checked={checked}
+                  disabled={pending || !state.canGrant}
+                  aria-label={t("选择 {host}", "Select {host}", {
+                    host: state.agent.hostname || id,
+                  })}
+                  onChange={() => {
+                    if (state.canGrant) toggle(id);
+                  }}
+                />
+                <div className={styles.hostMain}>
+                  <span className={styles.hostName}>
+                    {state.agent.hostname || id}
+                  </span>
+                  <span className={styles.hostSub} title={id}>
+                    {id}
+                    {addresses.primary
+                      ? ` · ${addresses.primary}${addresses.others > 0 ? ` +${addresses.others}` : ""}`
+                      : ""}
+                  </span>
+                </div>
+                <span className={`${styles.stateBadge} ${statusClass(state)}`}>
+                  {statusLabel(state)}
+                </span>
+                <div className={styles.hostMeta}>
+                  <span>{state.capability}</span>
+                  <span>{state.quota}</span>
+                  {state.reason ? (
+                    <span
+                      className={
+                        state.enabled ? styles.metaMuted : styles.metaReason
+                      }
+                    >
+                      {state.reason}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={styles.batchBar}>
+          <span className={styles.batchCount}>
+            {selected.size > 0
+              ? t("{n} 台已选", "{n} selected", { n: selected.size })
+              : t(
+                  grantableCount > 0 ? "{n} 台可授权" : "当前没有可授权的主机",
+                  grantableCount > 0 ? "{n} grantable" : "No grantable host",
+                  { n: grantableCount },
+                )}
+          </span>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            disabled={pending || selected.size === 0}
+            onClick={() => batch.mutate()}
+          >
+            {pending
+              ? t("授权中…", "Granting…")
+              : t("授权选中主机（{n}）", "Grant selected ({n})", {
+                  n: selected.size,
+                })}
+          </button>
+        </div>
+
+        {notice ? (
+          <p className={styles.notice} role="status">
+            {notice}
+          </p>
+        ) : null}
+      </section>
+    </>
+  );
+}
+
+/* ========================================================================== */
+/* 按主机配置（取消面 / 恢复继承）                                            */
+/* ========================================================================== */
+
+function HostGrantEditor({
+  agents,
+  initialAgentId,
+  hasToken,
+}: {
+  agents: AgentListEntryView[];
+  initialAgentId: string | null;
+  hasToken: boolean;
+}) {
   const [picked, setPicked] = useState<string | null>(initialAgentId);
   const agentId = picked ?? agents[0]?.agentId ?? "";
   const view = useAgentInvestigations(agentId);
   const data = view.data;
-  const hasToken = Boolean(getAdminApiToken());
-
   const ceiling = data?.allowedTopics ?? null;
   const capabilities = data?.capabilities ?? null;
-  /** 继承时勾选状态就是网关默认（不是空）—— 否则人会以为“一个都没开”。 */
   const serverTopics = data?.grant?.inherited
     ? (ceiling ?? [])
     : (data?.grant?.topics ?? ceiling ?? []);
@@ -74,19 +620,7 @@ export function InvestigationGrantsPanel({
     );
 
   return (
-    <section className={styles.container}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>
-          {t("调查授权", "Investigation grants")}
-        </h1>
-        <p className={styles.summary}>
-          {t(
-            "按机器决定「这台能不能查、能查哪几面」。网关配置里的 allowed_topics 是上界（环境策略，改完重启），这里只能在它之内收窄，改动即时生效，只影响下发。",
-            "Decide per host whether it may investigate and which surfaces it may use. The gateway's allowed_topics is the ceiling (environment policy, needs a restart); this page can only narrow within it, takes effect immediately, and only affects dispatching.",
-          )}
-        </p>
-      </header>
-
+    <>
       <section className={styles.selector} aria-label={t("主机", "Host")}>
         <div className={styles.selectorCopy}>
           <div className={styles.selectorTitleRow}>
@@ -95,8 +629,8 @@ export function InvestigationGrantsPanel({
           </div>
           <p className={styles.selectorHint}>
             {t(
-              "选择要配置调查授权的主机；改动即时生效，只影响下发。",
-              "Select the host whose investigation grant you want to edit; changes take effect immediately and only affect dispatching.",
+              "单机编辑：可以取消某个面，或恢复继承网关默认。",
+              "Per-host editing: revoke a surface or restore inheritance from the gateway default.",
             )}
           </p>
         </div>
@@ -110,11 +644,6 @@ export function InvestigationGrantsPanel({
             }}
             disabled={agents.length === 0}
           >
-            {agents.length === 0 ? (
-              <option value="">
-                {t("还没有已登记的 Agent", "No registered agents yet")}
-              </option>
-            ) : null}
             {agents.map((agent) => (
               <option key={agent.agentId} value={agent.agentId}>
                 {agent.hostname
@@ -125,15 +654,6 @@ export function InvestigationGrantsPanel({
           </select>
         </label>
       </section>
-
-      {agentsQuery.isError ? (
-        <p className={styles.error}>
-          {t(
-            "读取主机列表失败，请检查 Admin Token 与网关。",
-            "Failed to load hosts; check the Admin Token and the gateway.",
-          )}
-        </p>
-      ) : null}
 
       {agentId === "" ? null : view.isLoading ? (
         <p className={styles.note}>{t("读取中…", "Loading…")}</p>
@@ -301,6 +821,6 @@ export function InvestigationGrantsPanel({
           </p>
         </>
       ) : null}
-    </section>
+    </>
   );
 }
