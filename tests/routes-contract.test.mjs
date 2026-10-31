@@ -118,19 +118,29 @@ check(
   "README 路由表缺少 /knowledge",
 );
 
-// ── ⑤b 采集授权：从「面」出发的批量授权入口，四处都要一致 ───────────────────
+// ── ⑤b 授权页：采集面与调查面两个 tab，四处都要一致 ────────────────────────
 check(
   app.includes('path="/collection-grants"') &&
-    app.includes("<SubsystemCollectionGrantPage />"),
-  "App.tsx 未把 /collection-grants 挂到 SubsystemCollectionGrantPage",
+    app.includes("<SubsystemAuthorizationPage />"),
+  "App.tsx 未把 /collection-grants 挂到 SubsystemAuthorizationPage",
+);
+check(
+  app.includes('path="/authorization"'),
+  "App.tsx 缺少 /authorization 兼容路由（旧书签会落到首页）",
 );
 check(
   nav.includes('to: "/collection-grants"'),
-  "侧边栏未指向 /collection-grants（按采集面授权就没有入口）",
+  "侧边栏未指向 /collection-grants（授权就没有入口）",
 );
 check(
   readme.includes("`/collection-grants`"),
   "README 路由表缺少 /collection-grants",
+);
+check(
+  read("src/components/SubsystemAuthorizationPage.tsx").includes(
+    "InvestigationGrantsPanel",
+  ),
+  "授权页没有挂上调查授权 tab（两个授权轴要能在一页里找到）",
 );
 
 // ── ⑥ 侧边栏每一项都要有面包屑：漏一条就落到 default 的「未知页面」 ─────────────

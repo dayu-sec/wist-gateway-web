@@ -125,7 +125,7 @@ React Query 缓存里，不会重新拉。
 | `/pipeline` | 数据采集管线（吞吐 / 配置与规则） |
 | `/logs` | 采集日志（下拉选文件 + tail 数据面输出；支持 `grep` 式行过滤） |
 | `/work` | 采集工作（按主机查看在采什么、授权/暂停/撤回） |
-| `/collection-grants` | 采集授权（按采集面选主机，批量授权） |
+| `/collection-grants` | 授权（两个 tab：采集面授权 = 按面选主机批量下发；调查授权 = 按主机勾选调查面，即时生效） |
 | `/fleet` | Agent 机队（在册 Agent，含离线；删除离线机器，不可恢复） |
 | `/upgrade` | Agent 升级（灰度发布计划） |
 | `/upgrade/:planId` | 升级计划详情 |

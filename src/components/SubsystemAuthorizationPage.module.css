@@ -1,0 +1,31 @@
+/* 授权页的 tab 条：与「数据采集」页同一套观感（下划线 tab，横跨内容宽度）。 */
+.tabs {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 var(--page-pad-x);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab,
+.tabActive {
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+}

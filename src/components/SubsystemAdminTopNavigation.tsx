@@ -266,7 +266,7 @@ function navGroups(): { label: string; items: NavItem[] }[] {
       { to: "/", label: t("Agent 总览", "Agent overview"), icon: <IconOverview />, end: true },
       { to: "/hosts", label: t("主机指标", "Host metrics"), icon: <IconHost /> },
       { to: "/work", label: t("采集工作", "Collection work"), icon: <IconWork /> },
-      { to: "/collection-grants", label: t("采集授权", "Collection grants"), icon: <IconGrant /> },
+      { to: "/collection-grants", label: t("授权", "Authorization"), icon: <IconGrant /> },
       { to: "/software", label: t("资产清单", "Software inventory"), icon: <IconSoftware /> },
       { to: "/pipeline", label: t("数据采集", "Data pipeline"), icon: <IconPipeline /> },
       { to: "/logs", label: t("采集日志", "Collection logs"), icon: <IconLogs /> },

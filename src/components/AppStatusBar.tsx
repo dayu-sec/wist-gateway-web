@@ -79,7 +79,7 @@ function describeRoute(pathname: string): RouteMeta {
     case "/collection-grants":
       return {
         section: "monitoring",
-        crumbs: [t("采集授权", "Collection grants")],
+        crumbs: [t("授权", "Authorization")],
       };
     case "/upgrade":
       return { section: "ops", crumbs: [t("Agent 升级", "Agent upgrade")] };

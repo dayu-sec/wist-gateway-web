@@ -1,0 +1,182 @@
+.container {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 16px var(--page-pad-x);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 750;
+  color: var(--text);
+}
+
+.summary {
+  margin: 0;
+  max-width: 76ch;
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.picker {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 280px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.field select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.grid dt {
+  color: var(--text-4);
+  font-weight: 700;
+}
+
+.grid dd {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.grantBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.02));
+}
+
+.grantHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.badge {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--text-4);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.option input:disabled + span {
+  color: var(--text-4);
+}
+
+.hint {
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.primaryButton,
+.secondaryButton {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast, #fff);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+}
+
+.note {
+  margin: 0;
+  color: var(--text-4);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.error {
+  margin: 0;
+  color: var(--crit);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.warn {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--warn);
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.6;
+}

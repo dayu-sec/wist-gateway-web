@@ -452,3 +452,22 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* 调查 ID：数据面报告与控制面命令的唯一关联键（可复制，便于去文件里 rg）。 */
+.idCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+}
+
+.idCell code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+.copyInline {
+  flex: 0 0 auto;
+}

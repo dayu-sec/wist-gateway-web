@@ -16,7 +16,7 @@ import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareIn
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
 import { SubsystemAgentInvestigationsPage } from "./components/SubsystemAgentInvestigationsPage";
-import { SubsystemCollectionGrantPage } from "./components/SubsystemCollectionGrantPage";
+import { SubsystemAuthorizationPage } from "./components/SubsystemAuthorizationPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
 import { SubsystemAgentFleetPage } from "./components/SubsystemAgentFleetPage";
@@ -58,7 +58,12 @@ export function App() {
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route path="/logs" element={<SubsystemAgentLogsPage />} />
         <Route path="/work" element={<SubsystemWorkListPage />} />
-        <Route path="/collection-grants" element={<SubsystemCollectionGrantPage />} />
+        <Route path="/collection-grants" element={<SubsystemAuthorizationPage />} />
+        {/* 旧路径兼容：`/authorization` 指向同一页（书签 / 深链不报错）。 */}
+        <Route
+          path="/authorization"
+          element={<Navigate to="/collection-grants" replace />}
+        />
         <Route path="/upgrade" element={<SubsystemAgentUpgradePage />} />
         <Route path="/fleet" element={<SubsystemAgentFleetPage />} />
         <Route path="/revocations" element={<SubsystemAgentRevocationPage />} />
