@@ -91,7 +91,22 @@ function listPayload() {
         findings_ok: 3,
         findings_warn: 1,
         findings_fail: 0,
+        findings_unknown: 0,
+        judged: true,
         seq: 42,
+      },
+      {
+        command_id: "cmd_agent-x_investigate_1780000000000001",
+        topic: "exposure",
+        observed_at: "2026-10-30T10:05:00Z",
+        overall: "ok",
+        verdict: "1 项证据（本调查不做安全判定）",
+        findings_ok: 1,
+        findings_warn: 0,
+        findings_fail: 0,
+        findings_unknown: 1,
+        judged: false,
+        seq: 43,
       },
     ],
   };
@@ -114,9 +129,17 @@ async function main() {
   assert(view.reportDir.path === "/data-plane/data/ivsrep", "report_dir.path 应透传");
   assert(view.latestCommand.commandId !== null, "最新命令应解析出来");
   assert(view.latestCommand.outcome === null, "outcome 的 null 是状态，不能变成 undefined");
-  assert(view.reports.length === 1, "报告列表应解析出来");
+  assert(view.reports.length === 2, "报告列表应解析出来");
   assert(view.reports[0].findingsWarn === 1, "findings_warn 应解析出来");
   assert(view.reports[0].overall === "warn", "overall 应透传");
+  // 新契约：`unknown` 计数与 `judged`。漏了它们，页面会把“读不到”当“正常”。
+  assert(view.reports[0].findingsUnknown === 0, "findings_unknown 应解析出来");
+  assert(view.reports[0].judged === true, "judged 应透传");
+  assert(
+    view.reports[1].findingsUnknown === 1,
+    "证据型题目的 unknown 计数不能丢",
+  );
+  assert(view.reports[1].judged === false, "judged=false 不能被默认成 true");
   assert(view.latestCommand.requestedBy === "admin:9f2c1a7b3d40", "requested_by 应透传（审计回显）");
   assert(view.allowedTopics?.join(",") === "disk", "allowed_topics 应解析成数组");
   assert(view.grant?.inherited === false, "grant.inherited 应透传");

@@ -16,7 +16,14 @@ interface SubsystemAgentInvestigationsPageProps {
 }
 
 /** 网关只认词表里的题目（新增题目要网关 + agentd 两侧一起加）。 */
-const TOPICS = ["disk", "load"] as const;
+const TOPICS = [
+  "disk",
+  "load",
+  "accounts",
+  "persistence",
+  "exposure",
+  "telemetry-health",
+] as const;
 type InvestigationTopic = (typeof TOPICS)[number];
 
 /** 题目的人话名字（下拉框与提示里同用一份）。 */
@@ -26,6 +33,18 @@ function topicLabel(topic: string): string {
   }
   if (topic === "load") {
     return t("load（负载、CPU 与内存）", "load (CPU & memory)");
+  }
+  if (topic === "accounts") {
+    return t("accounts（账号与授权）", "accounts (accounts & privileges)");
+  }
+  if (topic === "persistence") {
+    return t("persistence（开机自启与定时任务）", "persistence (boot & scheduled)");
+  }
+  if (topic === "exposure") {
+    return t("exposure（监听端口与暴露面）", "exposure (listening ports)");
+  }
+  if (topic === "telemetry-health") {
+    return t("telemetry-health（遥测健康）", "telemetry-health (telemetry health)");
   }
   return topic;
 }
@@ -166,7 +185,9 @@ function outcomeLabel(outcome: string | null): string {
   }
 }
 
-function overallLabel(overall: string): string {
+function overallLabel(overall: string, judged: boolean): string {
+  // 证据型题目（`judged=false`）：`ok` 不代表“这台机器安全”，只能说“表列完了”。
+  if (!judged) return t("证据", "Evidence");
   switch (overall) {
     case "ok":
       return t("正常", "OK");
@@ -185,6 +206,12 @@ interface ReportRow {
   note: string;
 }
 
+interface ReportCoverage {
+  checked: number;
+  denied: number;
+  skipped: number;
+}
+
 interface ReportFinding {
   id: string;
   status: string;
@@ -192,12 +219,30 @@ interface ReportFinding {
   detail: string;
   hint: string;
   rows: ReportRow[];
+  /** 读不到 / 被拒 / 跳过；旧报告与 `disk`/`load` 没有这一节。 */
+  coverage: ReportCoverage | null;
 }
 
 interface ReportBody {
   verdict: string;
   observedAt: string;
+  /** `false` = 只出证据、不做安全判定（当前只有 `exposure`）。 */
+  judged: boolean;
+  /** 能力边界（快照 / 未覆盖容器 / 非 root…）：不得被当成结论。 */
+  limits: string[];
   findings: ReportFinding[];
+}
+
+function readCoverage(value: unknown): ReportCoverage | null {
+  if (typeof value !== "object" || value === null) return null;
+  const record = value as Record<string, unknown>;
+  const number = (key: string) =>
+    typeof record[key] === "number" ? (record[key] as number) : 0;
+  return {
+    checked: number("checked"),
+    denied: number("denied"),
+    skipped: number("skipped"),
+  };
 }
 
 function stringField(record: Record<string, unknown>, key: string): string {
@@ -238,11 +283,17 @@ function readReportBody(report: unknown): ReportBody | null {
       detail: stringField(finding, "detail"),
       hint: stringField(finding, "hint"),
       rows,
+      coverage: readCoverage(finding.coverage),
     });
   }
   return {
     verdict: stringField(record, "verdict"),
     observedAt: stringField(record, "observed_at"),
+    // 旧报告没有这个字段：那些题都做安全判定，默认 true 是安全的。
+    judged: record.judged !== false,
+    limits: Array.isArray(record.limits)
+      ? record.limits.filter((item): item is string => typeof item === "string")
+      : [],
     findings,
   };
 }
@@ -414,16 +465,22 @@ export function SubsystemAgentInvestigationsPage(
               ))}
             </select>
           </label>
-          <label className={styles.field}>
-            <span>{t("扫描根（可空）", "Scan root (optional)")}</span>
-            <input
-              type="text"
-              value={path}
-              placeholder={t("留空 = 由题目挑最紧张的挂载点", "Empty = the topic picks the fullest mount")}
-              onChange={(event) => setPath(event.target.value)}
-              disabled={!hasToken || launch.isPending}
-            />
-          </label>
+          {/* 扫描根只对 `disk` 有意义；新三题不接这个参数，显示出来只会让人以为能限定范围。 */}
+          {effectiveTopic === "disk" ? (
+            <label className={styles.field}>
+              <span>{t("扫描根（可空）", "Scan root (optional)")}</span>
+              <input
+                type="text"
+                value={path}
+                placeholder={t(
+                  "留空 = 由题目挑最紧张的挂载点",
+                  "Empty = the topic picks the fullest mount",
+                )}
+                onChange={(event) => setPath(event.target.value)}
+                disabled={!hasToken || launch.isPending}
+              />
+            </label>
+          ) : null}
           <label className={`${styles.field} ${styles.fieldNarrow}`}>
             <span>{t("列前 N 条", "Top N")}</span>
             <input
@@ -654,10 +711,11 @@ export function SubsystemAgentInvestigationsPage(
                   </td>
                   <td>
                     <span className={styles[`overall_${item.overall}`] ?? styles.overall_unknown}>
-                      {overallLabel(item.overall)}
+                      {overallLabel(item.overall, item.judged)}
                     </span>
                     <span className={styles.counts}>
-                      {item.findingsOk}/{item.findingsWarn}/{item.findingsFail}
+                      {item.findingsOk}/{item.findingsWarn}/{item.findingsFail}/
+                      {item.findingsUnknown}
                     </span>
                   </td>
                   <td className={styles.verdictCell}>{item.verdict || "—"}</td>
@@ -701,6 +759,25 @@ export function SubsystemAgentInvestigationsPage(
             ) : (
               <>
                 <p className={styles.reportVerdict}>{reportBody.verdict}</p>
+                {/* 证据型题目：`ok` 不是“安全”，必须在正文里说清。 */}
+                {reportBody.judged ? null : (
+                  <p className={styles.note}>
+                    {t(
+                      "本调查只出证据，不做安全判定：上面的结论不表示这台机器是否安全。",
+                      "This investigation is evidence-only: the verdict above does not say whether the host is secure.",
+                    )}
+                  </p>
+                )}
+                {reportBody.limits.length > 0 ? (
+                  <div className={styles.note}>
+                    <strong>{t("能力边界", "Limits")}</strong>
+                    <ul>
+                      {reportBody.limits.map((limit) => (
+                        <li key={limit}>{limit}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {reportBody.findings.map((finding) => (
                   <div key={finding.id} className={styles.finding}>
                     <div className={styles.findingHead}>
@@ -714,6 +791,16 @@ export function SubsystemAgentInvestigationsPage(
                     ) : null}
                     {finding.hint ? (
                       <p className={styles.findingHint}>→ {finding.hint}</p>
+                    ) : null}
+                    {finding.coverage &&
+                    (finding.coverage.denied > 0 ||
+                      finding.coverage.skipped > 0) ? (
+                      <p className={styles.note}>
+                        {t(
+                          `覆盖：读到 ${finding.coverage.checked} / 被拒 ${finding.coverage.denied} / 跳过 ${finding.coverage.skipped}`,
+                          `Coverage: checked ${finding.coverage.checked} / denied ${finding.coverage.denied} / skipped ${finding.coverage.skipped}`,
+                        )}
+                      </p>
                     ) : null}
                     {finding.rows.length > 0 ? (
                       <table className={styles.rowsTable}>

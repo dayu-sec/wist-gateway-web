@@ -5378,6 +5378,10 @@ export interface AgentInvestigationReportSummary {
   findingsOk: number;
   findingsWarn: number;
   findingsFail: number;
+  /** 无法判定（读不到 / 平台不支持）：不能省 —— 少了它，页面会把“没读到”当“正常”。 */
+  findingsUnknown: number;
+  /** 这一题做不做安全判定。`false`（如 `exposure`）时结论不得渲染成“正常”。 */
+  judged: boolean;
 }
 
 /**
@@ -5523,6 +5527,10 @@ function normalizeInvestigationReportSummary(
       record.findings_fail,
       "agentInvestigationReport.findings_fail",
     ),
+    // 旧网关不下发这两个字段：那时只有做安全判定的题，所以 0 / true 是安全的默认。
+    findingsUnknown:
+      typeof record.findings_unknown === "number" ? record.findings_unknown : 0,
+    judged: typeof record.judged === "boolean" ? record.judged : true,
   };
 }
 

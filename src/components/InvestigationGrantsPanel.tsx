@@ -18,7 +18,14 @@ import { summarizeAddresses } from "../lib/format";
 import styles from "./InvestigationGrantsPanel.module.css";
 
 /** 网关只认词表里的题目（新增题目要网关 + agentd 两侧一起加）。 */
-const TOPICS = ["disk", "load"] as const;
+const TOPICS = [
+  "disk",
+  "load",
+  "accounts",
+  "persistence",
+  "exposure",
+  "telemetry-health",
+] as const;
 /** 与采集授权的「一次最多检查 40 台」对齐：没有机队级聚合接口。 */
 const HOST_LIMIT = 40;
 
@@ -29,12 +36,28 @@ function topicLabel(topic: string): string {
   if (topic === "load") {
     return t("load（负载、CPU 与内存）", "load (CPU & memory)");
   }
+  if (topic === "accounts") {
+    return t("accounts（账号与授权）", "accounts (accounts & privileges)");
+  }
+  if (topic === "persistence") {
+    return t("persistence（开机自启与定时任务）", "persistence (boot & scheduled)");
+  }
+  if (topic === "exposure") {
+    return t("exposure（监听端口与暴露面）", "exposure (listening ports)");
+  }
+  if (topic === "telemetry-health") {
+    return t("telemetry-health（遥测健康）", "telemetry-health (telemetry health)");
+  }
   return topic;
 }
 
 function topicName(topic: string): string {
   if (topic === "disk") return t("磁盘与文件", "Storage & files");
   if (topic === "load") return t("负载、CPU 与内存", "CPU & memory");
+  if (topic === "accounts") return t("账号与授权", "Accounts & privileges");
+  if (topic === "persistence") return t("开机自启", "Persistence");
+  if (topic === "exposure") return t("监听端口", "Listening ports");
+  if (topic === "telemetry-health") return t("遥测健康", "Telemetry health");
   return topic;
 }
 
