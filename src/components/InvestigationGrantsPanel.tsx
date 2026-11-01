@@ -3,7 +3,6 @@ import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import {
   fetchAgentInvestigations,
   getAdminApiToken,
-  resetAgentInvestigationGrant,
   setAgentInvestigationGrant,
   type AgentInvestigationsView,
   type AgentListEntryView,
@@ -48,13 +47,19 @@ function topicLabel(topic: string): string {
     return t("accounts（账号与授权）", "accounts (accounts & privileges)");
   }
   if (topic === "persistence") {
-    return t("persistence（开机自启与定时任务）", "persistence (boot & scheduled)");
+    return t(
+      "persistence（开机自启与定时任务）",
+      "persistence (boot & scheduled)",
+    );
   }
   if (topic === "exposure") {
     return t("exposure（监听端口与暴露面）", "exposure (listening ports)");
   }
   if (topic === "telemetry-health") {
-    return t("telemetry-health（遥测健康）", "telemetry-health (telemetry health)");
+    return t(
+      "telemetry-health（遥测健康）",
+      "telemetry-health (telemetry health)",
+    );
   }
   return topic;
 }
@@ -79,7 +84,8 @@ type Mode = "surface" | "host";
 /**
  * 调查授权（**按机器**的下界）。
  *
- * 与采集授权同构：默认**按调查面**选面 → 勾主机 → 批量开启 / 批量取消。
+ * 与采集授权同构：默认**按调查面**选面 → 勾可授权主机 → 批量开启；
+ * 已开启主机只读，取消 / 恢复默认去「按主机配置」。
  * 授权状态 = 上界（`allowed_topics`）∩ 本机授权，**不含** agent 能力 ——
  * 能力只是提示（G2 的另一道闸），混进来会让「已授权」与「跑得起来」互相冒充。
  * 「按主机配置」保留单机编辑（逐面勾选 / 恢复默认），作为高级入口。
@@ -98,6 +104,8 @@ export function InvestigationGrantsPanel({
   const hasToken = Boolean(getAdminApiToken());
   // 深链带 agent 时直接进单机编辑；否则默认按调查面批量授权。
   const [mode, setMode] = useState<Mode>(initialAgentId ? "host" : "surface");
+  /** 从某一行「配置」进来时，单机编辑直接选中那台。 */
+  const [hostAgent, setHostAgent] = useState<string | null>(initialAgentId);
 
   return (
     <section className={styles.container}>
@@ -108,8 +116,8 @@ export function InvestigationGrantsPanel({
           </h1>
           <p className={styles.summary}>
             {t(
-              "按调查面授权：**默认全关**（与采集面一致，不授权就不查）。选面 → 勾选主机即开启、取消勾选即关闭，保存后即时生效。网关配置里的 allowed_topics 是上界，授权只能在它之内；要逐面细调或清空某台，切到「按主机配置」。",
-              "Grant by investigation surface. Grants are **deny-by-default** (same as collection families: nothing is read until granted). Pick a surface, check to grant and uncheck to revoke; changes apply on save. The gateway's allowed_topics is the ceiling. Use “Configure by host” for per-surface editing or to clear a host.",
+              "按调查面授权：**默认全关**（与采集面一致，不授权就不查）。选面 → 勾选可授权主机 → 批量开启；已开启主机只读。取消或恢复默认去「按主机配置」，网关的 allowed_topics 是上界。",
+              "Grant by investigation surface. Grants are **deny-by-default** (same as collection families: nothing is read until granted). Pick a surface, select grantable hosts, and enable them in batch; enabled hosts are read-only. Use “Configure by host” to revoke or reset; the gateway's allowed_topics is the ceiling.",
             )}
           </p>
         </div>
@@ -155,12 +163,19 @@ export function InvestigationGrantsPanel({
       ) : null}
 
       {agents.length > 0 && mode === "surface" ? (
-        <SurfaceGrantsView agents={agents} hasToken={hasToken} />
+        <SurfaceGrantsView
+          agents={agents}
+          hasToken={hasToken}
+          onConfigureHost={(agentId) => {
+            setHostAgent(agentId);
+            setMode("host");
+          }}
+        />
       ) : null}
       {agents.length > 0 && mode === "host" ? (
         <HostGrantEditor
           agents={agents}
-          initialAgentId={initialAgentId}
+          initialAgentId={hostAgent ?? initialAgentId}
           hasToken={hasToken}
         />
       ) : null}
@@ -179,11 +194,10 @@ function surfaceStatusLabel(state: SurfaceGrantState): string {
     case "error":
       return t("读取失败", "Read failed");
     case "inherited":
-      return t("已开启 · 继承", "On · inherited");
     case "custom":
-      return t("已开启 · 本机", "On · custom");
+      return t("已开启", "On");
     case "off":
-      return t("未开启", "Off");
+      return t("可授权", "Grantable");
     default:
       return t("不可授权", "Not grantable");
   }
@@ -231,13 +245,15 @@ function quotaText(view: AgentInvestigationsView | undefined): string {
 function SurfaceGrantsView({
   agents,
   hasToken,
+  onConfigureHost,
 }: {
   agents: AgentListEntryView[];
   hasToken: boolean;
+  onConfigureHost: (agentId: string) => void;
 }) {
   const [surface, setSurface] = useState<string>(TOPICS[0]);
-  /** 只记「和服务器不一样」的行；保存时按它做差量（差量里既有开启也有关闭）。 */
-  const [draft, setDraft] = useState<Record<string, boolean>>({});
+  /** 只勾**还没开启**的主机；已开启的主机只读（与采集授权一致）。 */
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const limitedAgents = useMemo(() => agents.slice(0, HOST_LIMIT), [agents]);
@@ -263,85 +279,66 @@ function SurfaceGrantsView({
       }),
     };
   });
-  /** 页面上的当前值：改过的看草稿，没改的看服务器。 */
-  const desired = (state: SurfaceGrantState) =>
-    draft[state.agentId] ?? state.granted;
-  const changes = rows.filter(
-    (row) => row.state.canToggle && desired(row.state) !== row.state.granted,
-  );
-  const turningOn = changes.filter((row) => desired(row.state)).length;
-  const turningOff = changes.length - turningOn;
   const counts = countSurfaceGrantStates(rows.map((row) => row.state));
   const enabledCount = counts.inherited + counts.custom;
   const offCount = counts.off;
-  /** 「全选」只针对**服务器上本来就没开**的行，不会把别人的收权勾回来。 */
+  /** 只有「上界开着、本机没授权」的行能勾；已开启的行只读。 */
   const serverOff = rows.filter(
     (row) => row.state.kind === "off" && row.state.canToggle,
   );
   const allOffSelected =
     serverOff.length > 0 &&
-    serverOff.every((row) => draft[row.state.agentId] === true);
+    serverOff.every((row) => selected.has(row.state.agentId));
 
   function chooseSurface(next: string) {
     if (next === surface) return;
     setSurface(next);
-    setDraft({});
+    setSelected(new Set());
     setNotice(null);
   }
 
-  function setDesired(state: SurfaceGrantState, value: boolean) {
-    setDraft((current) => {
-      const next = { ...current };
-      if (value === state.granted) delete next[state.agentId];
-      else next[state.agentId] = value;
+  function toggle(agentId: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
       return next;
     });
   }
 
   function toggleAllOff() {
-    setDraft((current) => {
-      const next = { ...current };
-      for (const row of serverOff) {
-        if (allOffSelected) delete next[row.state.agentId];
-        else next[row.state.agentId] = true;
-      }
-      return next;
-    });
+    setSelected(
+      allOffSelected
+        ? new Set()
+        : new Set(serverOff.map((row) => row.state.agentId)),
+    );
   }
 
-  const save = useMutation({
+  const grant = useMutation({
     mutationFn: async () => {
       const targets = rows.filter(
-        (row) =>
-          row.state.canToggle && desired(row.state) !== row.state.granted,
+        (row) => row.state.kind === "off" && selected.has(row.state.agentId),
       );
       const results = await Promise.allSettled(
         targets.map(async (row) => {
-          const topics = surfaceGrantTopics(
-            row.state,
-            surface,
-            desired(row.state),
-          );
-          // `null` = 这一行不用写（理论上与上面的过滤同义，留一份保险）。
+          const topics = surfaceGrantTopics(row.state, surface, true);
           if (!topics) return;
           await setAgentInvestigationGrant(row.state.agentId, topics);
         }),
       );
       return {
         total: targets.length,
-        on: targets.filter((row) => desired(row.state)).length,
-        off: targets.filter((row) => !desired(row.state)).length,
         failed: results.filter((result) => result.status === "rejected").length,
       };
     },
-    onSuccess: async ({ total, on, off, failed }) => {
-      setDraft({});
+    onSuccess: async ({ total, failed }) => {
+      setSelected(new Set());
       setNotice(
         failed === 0
           ? t(
-              "已保存 {n} 台改动：开启 {on} 台、关闭 {off} 台。",
-              "Saved changes for {n} hosts: {on} enabled, {off} revoked.",
-              { n: total, on, off },
+              "已为 {n} 台主机开启「{surface}」。",
+              "Enabled “{surface}” on {n} hosts.",
+              { n: total, surface: topicName(surface) },
             )
           : t(
               "已尝试 {total} 台，{failed} 台失败（其余成功）；请刷新后重试失败项。",
@@ -356,40 +353,12 @@ function SurfaceGrantsView({
     onError: () =>
       setNotice(
         t(
-          "保存授权失败，请检查网关与 Admin Token。",
-          "Saving grants failed; check the gateway and the Admin Token.",
+          "授权失败，请检查网关与 Admin Token。",
+          "Granting failed; check the gateway and the Admin Token.",
         ),
       ),
   });
-
-  /** 单行「恢复默认」：删本机行（= 回到全关，不等批量保存）。 */
-  const resetOne = useMutation({
-    mutationFn: (agentId: string) => resetAgentInvestigationGrant(agentId),
-    onSuccess: async (_saved, agentId) => {
-      setDraft((current) => {
-        const next = { ...current };
-        delete next[agentId];
-        return next;
-      });
-      setNotice(
-        t(
-          "已恢复默认：这台机器回到全关。",
-          "Reset: this host is back to deny-all.",
-        ),
-      );
-      await queryClient.invalidateQueries({
-        queryKey: ["agent-investigations"],
-      });
-    },
-    onError: () =>
-      setNotice(
-        t(
-          "恢复默认失败，请检查网关与 Admin Token。",
-          "Reset failed; check the gateway and the Admin Token.",
-        ),
-      ),
-  });
-  const pending = save.isPending || resetOne.isPending;
+  const pending = grant.isPending;
 
   return (
     <>
@@ -406,8 +375,8 @@ function SurfaceGrantsView({
           </div>
           <p className={styles.selectorHint}>
             {t(
-              "选面 → 勾选主机即开启、取消勾选即关闭；点保存后即时生效。默认全关，Agent 能力只作提示，不拦授权。",
-              "Pick a surface; check to grant and uncheck to revoke, then save. Default is off; agent capability is a hint, not a gate.",
+              "选面 → 勾选可授权主机 → 批量开启；已开启主机只读。取消或恢复默认去「按主机配置」。默认全关，Agent 能力只作提示。",
+              "Pick a surface, select grantable hosts, and enable them in batch; enabled hosts are read-only. Use “Configure by host” to revoke or reset. Default is off; agent capability is a hint, not a gate.",
             )}
           </p>
           <div
@@ -430,18 +399,31 @@ function SurfaceGrantsView({
               const off = topicStates.filter(
                 (state) => state.kind === "off",
               ).length;
+              const dot =
+                on > 0 && off === 0
+                  ? styles.surfaceDotReady
+                  : on > 0 && off > 0
+                    ? styles.surfaceDotPartial
+                    : styles.surfaceDotOff;
               return (
                 <button
                   key={topic}
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  className={`${styles.surfaceTab} ${active ? styles.surfaceTabActive : ""}`}
+                  title={topicLabel(topic)}
+                  className={`${styles.surfaceChip} ${active ? styles.surfaceChipActive : ""}`}
                   disabled={pending}
                   onClick={() => chooseSurface(topic)}
                 >
-                  <span>{topicLabel(topic)}</span>
-                  <span className={styles.surfaceTabMeta}>
+                  <span
+                    className={`${styles.surfaceDot} ${dot}`}
+                    aria-hidden="true"
+                  />
+                  <span className={styles.surfaceChipName}>
+                    {topicName(topic)}
+                  </span>
+                  <span className={styles.surfaceChipState}>
                     {on} {t("已开启", "on")} · {off} {t("未开启", "off")}
                   </span>
                 </button>
@@ -464,14 +446,14 @@ function SurfaceGrantsView({
               </h2>
               <p className={styles.detailSummary}>
                 {t(
-                  "授权 = 上界（allowed_topics）∩ 本机。已开启的可取消（这台机器显式关闭），未开启的可勾选开启；不可授权的行会说明上界或旧网关原因。",
-                  "A grant is the ceiling (allowed_topics) intersect this host. Enabled rows can be revoked and off rows can be granted; blocked rows explain the ceiling or an old gateway.",
+                  "授权 = 上界（allowed_topics）∩ 本机。已开启主机只读；未开启主机勾选后批量开启；不可授权行说明上界或旧网关原因。",
+                  "A grant is the ceiling (allowed_topics) intersect this host. Enabled hosts are read-only; select off hosts to grant in batch; blocked rows explain the ceiling or an old gateway.",
                 )}
               </p>
             </div>
             <span className={styles.countChip}>
-              {enabledCount} {t("已开启", "on")} · {offCount}{" "}
-              {t("未开启", "off")}
+              {offCount} {t("可授权", "grantable")} · {enabledCount}{" "}
+              {t("已开启", "on")}
             </span>
           </div>
         </header>
@@ -494,12 +476,12 @@ function SurfaceGrantsView({
               disabled={pending || serverOff.length === 0}
               onChange={toggleAllOff}
             />
-            <span>{t("全选未开启", "Select all off")}</span>
+            <span>{t("全选可授权", "Select all grantable")}</span>
           </label>
           <span className={styles.toolbarHint}>
             {t(
-              "勾选=开启，取消勾选=关闭；保存后即时生效。",
-              "Check to grant, uncheck to revoke; applied on save.",
+              "已开启主机只读；取消某个面去「按主机配置」。",
+              "Enabled hosts are read-only; use “Configure by host” to revoke.",
             )}
           </span>
         </div>
@@ -508,7 +490,6 @@ function SurfaceGrantsView({
           {rows.map(({ agent, view, state }) => {
             const id = state.agentId;
             const addresses = summarizeAddresses(agent.ipAddresses ?? []);
-            const isOn = desired(state);
             return (
               <div
                 key={id}
@@ -517,16 +498,16 @@ function SurfaceGrantsView({
                 <input
                   type="checkbox"
                   className={styles.hostCheck}
-                  checked={isOn}
-                  disabled={pending || !state.canToggle}
+                  checked={state.granted || selected.has(id)}
+                  disabled={pending || state.granted || !state.canToggle}
                   aria-label={t(
-                    "开启 {host} 的这一面",
+                    "授权 {host} 的这一面",
                     "Grant this surface on {host}",
-                    {
-                      host: agent.hostname || id,
-                    },
+                    { host: agent.hostname || id },
                   )}
-                  onChange={() => setDesired(state, !isOn)}
+                  onChange={() => {
+                    if (!state.granted && state.canToggle) toggle(id);
+                  }}
                 />
                 <div className={styles.hostMain}>
                   <span className={styles.hostName}>
@@ -539,26 +520,16 @@ function SurfaceGrantsView({
                       : ""}
                   </span>
                 </div>
-                <div className={styles.stateCell}>
+                <div className={styles.rowCapability}>
+                  <span>{capabilityText(view, state)}</span>
+                  <span>{quotaText(view)}</span>
+                </div>
+                <div className={styles.rowState}>
                   <span
                     className={`${styles.stateBadge} ${surfaceStatusClass(state)}`}
                   >
                     {surfaceStatusLabel(state)}
                   </span>
-                  {state.kind === "custom" ? (
-                    <button
-                      type="button"
-                      className={styles.rowAction}
-                      disabled={pending}
-                      onClick={() => resetOne.mutate(id)}
-                    >
-                      {t("恢复默认", "Reset")}
-                    </button>
-                  ) : null}
-                </div>
-                <div className={styles.hostMeta}>
-                  <span>{capabilityText(view, state)}</span>
-                  <span>{quotaText(view)}</span>
                   {state.reason ? (
                     <span
                       className={
@@ -571,6 +542,14 @@ function SurfaceGrantsView({
                     </span>
                   ) : null}
                 </div>
+                <button
+                  type="button"
+                  className={styles.rowAction}
+                  disabled={pending}
+                  onClick={() => onConfigureHost(id)}
+                >
+                  {t("配置", "Configure")}
+                </button>
               </div>
             );
           })}
@@ -578,40 +557,26 @@ function SurfaceGrantsView({
 
         <div className={styles.batchBar}>
           <span className={styles.batchCount}>
-            {changes.length > 0
-              ? t(
-                  "{n} 台待改动（开启 {on} · 关闭 {off}）",
-                  "{n} pending (on {on} · off {off})",
-                  {
-                    n: changes.length,
-                    on: turningOn,
-                    off: turningOff,
-                  },
-                )
-              : t("勾选或取消勾选主机后保存", "Toggle a host, then save")}
+            {selected.size > 0
+              ? t("{n} 台已选", "{n} selected", { n: selected.size })
+              : serverOff.length > 0
+                ? t("{n} 台可授权", "{n} grantable", {
+                    n: serverOff.length,
+                  })
+                : t("当前没有可授权的主机", "No grantable host")}
           </span>
-          <div className={styles.batchActions}>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              disabled={pending || changes.length === 0}
-              onClick={() => setDraft({})}
-            >
-              {t("放弃改动", "Discard")}
-            </button>
-            <button
-              type="button"
-              className={styles.primaryButton}
-              disabled={pending || changes.length === 0}
-              onClick={() => save.mutate()}
-            >
-              {save.isPending
-                ? t("保存中…", "Saving…")
-                : t("保存改动（{n}）", "Save changes ({n})", {
-                    n: changes.length,
-                  })}
-            </button>
-          </div>
+          <button
+            type="button"
+            className={styles.primaryButton}
+            disabled={pending || selected.size === 0}
+            onClick={() => grant.mutate()}
+          >
+            {pending
+              ? t("授权中…", "Granting…")
+              : t("授权选中主机（{n}）", "Grant selected ({n})", {
+                  n: selected.size,
+                })}
+          </button>
         </div>
 
         {notice ? (
