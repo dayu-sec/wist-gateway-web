@@ -102,8 +102,9 @@ export function InvestigationGrantsPanel({
     [agentsQuery.data],
   );
   const hasToken = Boolean(getAdminApiToken());
-  // 深链带 agent 时直接进单机编辑；否则默认按调查面批量授权。
-  const [mode, setMode] = useState<Mode>(initialAgentId ? "host" : "surface");
+  // 默认永远进「按调查面」——与采集授权同一条路径，按钮也只有「授权选中主机」。
+  // 深链里的 agent 只用于「按主机配置」时预选主机，不再把整页换成保存表单。
+  const [mode, setMode] = useState<Mode>("surface");
   /** 从某一行「配置」进来时，单机编辑直接选中那台。 */
   const [hostAgent, setHostAgent] = useState<string | null>(initialAgentId);
 
