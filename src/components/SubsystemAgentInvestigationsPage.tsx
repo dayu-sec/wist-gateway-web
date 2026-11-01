@@ -159,11 +159,16 @@ function actionErrorMessage(error: unknown): string {
   return t("下发失败，请稍后重试。", "Failed to dispatch. Try again later.");
 }
 
-/** 命令结果的显示文案（与 `wist_api::status::command_outcome` 同一词表）。 */
-function outcomeLabel(outcome: string | null): string {
+/**
+ * 命令结果的显示文案（与 `wist_api::status::command_outcome` 同一词表）。
+ *
+ * `claimedAt` 不为空 = agent 已经取走、正在跑（阶段回报 `accepted`）：这时**不能**再显示
+ * 「等待认领」—— 一条 `disk` 调查默认要扫 120s，整段扫描都会被误读成「命令丢了」。
+ */
+function outcomeLabel(outcome: string | null, claimedAt: string | null): string {
   switch (outcome) {
     case null:
-      return t("等待认领", "Awaiting pickup");
+      return claimedAt ? t("调查中", "Running") : t("等待认领", "Awaiting pickup");
     case "succeeded":
       return t("已完成", "Succeeded");
     case "failed":
@@ -649,7 +654,7 @@ export function SubsystemAgentInvestigationsPage(
             ) : null}
             <dt>{t("状态", "Status")}</dt>
             <dd>
-              <span className={styles.statusPill}>{outcomeLabel(latest.outcome)}</span>
+              <span className={styles.statusPill}>{outcomeLabel(latest.outcome, latest.claimedAt)}</span>
               {latest.detail ? <span className={styles.statusDetail}>{latest.detail}</span> : null}
             </dd>
             <dt>{t("下发时刻", "Requested at")}</dt>
@@ -659,7 +664,12 @@ export function SubsystemAgentInvestigationsPage(
               {latestHasReport
                 ? t("已落盘", "Stored")
                 : latest.outcome === null
-                  ? t("等 Agent 认领（≤3s）", "Waiting for the agent to pick it up (≤3s)")
+                  ? latest.claimedAt
+                    ? t(
+                        "调查中（结果要等扫描结束，经数据面回传）",
+                        "Running (the report arrives via the data plane once the scan finishes)",
+                      )
+                    : t("等 Agent 认领（≤3s）", "Waiting for the agent to pick it up (≤3s)")
                   : t(
                       "还没到（经数据面回传，可能要几十秒；也可能数据面没接这条通道）",
                       "Not here yet (it travels via the data plane; may take tens of seconds, or the data plane may not route it)",

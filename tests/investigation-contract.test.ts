@@ -56,6 +56,7 @@ function commandPayload() {
     kind: "investigate",
     requested_by: "admin:9f2c1a7b3d40",
     requested_at: "2026-10-30T10:00:00+00:00",
+    claimed_at: null,
     acknowledged_at: null,
     outcome: null,
     detail: null,
@@ -129,6 +130,10 @@ async function main() {
   assert(view.reportDir.path === "/data-plane/data/ivsrep", "report_dir.path 应透传");
   assert(view.latestCommand.commandId !== null, "最新命令应解析出来");
   assert(view.latestCommand.outcome === null, "outcome 的 null 是状态，不能变成 undefined");
+  assert(
+    view.latestCommand.claimedAt === null,
+    "claimed_at 的 null 是状态（还没取走），不能变成 undefined",
+  );
   assert(view.reports.length === 2, "报告列表应解析出来");
   assert(view.reports[0].findingsWarn === 1, "findings_warn 应解析出来");
   assert(view.reports[0].overall === "warn", "overall 应透传");
@@ -177,6 +182,35 @@ async function main() {
   });
   assert(noneAllowed.allowedTopics?.length === 0, "空允许集要保留成 []");
   assert(noneAllowed.capabilities === null, "capabilities: null = 还没上报");
+
+  // ①d 认领时刻（阶段回报 `accepted`）：页面靠它把「等待认领」换成「调查中」。
+  const claimed = normalizeAgentInvestigations({
+    ...listPayload(),
+    latest_command: {
+      ...commandPayload(),
+      claimed_at: "2026-10-30T10:00:02Z",
+    },
+  });
+  assert(
+    claimed.latestCommand.claimedAt === "2026-10-30T10:00:02Z",
+    "claimed_at 有值时应透传（页面据此显示「调查中」）",
+  );
+  assert(
+    claimed.latestCommand.outcome === null,
+    "认领不是终态：outcome 仍应为 null",
+  );
+
+  // ①e 老网关（没有 `claimed_at` 这个字段）：读成 `null`（= 不知道/没认领），不能判契约漂移。
+  const legacyCommand: Record<string, unknown> = { ...commandPayload() };
+  delete legacyCommand.claimed_at;
+  const noClaimedField = normalizeAgentInvestigations({
+    ...listPayload(),
+    latest_command: legacyCommand,
+  });
+  assert(
+    noClaimedField.latestCommand.claimedAt === null,
+    "缺 claimed_at 的旧网关要读成 null，不能抛错",
+  );
 
   // ② POST：字段名 + 空值不发
   recorded = [];

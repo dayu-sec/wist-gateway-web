@@ -5352,6 +5352,13 @@ export interface AgentInvestigationCommand {
   /** 谁发起的（审计）：`admin:<token 指纹>`；`null` / 空串 = 本机命令或历史记录。 */
   requestedBy: string | null;
   requestedAt: string | null;
+  /**
+   * agent **取走**命令的时刻（阶段回报 `accepted`）；`null` = 还没被取走。
+   *
+   * 与 `acknowledgedAt`（终态）分开：一条 `disk` 调查默认要扫 120s，页面靠它把
+   * 「等待认领」换成「调查中」，否则整段扫描看起来都像命令丢了。
+   */
+  claimedAt: string | null;
   acknowledgedAt: string | null;
   outcome: AgentInvestigationOutcome | null;
   detail: string | null;
@@ -5482,6 +5489,13 @@ function normalizeInvestigationCommand(
       record.requested_at,
       "agentInvestigationCommand.requested_at",
     ),
+    claimedAt:
+      record.claimed_at === undefined
+        ? null
+        : nullableString(
+            record.claimed_at,
+            "agentInvestigationCommand.claimed_at",
+          ),
     acknowledgedAt: nullableString(
       record.acknowledged_at,
       "agentInvestigationCommand.acknowledged_at",
