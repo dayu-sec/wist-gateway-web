@@ -11,19 +11,16 @@ type GrantTab = "collection" | "investigation";
  * 授权页（tab 壳）。
  *
  * 为什么不把两块合成一张表：采集授权是“按面选主机、批量下发常驻工作”，调查授权是
- * “按主机勾面、即时生效” —— 操作对象与生效方式都不同。共用一页省的是“去哪找”，
- * 不是“合成一个表单”。
+ * “按面选主机、批量开启调查面” —— 授权动作不同，但入口都收在采集面／调查面。
  */
 export function SubsystemAuthorizationPage() {
   const [params, setParams] = useSearchParams();
   const tab: GrantTab =
     params.get("tab") === "investigation" ? "investigation" : "collection";
-  const agent = params.get("agent");
-
   const select = (next: GrantTab) => {
     const merged = new URLSearchParams(params);
     merged.set("tab", next);
-    // tab 与主机选择都进 URL：刷新/分享都还能停在同一处。
+    // tab 进 URL：刷新/分享都还能停在同一处。
     setParams(merged, { replace: true });
   };
 
@@ -50,7 +47,7 @@ export function SubsystemAuthorizationPage() {
         </button>
       </nav>
       {tab === "investigation" ? (
-        <InvestigationGrantsPanel initialAgentId={agent} />
+        <InvestigationGrantsPanel />
       ) : (
         <SubsystemCollectionGrantPage />
       )}
