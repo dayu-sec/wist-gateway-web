@@ -635,6 +635,37 @@
   white-space: nowrap;
 }
 
+.stateCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rowAction {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rowAction:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.rowAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .stateBadge {
   display: inline-flex;
   align-items: center;
@@ -697,6 +728,12 @@
   padding: 11px 18px;
   border-top: 1px solid var(--border);
   background: var(--surface-2);
+}
+
+.batchActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .batchCount {

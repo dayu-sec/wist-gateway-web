@@ -106,3 +106,8 @@ jobs:
       # 以及菜单可用性的 `allowed_topics` / `capabilities` / `retention_days`（`[]` 是“全禁”、`null` 是“旧网关”）。
       - name: Test (investigation contract)
         run: npm run test:investigations
+
+      # 调查授权页的纯判定：已授权 = 上界 ∩ 本机（不含 agent 能力）、
+      # 继承默认也算已开启（可取消）、取消写的是本机清单减这一面。
+      - name: Test (investigation grant state)
+        run: npm run test:investigation-grants

@@ -1,7 +1,7 @@
 {
   "name": "wist-gateway-web",
   "private": true,
-  "version": "0.27.0",
+  "version": "0.28.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -45,6 +45,7 @@
     "test:discovery-snapshot": "tsx tests/discovery-snapshot-contract.test.ts",
     "test:fact-refresh": "tsx tests/fact-refresh-contract.test.ts",
     "test:investigations": "tsx tests/investigation-contract.test.ts",
+    "test:investigation-grants": "tsx tests/investigation-grant-state.test.ts",
     "test:collection-preflight": "tsx tests/collection-preflight-contract.test.ts",
     "test:advertise-url": "tsx tests/advertise-url-contract.test.ts",
     "preview": "vite preview",

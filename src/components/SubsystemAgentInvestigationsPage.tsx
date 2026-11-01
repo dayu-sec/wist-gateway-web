@@ -362,8 +362,8 @@ export function SubsystemAgentInvestigationsPage(
           topic: item,
           selectable: false,
           reason: t(
-            "这台机器未被授权（在下面勾选并保存）",
-            "not granted to this agent (tick it below and save)",
+            "这台机器未被授权（去「授权 → 调查授权」勾选）",
+            "not granted to this agent (grant it on the Authorization page)",
           ),
         };
       }
@@ -502,7 +502,7 @@ export function SubsystemAgentInvestigationsPage(
               : t("开始调查", "Start investigation")}
           </button>
         </form>
-        {/* 走到这里 = 一个面都点不了。旧网关不进来（它会全列为可点），所以只需分两种原因。 */}
+        {/* 走到这里 = 一个面都点不了。旧网关不进来（它会全列为可点），所以分三种原因。 */}
         {effectiveTopic === null ? (
           <p className={styles.warn}>
             {view?.allowedTopics?.length === 0
@@ -510,10 +510,17 @@ export function SubsystemAgentInvestigationsPage(
                   "本网关关闭了所有调查面（[investigations] allowed_topics = []）：要么改配置，要么用别的网关。",
                   "This gateway has disabled every investigation surface ([investigations] allowed_topics = []): change the config or use another gateway.",
                 )
-              : t(
-                  "这台 Agent 还没上报调查能力（旧 agentd / 刚升级）：等它下一次状态上报（≤3s）后再刷新。",
-                  "This agent has not reported its investigation capabilities yet (old agentd / just upgraded): refresh after its next status report (≤3s).",
-                )}
+              : !legacyGateway &&
+                  view?.grant !== null &&
+                  view?.grant.topics.length === 0
+                ? t(
+                    "这台机器还没被授权任何调查面（默认全关，与采集面一致）：先到「授权 → 调查授权」勾选并保存。",
+                    "No investigation surface is granted to this host yet (deny-by-default, same as collection families): grant it on the Authorization page first.",
+                  )
+                : t(
+                    "这台 Agent 还没上报调查能力（旧 agentd / 刚升级）：等它下一次状态上报（≤3s）后再刷新。",
+                    "This agent has not reported its investigation capabilities yet (old agentd / just upgraded): refresh after its next status report (≤3s).",
+                  )}
           </p>
         ) : null}
         {capabilities && !capabilities.privileged ? (
@@ -558,6 +565,19 @@ export function SubsystemAgentInvestigationsPage(
                   : view.allowedTopics.length === 0
                     ? t("一个都不许", "None")
                     : view.allowedTopics.map(topicLabel).join("、")}
+              </dd>
+              <dt>{t("本机已授权", "Granted to this host")}</dt>
+              <dd>
+                {view.grant === null
+                  ? t("未知（网关是旧构建）", "Unknown (old gateway build)")
+                  : view.grant.inherited
+                    ? t(
+                        "跟随网关默认（旧构建）",
+                        "Gateway default (old build)",
+                      )
+                    : view.grant.topics.length === 0
+                      ? t("未授权任何面", "No surface granted")
+                      : view.grant.topics.map(topicLabel).join("、")}
               </dd>
               <dt>{t("本小时额度", "Hourly quota")}</dt>
               <dd>
@@ -654,8 +674,8 @@ export function SubsystemAgentInvestigationsPage(
         {view && !view.reportDir.configured ? (
           <p className={styles.note}>
             {t(
-              "网关没有挂载报告目录（[data_plane] work_dir 未配置）：只能看到下发状态，看不到完整报告。",
-              "The gateway has no report directory mounted ([data_plane] work_dir unset): only the dispatch status is visible, not the full report.",
+              "网关没有可读的报告目录（[data_plane] work_dir 与 [investigations] report_dir 都没配）：只能看到下发状态，看不到完整报告。",
+              "The gateway has no readable report directory ([data_plane] work_dir and [investigations] report_dir are both unset): only the dispatch status is visible, not the full report.",
             )}
           </p>
         ) : null}

@@ -5387,8 +5387,9 @@ export interface AgentInvestigationReportSummary {
 /**
  * 按 agent 的调查授权（G1 的第二层）。
  *
- * `inherited = true` = 没有本机行，**跟随网关默认**（`[investigations] allowed_topics`）；
- * `topics = []` 且 `inherited = false` = 这台机器**显式全关** —— 两件事在页面上要说清。
+ * **默认全关**（与采集面一致）：没有本机行 = 一个面都不开（`topics = []`）。
+ * `inherited` 是旧构建的形态（没有本机行 = 跟随上界），新构建恒为 `false`；
+ * 页面只在遇到旧构建时按它把上界当成已授权。
  */
 export interface AgentInvestigationGrant {
   inherited: boolean;
@@ -5398,7 +5399,7 @@ export interface AgentInvestigationGrant {
   updatedBy: string | null;
 }
 
-/** 保存/恢复继承后的回包：一次性拿回允许集与**生效集**（页面直接刷新菜单）。 */
+/** 保存 / 恢复默认后的回包：一次性拿回允许集与**生效集**（页面直接刷新菜单）。 */
 export interface AgentInvestigationGrantView {
   agentId: string;
   grant: AgentInvestigationGrant;
@@ -5561,7 +5562,7 @@ function normalizeInvestigationGrant(
   };
 }
 
-/** 保存/恢复继承的回包（两个写路径同一形状）。 */
+/** 保存/恢复默认的回包（两个写路径同一形状）。 */
 export function normalizeInvestigationGrantView(
   payload: unknown,
 ): AgentInvestigationGrantView {
@@ -5761,9 +5762,9 @@ export async function setAgentInvestigationGrant(
 }
 
 /**
- * 恢复**继承网关默认**（删本机行）。
+ * 清空这台机器的调查授权（删本机行）。
  *
- * 不存一份“当前默认的快照”：默认会被改（改配置重启），存快照就会与该网关的策略默默分叉。
+ * 删行 = 回到**默认全关**（与采集面一致）。旧构建里这里是“恢复继承上界”，新构建不是。
  */
 export async function resetAgentInvestigationGrant(
   agentId: string,

@@ -1793,7 +1793,7 @@ export function useSetAgentInvestigationGrant(agentId: string) {
   });
 }
 
-/** 恢复**继承网关默认**（删本机行 = 跟着配置走）。 */
+/** 清空这台机器的调查授权（删本机行 = 回到默认全关）。 */
 export function useResetAgentInvestigationGrant(agentId: string) {
   const queryClient = useQueryClient();
   return useMutation({
