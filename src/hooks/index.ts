@@ -15,6 +15,7 @@ import {
   retryRolloutPlan,
   classifyAgentPurpose,
   clearAgentDiscoverySnapshot,
+  clearAgentMetricsLabels,
   clearDiscoverySnapshotGlobal,
   createRolloutPlan,
   deleteAgent,
@@ -26,6 +27,7 @@ import {
   fetchAgentInstallPackage,
   fetchAgentInvestigationReport,
   fetchAgentInvestigations,
+  fetchAgentMetricsLabels,
   launchAgentInvestigation,
   resetAgentInvestigationGrant,
   setAgentInvestigationGrant,
@@ -70,6 +72,7 @@ import {
   setAgentAdvertiseUrl,
   setAgentDiscoverySnapshot,
   setAgentInstallPackage,
+  setAgentMetricsLabels,
   setAgentUplink,
   setDiscoverySnapshotGlobal,
   setGatewayLinkRequest,
@@ -82,12 +85,14 @@ import {
   type ActivateKnowledgePackageCommand,
   type AgentFactRefreshCommand,
   type AgentInvestigationsView,
+  type AgentMetricsLabelsView,
   type CollectionPreflightView,
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
   type GrantStandingWorkCommand,
   type LaunchInvestigationInput,
+  type MetricLabelKey,
   type RecordKnowledgePackageCommand,
   type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
@@ -1150,9 +1155,8 @@ export function useAgentFactRefreshes(agentIds: readonly string[]) {
       queryKey: ["agent-fact-refresh", agentId],
       queryFn: () => fetchAgentFactRefresh(agentId),
       enabled: authenticated && Boolean(agentId),
-      refetchInterval: (query: {
-        state: { data?: AgentFactRefreshCommand };
-      }) => factRefreshRefetchInterval(query.state.data),
+      refetchInterval: (query: { state: { data?: AgentFactRefreshCommand } }) =>
+        factRefreshRefetchInterval(query.state.data),
       retry: factRefreshRetry,
     })),
   });
@@ -1216,7 +1220,9 @@ export function useAgentCollectionPreflight(agentId: string, enabled = false) {
     queryFn: () => fetchAgentCollectionPreflight(agentId),
     enabled: authenticated && enabled && Boolean(agentId),
     refetchInterval: (query) =>
-      preflightRefetchInterval(query.state.data as CollectionPreflightView | undefined),
+      preflightRefetchInterval(
+        query.state.data as CollectionPreflightView | undefined,
+      ),
     retry: factRefreshRetry,
   });
 }
@@ -1741,8 +1747,7 @@ export function useAgentInvestigations(agentId: string, enabled = true) {
     queryKey: ["agent-investigations", agentId],
     queryFn: () => fetchAgentInvestigations(agentId),
     enabled: authenticated && enabled && Boolean(agentId),
-    refetchInterval: (query) =>
-      investigationRefetchInterval(query.state.data),
+    refetchInterval: (query) => investigationRefetchInterval(query.state.data),
     retry: factRefreshRetry,
   });
 }
@@ -1802,6 +1807,65 @@ export function useResetAgentInvestigationGrant(agentId: string) {
       void queryClient.invalidateQueries({
         queryKey: ["agent-investigations", agentId],
       });
+    },
+  });
+}
+
+/**
+ * 一台机器的选择类 label（生效值 + 每键来源 + 手工覆盖）。
+ *
+ * 不轮询：标签只在管理面写入时变化，写成功后页面直接把响应回填进缓存。
+ * 401 / 404 不重试（token 无效、Agent 不存在都是确定性错误，重试只是白撞同一个 404）。
+ */
+export function useAgentMetricsLabels(agentId: string) {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken()) && Boolean(agentId);
+  return useQuery({
+    queryKey: ["agent-metrics-labels", agentId],
+    queryFn: () => fetchAgentMetricsLabels(agentId),
+    enabled,
+    retry: (failureCount, error) => {
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 404)
+      ) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+}
+
+/**
+ * 逐键设置 / 删除手工覆盖。
+ *
+ * 用响应里的 `agent_id` 回填缓存，而不是闭包里的 `agentId`：请求在途时路由可能已经换到
+ * 另一台机器，按闭包写会把 A 的结果缓存到 B 的键上。
+ */
+export function useSetAgentMetricsLabels(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (overrides: Partial<Record<MetricLabelKey, string | null>>) =>
+      setAgentMetricsLabels(agentId, overrides),
+    onSuccess: (view: AgentMetricsLabelsView) => {
+      queryClient.setQueryData(["agent-metrics-labels", view.agentId], view);
+    },
+  });
+}
+
+/** 清空这台机器的全部手工覆盖（回落网关推断 / 部署默认）。 */
+export function useClearAgentMetricsLabels(agentId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => clearAgentMetricsLabels(agentId),
+    onSuccess: (view: AgentMetricsLabelsView) => {
+      queryClient.setQueryData(["agent-metrics-labels", view.agentId], view);
     },
   });
 }

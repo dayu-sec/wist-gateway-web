@@ -142,6 +142,13 @@ export function SubsystemAgentHostMetricsPage({}: SubsystemAgentHostMetricsPageP
           <span className={styles.crossDivider} aria-hidden="true" />
           <Link
             className={styles.crossLink}
+            to={`/agents/${encodeURIComponent(agentId)}/labels`}
+          >
+            {t("指标标签", "Metric labels")} <span aria-hidden="true">→</span>
+          </Link>
+          <span className={styles.crossDivider} aria-hidden="true" />
+          <Link
+            className={styles.crossLink}
             to={`/agents/${encodeURIComponent(agentId)}/investigations`}
           >
             {t("一次性调查", "One-off investigation")}{" "}

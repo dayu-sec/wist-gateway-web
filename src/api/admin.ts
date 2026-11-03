@@ -1238,7 +1238,9 @@ function normalizeStringMap(payload: unknown): Record<string, string> {
     return {};
   }
   const map: Record<string, string> = {};
-  for (const [key, value] of Object.entries(payload as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(
+    payload as Record<string, unknown>,
+  )) {
     if (value === null || value === undefined) continue;
     map[key] = String(value);
   }
@@ -2987,7 +2989,11 @@ export async function fetchDataPlaneOutputTail(
       ["modified"],
       "data plane output.modified",
     ),
-    content: presentStringField(payload, ["content"], "data plane output.content"),
+    content: presentStringField(
+      payload,
+      ["content"],
+      "data plane output.content",
+    ),
     pendingAfter: presentNumberField(
       payload,
       ["pending_after", "pendingAfter"],
@@ -5525,10 +5531,7 @@ function normalizeInvestigationReportSummary(
       record.observed_at,
       "agentInvestigationReport.observed_at",
     ),
-    overall:
-      typeof record.overall === "string"
-        ? record.overall
-        : "unknown",
+    overall: typeof record.overall === "string" ? record.overall : "unknown",
     verdict: typeof record.verdict === "string" ? record.verdict : "",
     findingsOk: requiredNumber(
       record.findings_ok,
@@ -5586,10 +5589,15 @@ export function normalizeInvestigationGrantView(
     "agentInvestigationGrant.grant",
   );
   if (grant === null) {
-    throw new Error("Invalid API response: missing agentInvestigationGrant.grant");
+    throw new Error(
+      "Invalid API response: missing agentInvestigationGrant.grant",
+    );
   }
   return {
-    agentId: requiredString(record.agent_id, "agentInvestigationGrant.agent_id"),
+    agentId: requiredString(
+      record.agent_id,
+      "agentInvestigationGrant.agent_id",
+    ),
     grant,
     effectiveTopics: requiredStringArray(
       record.effective_topics,
@@ -5635,12 +5643,20 @@ export function normalizeAgentInvestigations(
   payload: unknown,
 ): AgentInvestigationsView {
   const record = requiredRecord(payload, "agentInvestigations");
-  const dir = requiredRecord(record.report_dir, "agentInvestigations.report_dir");
+  const dir = requiredRecord(
+    record.report_dir,
+    "agentInvestigations.report_dir",
+  );
   const reports = record.reports;
   if (!Array.isArray(reports)) {
-    throw new Error("Invalid API response: missing agentInvestigations.reports");
+    throw new Error(
+      "Invalid API response: missing agentInvestigations.reports",
+    );
   }
-  const agentId = requiredString(record.agent_id, "agentInvestigations.agent_id");
+  const agentId = requiredString(
+    record.agent_id,
+    "agentInvestigations.agent_id",
+  );
   return {
     agentId,
     capabilities: normalizeInvestigationCapabilities(
@@ -5672,13 +5688,13 @@ export function normalizeAgentInvestigations(
         dir.configured,
         "agentInvestigations.report_dir.configured",
       ),
-      path: nullableString(
-        dir.path,
-        "agentInvestigations.report_dir.path",
-      ),
+      path: nullableString(dir.path, "agentInvestigations.report_dir.path"),
     },
     // 命令视图里的 `agent_id` 在**外层**（它是同一台机器的列表），不重复下发。
-    latestCommand: normalizeInvestigationCommand(record.latest_command, agentId),
+    latestCommand: normalizeInvestigationCommand(
+      record.latest_command,
+      agentId,
+    ),
     reports: reports.map(normalizeInvestigationReportSummary),
   };
 }
@@ -5749,7 +5765,10 @@ export async function fetchAgentInvestigationReport(
   );
   const record = requiredRecord(payload, "agentInvestigationReport");
   return {
-    agentId: requiredString(record.agent_id, "agentInvestigationReport.agent_id"),
+    agentId: requiredString(
+      record.agent_id,
+      "agentInvestigationReport.agent_id",
+    ),
     commandId: requiredString(
       record.command_id,
       "agentInvestigationReport.command_id",
@@ -5788,4 +5807,121 @@ export async function resetAgentInvestigationGrant(
     { method: "DELETE" },
   );
   return normalizeInvestigationGrantView(payload);
+}
+
+/* ------------------------------------------------------------------ *
+ * 指标选择类 label（env / cluster / app / role …）
+ *
+ * 后端：`GET|PUT|DELETE /api/v1/admin/agents/{agent_id}/metrics-labels`
+ * 生效值 = 部署默认 ∪ 网关按事实推断 ∪ 每机手工覆盖（优先级依次升高）。
+ * 规则正文见 `wist-agentd/docs/design/metrics-data-spec.md` §3.4；
+ * 值的来源与优先级见同目录 `metrics-selection-labels.md`。
+ * ------------------------------------------------------------------ */
+
+/**
+ * 选择类 label 的键闭集（与网关 `wist_api::metrics_labels::rules::KEYS` 同一份）。
+ *
+ * 键没有「自定义扩展」这一说：表外的键网关一律拒收，所以这里也不给输入框。
+ */
+export const METRIC_LABEL_KEYS = [
+  "app",
+  "env",
+  "cluster",
+  "role",
+  "shard",
+  "tier",
+  "region",
+  "zone",
+] as const;
+
+export type MetricLabelKey = (typeof METRIC_LABEL_KEYS)[number];
+
+/** 每个键的来源：网关部署默认 / 网关按事实推断 / 管理面手工覆盖。 */
+export type MetricLabelSource = "default" | "inferred" | "manual" | string;
+
+/** 一台机器的选择类 label 视图（`AdminMetricsLabelsView`）。 */
+export interface AgentMetricsLabelsView {
+  agentId: string;
+  /** 手工覆盖的版本号。0 = 从未写过覆盖；每次写入（含清空）+1，永远单调。 */
+  revision: number;
+  /** 生效值（三层合并后）。 */
+  labels: Record<string, string>;
+  /** 每个键的来源（只用于展示「这个值是谁给的」）。 */
+  sources: Record<string, MetricLabelSource>;
+  /** 只有手工覆盖的那部分 —— 表单的编辑基线与「删除单键」都以它为准。 */
+  overrides: Record<string, string>;
+  /** 最近一次写入时间；从未写过时为空串。 */
+  updatedAt: string;
+}
+
+/** 只保留字符串值：label 表里出现非字符串说明对端坏了，丢掉比塞进界面安全。 */
+function metricLabelMap(
+  value: unknown,
+  fieldName: string,
+): Record<string, string> {
+  const record = requiredRecord(value, fieldName);
+  const out: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(record)) {
+    if (typeof entry === "string") out[key] = entry;
+  }
+  return out;
+}
+
+export function normalizeAgentMetricsLabels(
+  payload: unknown,
+): AgentMetricsLabelsView {
+  const record = requiredRecord(payload, "agentMetricsLabels");
+  return {
+    agentId: requiredString(record.agent_id, "agentMetricsLabels.agent_id"),
+    revision: requiredNumber(record.revision, "agentMetricsLabels.revision"),
+    labels: metricLabelMap(record.labels, "agentMetricsLabels.labels"),
+    sources: metricLabelMap(record.sources, "agentMetricsLabels.sources"),
+    overrides: metricLabelMap(record.overrides, "agentMetricsLabels.overrides"),
+    // 从未手工覆盖过时网关给空串：它不是错误，别用 requiredString 逼死页面。
+    updatedAt: typeof record.updated_at === "string" ? record.updated_at : "",
+  };
+}
+
+function agentMetricsLabelsPath(agentId: string): string {
+  return `/api/v1/admin/agents/${encodeURIComponent(agentId)}/metrics-labels`;
+}
+
+/** 读一台机器的生效值 + 每键来源 + 手工覆盖。 */
+export async function fetchAgentMetricsLabels(
+  agentId: string,
+): Promise<AgentMetricsLabelsView> {
+  const payload = await requestJson<unknown>(agentMetricsLabelsPath(agentId));
+  return normalizeAgentMetricsLabels(payload);
+}
+
+/**
+ * 逐键设置 / 删除手工覆盖：`string` = 设置，`null` = 删掉该键的覆盖（回落推断或部署默认）。
+ *
+ * 未出现的键保持原状，所以「只改 cluster」不必先把整张表抄一遍。
+ * 非法值网关回 400（稳定原因码在 `ApiError.code`，说明在 `ApiError.detail`），
+ * 且**什么都不写** —— 半套生效的 label 会让序列按一半维度分段，比彻底没改更难查。
+ */
+export async function setAgentMetricsLabels(
+  agentId: string,
+  overrides: Partial<Record<MetricLabelKey, string | null>>,
+): Promise<AgentMetricsLabelsView> {
+  const payload = await requestJson<unknown>(agentMetricsLabelsPath(agentId), {
+    method: "PUT",
+    body: JSON.stringify({
+      api_version: "v1",
+      kind: "set_agent_metrics_labels",
+      overrides,
+    }),
+  });
+  return normalizeAgentMetricsLabels(payload);
+}
+
+/** 清空这台机器的全部手工覆盖（幂等）。返回清空后的生效值。 */
+export async function clearAgentMetricsLabels(
+  agentId: string,
+): Promise<AgentMetricsLabelsView> {
+  const payload = await requestJson<unknown>(agentMetricsLabelsPath(agentId), {
+    method: "DELETE",
+  });
+  return normalizeAgentMetricsLabels(payload);
 }

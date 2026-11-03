@@ -471,6 +471,12 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
                         </Link>
                         <Link
                           className={styles.detailLink}
+                          to={`/agents/${encodeURIComponent(row.agentId)}/labels`}
+                        >
+                          {t("标签", "Labels")}
+                        </Link>
+                        <Link
+                          className={styles.detailLink}
                           to={`/agents/${encodeURIComponent(row.agentId)}/investigations`}
                         >
                           {t("调查", "Investigate")}

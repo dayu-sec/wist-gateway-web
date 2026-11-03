@@ -1,0 +1,231 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.subtitle {
+  max-width: var(--prose-max);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* 8 个键一次看全：窄屏自动折成两列 / 一列，不再横向滚动。 */
+.grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+}
+
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.key {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.source {
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-4);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.source[data-source="manual"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.source[data-source="inferred"] {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.control {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+
+.control:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow: var(--ring);
+}
+
+.rowFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.effective {
+  color: var(--text-4);
+  font-size: 10.5px;
+}
+
+.effectiveValue {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.effectiveEmpty {
+  color: var(--text-4);
+}
+
+.linkButton {
+  border: none;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+.linkButton:hover {
+  color: var(--text);
+}
+
+.rowHint,
+.rowError {
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.rowHint {
+  color: var(--text-4);
+}
+
+.rowError {
+  color: var(--crit);
+  font-weight: 600;
+}
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  list-style: none;
+}
+
+.errorBanner {
+  padding: 9px 11px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primaryButton {
+  border: 1px solid var(--accent-border);
+  background: var(--accent);
+  color: #fff;
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.secondaryButton {
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.dangerButton {
+  border: 1px solid var(--crit-border);
+  background: var(--crit-soft);
+  color: var(--crit);
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: var(--crit);
+  color: #2b0b0b;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

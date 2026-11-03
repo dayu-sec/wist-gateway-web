@@ -1,0 +1,114 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.revision {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.updatedAt {
+  color: var(--text-4);
+  font-size: 11px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.table th {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-4);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.table td {
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.keyCell {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+}
+
+.valueCell {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.source {
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-4);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+.source[data-source="manual"] {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.source[data-source="inferred"] {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.empty {
+  max-width: var(--prose-max);
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.foot {
+  max-width: var(--prose-max);
+  color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.6;
+}

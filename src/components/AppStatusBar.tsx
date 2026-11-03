@@ -32,6 +32,12 @@ function describeRoute(pathname: string): RouteMeta {
       crumbs: [t("主机指标", "Host metrics"), t("主机详情", "Host detail")],
     };
   }
+  if (matchPath("/agents/:agentId/labels", pathname)) {
+    return {
+      section: "monitoring",
+      crumbs: [t("主机指标", "Host metrics"), t("指标标签", "Metric labels")],
+    };
+  }
   if (matchPath("/agents/:agentId/purpose", pathname)) {
     return {
       section: "monitoring",
@@ -41,10 +47,7 @@ function describeRoute(pathname: string): RouteMeta {
   if (matchPath("/agents/:agentId/work", pathname)) {
     return {
       section: "monitoring",
-      crumbs: [
-        t("采集工作", "Collection work"),
-        t("工作清单", "Work list"),
-      ],
+      crumbs: [t("采集工作", "Collection work"), t("工作清单", "Work list")],
     };
   }
   if (matchPath("/agents/:agentId/investigations", pathname)) {
@@ -71,11 +74,20 @@ function describeRoute(pathname: string): RouteMeta {
         crumbs: [t("资产清单", "Software inventory")],
       };
     case "/pipeline":
-      return { section: "monitoring", crumbs: [t("数据采集", "Data pipeline")] };
+      return {
+        section: "monitoring",
+        crumbs: [t("数据采集", "Data pipeline")],
+      };
     case "/logs":
-      return { section: "monitoring", crumbs: [t("采集日志", "Collection logs")] };
+      return {
+        section: "monitoring",
+        crumbs: [t("采集日志", "Collection logs")],
+      };
     case "/work":
-      return { section: "monitoring", crumbs: [t("采集工作", "Collection work")] };
+      return {
+        section: "monitoring",
+        crumbs: [t("采集工作", "Collection work")],
+      };
     case "/collection-grants":
       return {
         section: "monitoring",
@@ -90,10 +102,16 @@ function describeRoute(pathname: string): RouteMeta {
     case "/install":
       return { section: "ops", crumbs: [t("安装 Agent", "Install agent")] };
     case "/gateway-info":
-      return { section: "settings", crumbs: [t("Gateway 信息", "Gateway info")] };
+      return {
+        section: "settings",
+        crumbs: [t("Gateway 信息", "Gateway info")],
+      };
     case "/gwlinkd":
       // 与侧边栏「监控」组一致：这一页看的是「网关两层谁活着」，属于观测。
-      return { section: "monitoring", crumbs: [t("网关状态", "Gateway status")] };
+      return {
+        section: "monitoring",
+        crumbs: [t("网关状态", "Gateway status")],
+      };
     case "/install-package":
       return { section: "ops", crumbs: [t("安装包管理", "Install packages")] };
     case "/install-package/add":
@@ -109,7 +127,10 @@ function describeRoute(pathname: string): RouteMeta {
     case "/link-upstream":
       return { section: "settings", crumbs: [t("链接上级", "Link upstream")] };
     case "/":
-      return { section: "monitoring", crumbs: [t("Agent 总览", "Agent overview")] };
+      return {
+        section: "monitoring",
+        crumbs: [t("Agent 总览", "Agent overview")],
+      };
     default:
       return { section: "monitoring", crumbs: [t("未知页面", "Unknown page")] };
   }
@@ -228,8 +249,14 @@ export function AppStatusBar() {
           }
           aria-label={
             locale === "zh"
-              ? t("界面语言：中文，点击切换到 English", "Interface language: Chinese, click to switch to English")
-              : t("界面语言：English，点击切换到中文", "Interface language: English, click to switch to Chinese")
+              ? t(
+                  "界面语言：中文，点击切换到 English",
+                  "Interface language: Chinese, click to switch to English",
+                )
+              : t(
+                  "界面语言：English，点击切换到中文",
+                  "Interface language: English, click to switch to Chinese",
+                )
           }
         >
           <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true">
@@ -263,8 +290,14 @@ export function AppStatusBar() {
           }
           aria-label={
             theme === "light"
-              ? t("当前浅色主题，点击切换到深色", "Light theme; click to switch to dark")
-              : t("当前深色主题，点击切换到浅色", "Dark theme; click to switch to light")
+              ? t(
+                  "当前浅色主题，点击切换到深色",
+                  "Light theme; click to switch to dark",
+                )
+              : t(
+                  "当前深色主题，点击切换到浅色",
+                  "Dark theme; click to switch to light",
+                )
           }
         >
           {theme === "light" ? (
