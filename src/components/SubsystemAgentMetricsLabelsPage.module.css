@@ -76,6 +76,14 @@
   line-height: 1.7;
 }
 
+/* 与用途页同一口径：不轮询的页面要自己说「怎么重取」，否则人只会一直盯着空表。 */
+.metaNote {
+  max-width: var(--prose-max);
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .noticeWrap {
   width: calc(100% - var(--page-pad-x) * 2);
   max-width: calc(var(--content-max) - var(--page-pad-x) * 2);

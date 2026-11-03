@@ -112,6 +112,12 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
             'Selection labels let one query reach a whole set of machines: give three Kafka hosts the same cluster and their own role, and cluster="kafka-prod" returns the group at once instead of one host at a time. The effective value merges three layers — gateway inference (app / role), deployment defaults (env etc.) and the manual overrides here, later winning.',
           )}
         </p>
+        <p className={styles.metaNote}>
+          {t(
+            "不自动轮询：标签只在管理面写入时变化，保存后由接口响应直接回填 —— 需要重取用右上角「刷新」。",
+            "No automatic polling: labels change only when written from the admin plane, and saves are reflected by the response — refetch with “Refresh” in the top-right corner.",
+          )}
+        </p>
       </header>
 
       {isError ? (
@@ -130,8 +136,8 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
         <div className={styles.idleNotice} role="status">
           {getAdminApiToken()
             ? t(
-                "尚未取到标签数据，刷新页面重试。",
-                "No label data yet; reload the page to retry.",
+                "尚未取到标签数据，用右上角「刷新」重试。",
+                "No label data yet; retry with “Refresh” in the top-right corner.",
               )
             : t(
                 "未设置 Admin Token：在右上角钥匙按钮里填入后才向管理面请求，这里不会显示数据。",
