@@ -226,29 +226,62 @@
  * 这些值每 5 秒变一次，做成表格看上去像静态规格；趋势图只覆盖 CPU / 内存 / 负载 /
  * 在线数 / 磁盘占用，其余读数只在这里出现，所以不能省。
  */
-.liveLine {
+/* 实时读数：一格一个数。之前是「一行用 · 串起来」的句子 —— 十来个值挤在一条 11.5px 的
+   run-on 里，换行时还会从「· 内存」这种位置断开，既不好扫也看不出哪个数属于谁。
+   现在每格 = 标签 / 值 / 注脚，值用等宽字体放大一档；每 5 秒刷新时只有数字变，布局不动。 */
+.readings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
+  gap: 10px;
+  margin: 4px 0 20px;
+}
+
+.reading {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  margin: 12px 0 4px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  min-height: 78px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  line-height: 1.7;
 }
 
-.liveItem {
+.readingLabel {
+  overflow: hidden;
+  color: var(--text-4);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.liveItem + .liveItem::before {
-  content: "·";
-  margin-right: 14px;
+.readingValue {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.readingSub {
+  margin-top: auto;
   color: var(--text-4);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* 存储可查 / 不可查：唯一带语义色的一格（其余读数只表达量，不表达好坏）。 */
+.readingOk {
+  color: var(--ok);
+}
+
+.readingCrit {
+  color: var(--crit);
 }
 
 .grid {

@@ -1,16 +1,15 @@
 import { useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import styles from "./SubsystemAgentHostMetricsPage.module.css";
 import { TrendChart } from "./TrendChart";
 import { useAgentHostMetrics, useAgentOverview } from "../hooks";
 import { t, dateLocale } from "../i18n";
-import { AgentFeatureNav } from "./AgentFeatureNav";
+import { AgentPageHeader } from "./AgentPageHeader";
 import {
   formatKiB,
   formatNumber,
   formatPercent,
   formatUptime,
-  summarizeAddresses,
   severityForLoad,
   severityForUsage,
   SEVERITY_LABEL,
@@ -79,8 +78,6 @@ export function SubsystemAgentHostMetricsPage({}: SubsystemAgentHostMetricsPageP
   const memorySeverity = severityForUsage(memoryUsagePercent);
   const loadSeverity = severityForLoad(currentLoad);
   const span = describeSpan(data?.history?.loadAverage1m);
-  // 多网卡主机一次能报十几条 IP（链路本地 + 虚拟网卡），这里只挑主地址，全量进 tooltip。
-  const addresses = summarizeAddresses(data?.ipAddresses ?? []);
   // 最紧张的挂载点排前面；旧网关没有 filesystems 时为空。
   const filesystems = useMemo(
     () =>
@@ -108,68 +105,28 @@ export function SubsystemAgentHostMetricsPage({}: SubsystemAgentHostMetricsPageP
 
   return (
     <div className={styles.container}>
-      <header className={styles.pageHeader}>
-        <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span>{" "}
-          {t("返回机队视图", "Back to fleet view")}
-        </Link>
-        <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>
-            {data?.hostname || agentId || t("未指定主机", "Unspecified host")}
-          </h1>
+      <AgentPageHeader
+        agentId={agentId}
+        active="metrics"
+        badge={
           <span className={styles.liveBadge}>
             <span className={styles.liveDot} aria-hidden="true" />
             {t("5 秒自动刷新", "Auto refresh every 5 s")}
           </span>
-        </div>
-        <div className={styles.metaRow}>
-          <span className={styles.metaItem}>
-            {t("主机", "Host")} <strong>{data?.hostname || "—"}</strong>
-          </span>
-          <span className={styles.metaItem}>
-            IP{" "}
-            <strong title={addresses.full || undefined}>
-              {addresses.primary ?? "—"}
-              {addresses.others > 0
-                ? t(" 等 {n} 个", " ({n} total)", {
-                    n: addresses.others + 1,
-                  })
-                : ""}
-            </strong>
-          </span>
-          {data?.nodeId ? (
-            <span className={styles.metaItem}>
-              {t("节点", "Node")} <strong>{data.nodeId}</strong>
-            </span>
-          ) : null}
-          {agent ? (
-            <>
-              <span className={styles.metaItem}>
-                {t("版本", "Version")} <strong>{agent.version}</strong>
-              </span>
-              <span className={styles.metaItem}>
-                {t("实例", "Instance")} <strong>{agent.instanceId}</strong>
-              </span>
-              <span className={styles.metaItem}>
-                {t("Agent 在线时长", "Agent uptime")}{" "}
-                <strong>{formatUptime(agent.onlineDurationSeconds)}</strong>
-              </span>
-              <span className={styles.metaItem}>
-                {t("Admin 延迟", "Admin latency")}{" "}
-                <strong>{formatNumber(agent.adminLatencyMs, 0)} ms</strong>
-              </span>
-            </>
-          ) : (
-            <span className={styles.metaItemMuted}>
-              {t(
-                "该主机不在最近上线列表中，仅展示指标数据。",
-                "This host is not in the recent online list; showing metrics only.",
-              )}
-            </span>
-          )}
-        </div>
-        <AgentFeatureNav agentId={agentId} active="metrics" />
-      </header>
+        }
+      >
+        {agent ? (
+          <p>
+            {t("节点", "Node")} {data?.nodeId || "—"}
+            {" · "}
+            {t("Agent 在线", "Agent uptime")}{" "}
+            {formatUptime(agent.onlineDurationSeconds)}
+            {" · "}
+            {t("Admin 延迟", "Admin latency")}{" "}
+            {formatNumber(agent.adminLatencyMs, 0)} ms
+          </p>
+        ) : null}
+      </AgentPageHeader>
 
       {isError ? (
         <div className={styles.errorBanner}>

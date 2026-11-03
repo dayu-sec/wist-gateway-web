@@ -223,68 +223,140 @@ export function SubsystemGatewayStatusPage() {
             </div>
           ) : null}
 
+          {/*
+            实时读数：一格一个数（不是原来那张 14 行两列表格，也不是后来那条用「·」串起来的
+            长句）。趋势图只覆盖 CPU / 内存 / 负载 / 在线数 / 磁盘占用；运行时长、存储健康、
+            机队数、上报滞后、入站计数这些只在这里出现 —— 它们是「网关容器现在怎么样」的一部分。
+            卡片的先后 = 运维的判断顺序：还能活多久 → 存储与机队 → 入站 → 资源。
+          */}
+          {gw ? (
+            <section
+              className={styles.readings}
+              aria-label={t("实时读数", "Live readings")}
+            >
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("运行时长", "Uptime")}
+                </div>
+                <div className={styles.readingValue}>
+                  {durationText(gw.uptimeSeconds)}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("自本次启动", "Since this start")}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>{t("存储", "Store")}</div>
+                <div
+                  className={`${styles.readingValue} ${
+                    gw.storeHealthy ? styles.readingOk : styles.readingCrit
+                  }`}
+                >
+                  {gw.storeHealthy
+                    ? t("健康", "Healthy")
+                    : t("不可查", "Unreachable")}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("占用 {bytes}", "{bytes} used", {
+                    bytes: bytesText(gw.storeBytes),
+                  })}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("机队在线 / 离线", "Agents online / offline")}
+                </div>
+                <div className={styles.readingValue}>
+                  {gw.onlineAgents} / {gw.offlineAgents}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("共 {n} 台", "{n} total", { n: gw.agentCount })}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("上报滞后", "Report lag")}
+                </div>
+                <div className={styles.readingValue}>
+                  {t("{n} 秒", "{n} s", { n: gw.lastSeenLagSeconds })}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("机队里最久没上报的", "Stalest in the fleet")}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("入站（累计）", "Ingest (cumulative)")}
+                </div>
+                <div className={styles.readingValue}>
+                  {t("接收 {ok} / 拒绝 {bad}", "{ok} / {bad} rejected", {
+                    ok: gw.ingestAcceptedTotal,
+                    bad: gw.ingestRejectedTotal,
+                  })}
+                </div>
+                <div className={styles.readingSub}>
+                  {gw.lastIngestAt
+                    ? t("最近 {time}", "Last {time}", {
+                        time: timeText(gw.lastIngestAt),
+                      })
+                    : t("最近 —", "Last —")}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("CPU（单核）", "CPU (per core)")}
+                </div>
+                <div className={styles.readingValue}>
+                  {percentText(gw.cpuPercent)}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("网关进程自身", "Gateway process")}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("内存（RSS）", "Memory (RSS)")}
+                </div>
+                <div className={styles.readingValue}>
+                  {bytesText(gw.memoryBytes)}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("主机共 {bytes}", "{bytes} on host", {
+                    bytes: bytesText(gw.memoryTotalBytes),
+                  })}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>
+                  {t("负载 1 / 5 / 15 分钟", "Load 1 / 5 / 15 min")}
+                </div>
+                <div className={styles.readingValue}>
+                  {loadText(gw.load1m)} / {loadText(gw.load5m)} /{" "}
+                  {loadText(gw.load15m)}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("主机负载", "Host load")}
+                </div>
+              </article>
+              <article className={styles.reading}>
+                <div className={styles.readingLabel}>{t("磁盘", "Disk")}</div>
+                <div className={styles.readingValue}>
+                  {percentText(gw.diskUsagePercent)}
+                </div>
+                <div className={styles.readingSub}>
+                  {t("可用 {free} / {total}", "{free} free / {total}", {
+                    free: bytesText(gw.diskAvailableBytes),
+                    total: bytesText(gw.diskTotalBytes),
+                  })}
+                </div>
+              </article>
+            </section>
+          ) : null}
+
           <GatewayMetricTrends history={gwHistoryQuery.data} />
 
           {gw ? (
             <>
-              {/*
-                实时读数收成**一行**（不是原来那张 14 行两列表格）：这些值每 5 秒就变一次，
-                做成表格看上去像静态规格。趋势图只覆盖 CPU / 内存 / 负载 / 在线数 / 磁盘占用，
-                其余（运行时长、存储健康、机队数、上报滞后、入站计数、磁盘可用）只在这里出现 ——
-                删掉它们会丢掉运维判断「网关容器现在怎么样」所需的信息。
-              */}
-              <p className={styles.liveLine}>
-                <span className={styles.liveItem}>
-                  {t("运行时长", "Uptime")} {durationText(gw.uptimeSeconds)}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("存储", "Store")}{" "}
-                  {gw.storeHealthy
-                    ? t("健康", "healthy")
-                    : t("不可查", "unreachable")}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("机队在线 / 离线", "Agents online / offline")}{" "}
-                  {gw.onlineAgents} / {gw.offlineAgents}
-                  {t("（共 {n}）", " ({n} total)", { n: gw.agentCount })}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("上报滞后", "Report lag")}{" "}
-                  {t("{n} 秒", "{n} s", { n: gw.lastSeenLagSeconds })}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("入站 接收 / 拒绝", "Ingest accepted / rejected")}{" "}
-                  {gw.ingestAcceptedTotal} / {gw.ingestRejectedTotal}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("最近入站", "Last ingest")}{" "}
-                  {gw.lastIngestAt ? timeText(gw.lastIngestAt) : "—"}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("CPU（单核）", "CPU (per core)")} {percentText(gw.cpuPercent)}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("内存", "Memory")} {bytesText(gw.memoryBytes)}
-                  {" / "}
-                  {bytesText(gw.memoryTotalBytes)}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("负载 1/5/15", "Load 1/5/15")}{" "}
-                  {loadText(gw.load1m)} / {loadText(gw.load5m)} /{" "}
-                  {loadText(gw.load15m)}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("磁盘", "Disk")} {percentText(gw.diskUsagePercent)}
-                  {" · "}
-                  {t("可用", "free")} {bytesText(gw.diskAvailableBytes)}
-                  {" / "}
-                  {bytesText(gw.diskTotalBytes)}
-                </span>
-                <span className={styles.liveItem}>
-                  {t("存储占用", "Store size")} {bytesText(gw.storeBytes)}
-                </span>
-              </p>
-
               <h3 className={styles.factsTitle}>{t("基本信息", "Basic information")}</h3>
               <dl className={styles.grid}>
                 <div className={styles.gridItem}>

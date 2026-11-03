@@ -23,9 +23,8 @@ import {
 } from "./SubsystemAgentWorkView";
 import { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPanel";
 import { SubsystemAgentIdentityPanel } from "./SubsystemAgentIdentityPanel";
-import { summarizeAddresses } from "../lib/format";
 import styles from "./SubsystemAgentWorkPage.module.css";
-import { AgentFeatureNav } from "./AgentFeatureNav";
+import { AgentPageHeader } from "./AgentPageHeader";
 
 interface SubsystemAgentWorkPageProps {
   children?: React.ReactNode;
@@ -182,61 +181,33 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
     standing: grantStanding.data,
     action: workAction.data,
   });
-  // 多网卡主机一次能报十几条 IP，运行态这里也只挑主地址，全量进 tooltip。
-  const runtimeAddress = summarizeAddresses(runtime.data?.ipAddresses ?? []);
-  // 主标题用主机名（运维认机器靠它和 IP，agent_id 只是排障关联键）。
-  const displayHost =
-    runtime.data?.hostname?.trim() ||
-    agentId ||
-    t("未指定主机", "Unspecified host");
 
   return (
     <div className={styles.container}>
-      <header className={styles.pageHeader}>
-        <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span>{" "}
-          {t("返回机队视图", "Back to fleet view")}
-        </Link>
-        <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>{displayHost}</h1>
+      <AgentPageHeader
+        agentId={agentId}
+        active="work"
+        badge={
           <span className={styles.scopeBadge}>
             {t(
               "采集工作：授权 / 确认 / 漂移",
               "Collection work: grant / confirm / drift",
             )}
           </span>
-        </div>
-        <div className={styles.metaRow}>
-          {runtime.data ? (
-            <span className={styles.metaItem}>
-              {t("IP", "IP")}{" "}
-              <strong title={runtimeAddress.full || undefined}>
-                {runtimeAddress.primary ?? "—"}
-                {runtimeAddress.others > 0 ? ` +${runtimeAddress.others}` : ""}
-              </strong>
-            </span>
-          ) : null}
-          <span className={styles.metaItem}>
-            {t("Agent ID", "Agent ID")}{" "}
-            <span className={styles.metaId} title={agentId}>
-              {agentId}
-            </span>
-          </span>
-          {work.data ? (
-            <span className={styles.metaItem}>
-              {t("视图生成", "View generated")}{" "}
-              <strong>{formatTimestamp(work.data.generatedAt)}</strong>
-            </span>
-          ) : null}
-          <span className={styles.metaItemMuted}>
-            {t(
-              "不自动轮询：授权由管理面人工操作、Agent 按 30 秒的节拍拉快照。提交操作后会自动重取，确认到达即可见 —— 需要重取用右上角「刷新」。",
-              "No automatic polling: grants are made by hand on the admin side and agents pull snapshots on a 30 s beat. Submitting an operation refetches automatically, so it becomes visible once it arrives — use “Refresh” at the top right to refetch.",
-            )}
-          </span>
-        </div>
-        <AgentFeatureNav agentId={agentId} active="work" />
-      </header>
+        }
+      >
+        <p>
+          {work.data
+            ? `${t("视图生成", "View generated")} ${formatTimestamp(
+                work.data.generatedAt,
+              )} · `
+            : ""}
+          {t(
+            "不自动轮询：授权由管理面人工操作、Agent 按 30 秒的节拍拉快照。提交操作后会自动重取，确认到达即可见 —— 需要重取用右上角「刷新」。",
+            "No automatic polling: grants are made by hand on the admin side and agents pull snapshots on a 30 s beat. Submitting an operation refetches automatically, so it becomes visible once it arrives — use “Refresh” at the top right to refetch.",
+          )}
+        </p>
+      </AgentPageHeader>
 
       {unknownAgent ? (
         <section className={styles.unknownAgent} role="alert">

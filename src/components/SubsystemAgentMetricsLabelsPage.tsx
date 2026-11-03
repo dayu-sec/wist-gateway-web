@@ -1,15 +1,14 @@
-import { useEffect, useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect } from "react";
+import { useParams } from "react-router-dom";
 import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
 import {
   useAgentMetricsLabels,
-  useAgentOverview,
   useAgentRefresh,
   useClearAgentMetricsLabels,
   useSetAgentMetricsLabels,
 } from "../hooks";
 import { t } from "../i18n";
-import { AgentFeatureNav } from "./AgentFeatureNav";
+import { AgentPageHeader } from "./AgentPageHeader";
 import { adminApiErrorMessage } from "./adminApiError";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { SubsystemMetricsLabelsForm } from "./SubsystemMetricsLabelsForm";
@@ -77,16 +76,10 @@ function refreshErrorMessage(error: unknown): string {
  */
 export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsPageProps) {
   const { agentId = "" } = useParams<{ agentId: string }>();
-  const { data: overview } = useAgentOverview();
   const query = useAgentMetricsLabels(agentId);
   const setMutation = useSetAgentMetricsLabels(agentId);
   const clearMutation = useClearAgentMetricsLabels(agentId);
   const refreshMutation = useAgentRefresh(agentId);
-
-  const agent = useMemo(
-    () => overview?.recentOnlineAgents.find((item) => item.agentId === agentId),
-    [agentId, overview],
-  );
 
   const { reset: resetSet } = setMutation;
   const { reset: resetClear } = clearMutation;
@@ -102,35 +95,20 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
 
   return (
     <div className={styles.container}>
-      <header className={styles.pageHeader}>
-        <Link
-          className={styles.back}
-          to={`/agents/${encodeURIComponent(agentId)}/metrics`}
-        >
-          <span aria-hidden="true">←</span>{" "}
-          {t("返回主机指标", "Back to host metrics")}
-        </Link>
-        <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>
-            {t("{host} · 指标标签", "{host} · metric labels", {
-              host: agent?.hostname || agentId,
-            })}
-          </h1>
-        </div>
-        <AgentFeatureNav agentId={agentId} active="labels" />
-        <p className={styles.pageSummary}>
+      <AgentPageHeader agentId={agentId} active="labels">
+        <p>
           {t(
             '选择类 label 让同一组机器能被一条查询取到：给三台 Kafka 填同一个 cluster、各自的 role，就能用 cluster="kafka-prod" 一次看整组，而不是一台一台查。生效值是三层合并的结果 —— 网关按事实推断（app / role）、部署默认（env 等）、这里的手工覆盖，越靠后优先级越高。',
             'Selection labels let one query reach a whole set of machines: give three Kafka hosts the same cluster and their own role, and cluster="kafka-prod" returns the group at once instead of one host at a time. The effective value merges three layers — gateway inference (app / role), deployment defaults (env etc.) and the manual overrides here, later winning.',
           )}
         </p>
-        <p className={styles.metaNote}>
+        <p>
           {t(
             "不自动轮询：标签只在管理面写入时变化，保存后由接口响应直接回填 —— 需要重取用右上角「刷新」。",
             "No automatic polling: labels change only when written from the admin plane, and saves are reflected by the response — refetch with “Refresh” in the top-right corner.",
           )}
         </p>
-      </header>
+      </AgentPageHeader>
 
       {isError ? (
         isRateLimitedError(error) ? (

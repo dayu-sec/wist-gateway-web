@@ -9,7 +9,7 @@ import {
 import { RateLimitNotice } from "./RateLimitNotice";
 import { CopyButton } from "./CopyButton";
 import { t } from "../i18n";
-import { AgentFeatureNav } from "./AgentFeatureNav";
+import { AgentPageHeader } from "./AgentPageHeader";
 import styles from "./SubsystemAgentInvestigationsPage.module.css";
 
 interface SubsystemAgentInvestigationsPageProps {
@@ -412,22 +412,14 @@ export function SubsystemAgentInvestigationsPage(
         <RateLimitNotice error={investigations.error} />
       ) : null}
 
-      <header className={styles.pageHeader}>
-        <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span> {t("主机指标", "Host metrics")}
-        </Link>
-        <div className={styles.titleRow}>
-          <h1 className={styles.title}>{t("一次性调查", "One-off investigation")}</h1>
-          <code className={styles.agentId}>{agentId}</code>
-        </div>
-        <AgentFeatureNav agentId={agentId} active="investigations" />
-        <p className={styles.subtitle}>
+      <AgentPageHeader agentId={agentId} active="investigations">
+        <p>
           {t(
             "只读、有界的一次性取证：下发命令 → Agent 当场查 → 证据表经数据面落到网关本机报告目录。",
             "Read-only, bounded forensics: dispatch a command, the agent inspects the host, and the evidence table lands in the gateway's local report directory via the data plane.",
           )}
         </p>
-      </header>
+      </AgentPageHeader>
 
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>{t("发起调查", "Launch an investigation")}</h2>

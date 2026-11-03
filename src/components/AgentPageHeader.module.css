@@ -1,0 +1,87 @@
+/* 五页共用的页头。宽度 / 边距与页面正文一致，保证 tab 条和下面内容左右对齐。 */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--page-pad-top) var(--page-pad-x) 0;
+}
+
+.back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--accent-strong);
+}
+
+/* 标题行高度只由「一行主机名 + 一个 chip」决定；各页 chip 文案不同也不换行。 */
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.title {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--page-title);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+/* 身份行：固定三项公共事实。页面专属的信息不要往这里加 —— 那会让每页的页头高度不同。 */
+.metaRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px 18px;
+  flex-wrap: wrap;
+}
+
+.metaItem {
+  color: var(--text-4);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.metaItem strong {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.agentId {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* tab 下方的导语：说明这一页看什么，属于正文，不属于页头。 */
+.lead {
+  max-width: var(--prose-max);
+  color: var(--text-3);
+  font-size: var(--page-summary);
+  line-height: 1.65;
+}
+
+.lead p {
+  margin: 0;
+}
+
+.lead p + p {
+  margin-top: 6px;
+}

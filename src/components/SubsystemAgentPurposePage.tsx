@@ -7,7 +7,7 @@ import { RateLimitNotice } from "./RateLimitNotice";
 import { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
 import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentPurposePage.module.css";
-import { AgentFeatureNav } from "./AgentFeatureNav";
+import { AgentPageHeader } from "./AgentPageHeader";
 
 interface SubsystemAgentPurposePageProps {
   children?: React.ReactNode;
@@ -82,34 +82,30 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
 
   return (
     <div className={styles.container}>
-      <header className={styles.pageHeader}>
-        <Link className={styles.back} to="/hosts">
-          <span aria-hidden="true">←</span> {t("返回机队视图", "Back to fleet view")}
-        </Link>
-        <div className={styles.titleRow}>
-          <h1 className={styles.pageTitle}>
-            {agentId || t("未指定主机", "No host specified")}
-          </h1>
+      <AgentPageHeader
+        agentId={agentId}
+        active="purpose"
+        badge={
           <span className={styles.scopeBadge}>
-            {t("用途：事实 / 推断 / 判定", "Purpose: facts / inference / classification")}
-          </span>
-        </div>
-        <div className={styles.metaRow}>
-          {data ? (
-            <span className={styles.metaItem}>
-              {t("视图生成", "View generated")}{" "}
-              <strong>{formatTimestamp(data.generatedAt)}</strong>
-            </span>
-          ) : null}
-          <span className={styles.metaItemMuted}>
             {t(
-              "不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 —— 需要重取用右上角「刷新」。",
-              "No automatic polling: facts are reported only when their content changes, and suggestions are recomputed only when the facts or the rule book change — refetch with “Refresh” in the top-right corner.",
+              "用途：事实 / 推断 / 判定",
+              "Purpose: facts / inference / classification",
             )}
           </span>
-        </div>
-        <AgentFeatureNav agentId={agentId} active="purpose" />
-      </header>
+        }
+      >
+        <p>
+          {data
+            ? `${t("视图生成", "View generated")} ${formatTimestamp(
+                data.generatedAt,
+              )} · `
+            : ""}
+          {t(
+            "不自动轮询：事实只在内容变化时上报，建议只在事实或规则册变化时重算 —— 需要重取用右上角「刷新」。",
+            "No automatic polling: facts are reported only when their content changes, and suggestions are recomputed only when the facts or the rule book change — refetch with “Refresh” in the top-right corner.",
+          )}
+        </p>
+      </AgentPageHeader>
 
       {unknownAgent ? (
         // 「这台机器不存在」（404）与「它还没报过事实」（200 + 空视图）必须分开呈现。
