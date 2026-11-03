@@ -59,6 +59,13 @@ jobs:
       - name: Test (investigation contract)
         run: npm run test:investigations
 
+      # 指标选择类 label：表单逻辑（删覆盖 vs 不写）与管理面契约（路径/报文/原因码）。
+      - name: Test (metrics labels form)
+        run: npm run test:metrics-labels
+
+      - name: Test (metrics labels contract)
+        run: npm run test:metrics-labels-contract
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]

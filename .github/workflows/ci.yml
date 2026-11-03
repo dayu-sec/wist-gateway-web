@@ -111,3 +111,13 @@ jobs:
       # 继承默认也算已开启（可取消）、取消写的是本机清单减这一面。
       - name: Test (investigation grant state)
         run: npm run test:investigation-grants
+
+      # 指标选择类 label 的表单逻辑：留空 = 删覆盖 vs 值没变 = 不写，
+      # 以及按**合并后的生效值**判 `role`/`shard`/`tier` 对 `app` 的依赖。
+      - name: Test (metrics labels form)
+        run: npm run test:metrics-labels
+
+      # 指标选择类 label 的管理面契约：路径与编码 / 方法 / PUT 报文（含 null 的删除语义）、
+      # 归一化、400 的稳定原因码、429 的退避秒数。
+      - name: Test (metrics labels contract)
+        run: npm run test:metrics-labels-contract
