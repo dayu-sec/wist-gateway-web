@@ -36,6 +36,45 @@
   font-size: 11px;
 }
 
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.refreshButton {
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.refreshButton:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.refreshButton:not(:disabled):hover {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.refreshHint {
+  color: var(--text-4);
+  font-size: 10.5px;
+}
+
+.refreshNotice {
+  color: var(--ok);
+  font-size: 11.5px;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

@@ -4,10 +4,13 @@ import { ApiError, getAdminApiToken, isRateLimitedError } from "../api";
 import {
   useAgentMetricsLabels,
   useAgentOverview,
+  useAgentRefresh,
   useClearAgentMetricsLabels,
   useSetAgentMetricsLabels,
 } from "../hooks";
 import { t } from "../i18n";
+import { AgentFeatureNav } from "./AgentFeatureNav";
+import { adminApiErrorMessage } from "./adminApiError";
 import { RateLimitNotice } from "./RateLimitNotice";
 import { SubsystemMetricsLabelsForm } from "./SubsystemMetricsLabelsForm";
 import { SubsystemMetricsLabelsResult } from "./SubsystemMetricsLabelsResult";
@@ -49,6 +52,24 @@ function loadErrorMessage(error: unknown): string {
 }
 
 /**
+ * 「重新下发」失败的一句话。
+ *
+ * 400 要显示**稳定原因码**（`empty_refresh_what` / `unknown_refresh_source`）而不是泛泛的
+ * “请求不合法”：页面固定发 `metrics-labels`，看到这两个码只可能是网关与页面版本不同步。
+ * 429 不走这里（`RateLimitNotice` 要能倒计时），401 / 404 与读取路径同口径。
+ */
+function refreshErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 400 && error.code) {
+      return t("重新下发被拒：{code}", "Re-dispatch rejected: {code}", {
+        code: error.code,
+      });
+    }
+  }
+  return adminApiErrorMessage(error);
+}
+
+/**
  * 每机指标标签（选择类 label）。
  *
  * 放在「主机指标」页的下游而不是独立菜单：label 的用途就是**让别人按它查这台机器的指标**，
@@ -60,6 +81,7 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
   const query = useAgentMetricsLabels(agentId);
   const setMutation = useSetAgentMetricsLabels(agentId);
   const clearMutation = useClearAgentMetricsLabels(agentId);
+  const refreshMutation = useAgentRefresh(agentId);
 
   const agent = useMemo(
     () => overview?.recentOnlineAgents.find((item) => item.agentId === agentId),
@@ -68,11 +90,13 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
 
   const { reset: resetSet } = setMutation;
   const { reset: resetClear } = clearMutation;
-  // 换一台机器（路由参数变）就丢掉上一台的保存错误，否则 A 的 400 会挂在 B 的页面上。
+  const { reset: resetRefresh } = refreshMutation;
+  // 换一台机器（路由参数变）就丢掉上一台的保存 / 下发结果，否则 A 的提示会挂在 B 的页面上。
   useEffect(() => {
     resetSet();
     resetClear();
-  }, [agentId, resetSet, resetClear]);
+    resetRefresh();
+  }, [agentId, resetSet, resetClear, resetRefresh]);
 
   const { data, isLoading, isError, error } = query;
 
@@ -92,20 +116,8 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
               host: agent?.hostname || agentId,
             })}
           </h1>
-          <Link
-            className={styles.crossLink}
-            to={`/agents/${encodeURIComponent(agentId)}/work`}
-          >
-            {t("采集工作", "Collection work")} <span aria-hidden="true">→</span>
-          </Link>
-          <span className={styles.crossDivider} aria-hidden="true" />
-          <Link
-            className={styles.crossLink}
-            to={`/agents/${encodeURIComponent(agentId)}/purpose`}
-          >
-            {t("用途", "Purpose")} <span aria-hidden="true">→</span>
-          </Link>
         </div>
+        <AgentFeatureNav agentId={agentId} active="labels" />
         <p className={styles.pageSummary}>
           {t(
             '选择类 label 让同一组机器能被一条查询取到：给三台 Kafka 填同一个 cluster、各自的 role，就能用 cluster="kafka-prod" 一次看整组，而不是一台一台查。生效值是三层合并的结果 —— 网关按事实推断（app / role）、部署默认（env 等）、这里的手工覆盖，越靠后优先级越高。',
@@ -163,7 +175,30 @@ export function SubsystemAgentMetricsLabelsPage({}: SubsystemAgentMetricsLabelsP
             onSubmit={(overrides) => setMutation.mutate(overrides)}
             onClear={() => clearMutation.mutate()}
           />
-          <SubsystemMetricsLabelsResult view={data} />
+          <SubsystemMetricsLabelsResult
+            view={data}
+            onRefresh={() => refreshMutation.mutate(["metrics-labels"])}
+            refreshing={refreshMutation.isPending}
+            refreshNotice={
+              refreshMutation.isSuccess
+                ? t(
+                    "已排队，≤3s 送达；结果见命令台账。",
+                    "Queued — delivered within 3s; the command ledger shows the result.",
+                  )
+                : null
+            }
+          />
+          {refreshMutation.isError ? (
+            isRateLimitedError(refreshMutation.error) ? (
+              <div className={styles.noticeWrap}>
+                <RateLimitNotice error={refreshMutation.error} />
+              </div>
+            ) : (
+              <div className={styles.errorBanner} role="alert">
+                {refreshErrorMessage(refreshMutation.error)}
+              </div>
+            )
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -54,6 +54,7 @@
     "test:agent-revocation": "tsx tests/agent-revocation-contract.test.ts",
     "test:metrics-labels": "tsx tests/metrics-labels-form.test.ts",
     "test:metrics-labels-contract": "tsx tests/metrics-labels-contract.test.ts",
+    "test:agent-refresh": "tsx tests/agent-refresh-contract.test.ts",
     "test:registered-agents": "tsx tests/registered-agents-contract.test.ts",
     "test:host-metrics": "tsx tests/host-metrics-contract.test.ts",
     "test:address-summary": "tsx tests/address-summary.test.ts",

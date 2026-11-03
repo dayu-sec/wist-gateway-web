@@ -5925,3 +5925,68 @@ export async function clearAgentMetricsLabels(
   });
   return normalizeAgentMetricsLabels(payload);
 }
+
+/**
+ * 可手工刷新的来源（`wist_api::status::refresh_what::ALL` 的页面侧镜像）。
+ *
+ * 闭集：与 agentd CLI `refresh --only …` 是**同一套词**，命令台账里读到的值要能直接抄回去。
+ * 页面只提供 `metrics-labels` 的入口；`uplink` / `credentials` 直接影响「发不发、发到哪」
+ * 与凭据，误点代价大，只留给 CLI（见设计 §10.1）。
+ */
+export type RefreshSource =
+  | "facts"
+  | "policies"
+  | "work"
+  | "metrics-labels"
+  | "credentials"
+  | "uplink";
+
+/** 手工刷新的命令回执（与 `fact-refresh` 同形，这里只留“已入队”必需的四项）。 */
+export interface AgentRefreshCommand {
+  agentId: string;
+  commandId: string;
+  kind: string;
+  requestedAt: string;
+}
+
+/**
+ * 归一化命令回执。
+ *
+ * `command_id` **缺失即抛错**：没有它就无法在命令台账里对上这一条，页面会把
+ * “根本没排队”渲染成“已下发”——这正是要避免的那种假成功。
+ */
+export function normalizeAgentRefresh(payload: unknown): AgentRefreshCommand {
+  const record = requiredRecord(payload, "agentRefresh");
+  return {
+    agentId: requiredString(
+      record.agent_id ?? record.agentId,
+      "agentRefresh.agentId",
+    ),
+    commandId: requiredString(
+      record.command_id ?? record.commandId,
+      "agentRefresh.commandId",
+    ),
+    kind: requiredString(record.kind, "agentRefresh.kind"),
+    requestedAt: requiredString(
+      record.requested_at ?? record.requestedAt,
+      "agentRefresh.requestedAt",
+    ),
+  };
+}
+
+/**
+ * 手工刷新一组来源：`POST /api/v1/admin/agents/{agent_id}/refresh`。
+ *
+ * 它只是「再发一次」：正常写入路径（如 `PUT …/metrics-labels`）已经自动排刷新。
+ * 返回值只代表**命令已入队**，不代表 agent 已经拉到 —— 命令在下一个状态上报的回执里被认领。
+ */
+export async function dispatchAgentRefresh(
+  agentId: string,
+  what: readonly RefreshSource[],
+): Promise<AgentRefreshCommand> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/refresh`,
+    { method: "POST", body: JSON.stringify({ what }) },
+  );
+  return normalizeAgentRefresh(payload);
+}

@@ -234,7 +234,22 @@ export function SubsystemKnowledgePage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>{t("知识库", "Knowledge base")}</h1>
+          <div className={styles.pageHeaderRow}>
+            <h1 className={styles.pageTitle}>{t("知识库", "Knowledge base")}</h1>
+            {/* 「更新」的入口必须**不藏在 tab 里**：运维找的是「怎么换一版内容」，
+                先进来看不到入口就会以为这个功能不存在。点它直接跳到录入表单。 */}
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => selectTab("record")}
+              title={t(
+                "录入新包 → 激活后生效（不重启网关）",
+                "Record a new package, then activate it — no gateway restart",
+              )}
+            >
+              {t("更新知识库", "Update knowledge base")}
+            </button>
+          </div>
           <p className={styles.pageSummary}>
             {t(
               "网关装载的策展内容（采集目录 / 包 / 模板 + 用途规则 + 发现策略）。 内容以包为单位发布（来自 wist-knowledge 的 Release 附件），在这里录入并切换生效版本 —— 切换不重启网关。",
@@ -242,6 +257,42 @@ export function SubsystemKnowledgePage() {
             )}
           </p>
         </header>
+
+        {/* 出厂初始内容 / 空载时，把「下一步该干什么」摆在最上面：
+            这两种状态下面包/采集面 tab 都是只读的，不给 CTA 就只能是“看完不知道怎么办”。 */}
+        {current && (sourceKind === "initial" || !current.configured) ? (
+          <div className={styles.updateGuide} role="status">
+            <div className={styles.updateGuideText}>
+              <strong>
+                {sourceKind === "initial"
+                  ? t(
+                      "当前用的是出厂初始内容",
+                      "Currently on the factory initial content",
+                    )
+                  : t("知识库当前为空载", "Knowledge base is empty")}
+              </strong>
+              <span>
+                {sourceKind === "initial"
+                  ? t(
+                      "网关装载的是部署时自带的初始包（[knowledge] source_dir），没有经过管理面登记 —— 它不在「录入历史」里，也没法回滚。要换到新版本：点右侧「更新知识库」录入新包，再到「知识包」标签页激活。",
+                      "The gateway loaded the initial package shipped with the deployment ([knowledge] source_dir). It is not registered in the admin plane, so it does not appear in the record history and cannot be rolled back. To move to a newer version, click “Update knowledge base”, record the package, then activate it on the Packages tab.",
+                    )
+                  : (current.hint ??
+                    t(
+                      "还没有装载任何策展内容：点右侧「更新知识库」录入一个包并激活。",
+                      "No curated content is loaded yet: click “Update knowledge base” to record and activate a package.",
+                    ))}
+              </span>
+            </div>
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={() => selectTab("record")}
+            >
+              {t("去录入", "Record now")}
+            </button>
+          </div>
+        ) : null}
 
         <div
           className={styles.tabs}

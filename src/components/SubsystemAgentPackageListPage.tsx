@@ -85,6 +85,11 @@ export function SubsystemAgentPackageListPage() {
         </header>
 
         <div className={`${styles.pageActions} ${styles.pageActionsEnd}`}>
+          {/* 知识库与安装包是同一类管理对象（录入 + 切生效）：从这边给一个交叉入口，
+              免得“要更新内容”的人只在安装包里转。详见 /knowledge 页头的主按钮。 */}
+          <Link className={styles.actionLink} to="/knowledge">
+            {t("本网关的知识库内容 →", "Knowledge base content →")}
+          </Link>
           <Link className={styles.actionLink} to="/install-package/add">
             {t("安装包录入", "Install package entry")}
           </Link>

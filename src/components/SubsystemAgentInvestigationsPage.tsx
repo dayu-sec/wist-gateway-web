@@ -9,6 +9,7 @@ import {
 import { RateLimitNotice } from "./RateLimitNotice";
 import { CopyButton } from "./CopyButton";
 import { t } from "../i18n";
+import { AgentFeatureNav } from "./AgentFeatureNav";
 import styles from "./SubsystemAgentInvestigationsPage.module.css";
 
 interface SubsystemAgentInvestigationsPageProps {
@@ -419,20 +420,13 @@ export function SubsystemAgentInvestigationsPage(
           <h1 className={styles.title}>{t("一次性调查", "One-off investigation")}</h1>
           <code className={styles.agentId}>{agentId}</code>
         </div>
+        <AgentFeatureNav agentId={agentId} active="investigations" />
         <p className={styles.subtitle}>
           {t(
             "只读、有界的一次性取证：下发命令 → Agent 当场查 → 证据表经数据面落到网关本机报告目录。",
             "Read-only, bounded forensics: dispatch a command, the agent inspects the host, and the evidence table lands in the gateway's local report directory via the data plane.",
           )}
         </p>
-        <div className={styles.linkRow}>
-          <Link className={styles.inlineLink} to={`/agents/${encodeURIComponent(agentId)}/metrics`}>
-            {t("主机详情", "Host details")}
-          </Link>
-          <Link className={styles.inlineLink} to={`/agents/${encodeURIComponent(agentId)}/work`}>
-            {t("采集工作", "Collection work")}
-          </Link>
-        </div>
       </header>
 
       <div className={styles.section}>

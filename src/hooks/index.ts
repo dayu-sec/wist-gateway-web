@@ -19,6 +19,7 @@ import {
   clearDiscoverySnapshotGlobal,
   createRolloutPlan,
   deleteAgent,
+  dispatchAgentRefresh,
   fetchAgentAdvertiseUrl,
   fetchAgentCollectionPreflight,
   fetchAgentFactRefresh,
@@ -94,6 +95,7 @@ import {
   type LaunchInvestigationInput,
   type MetricLabelKey,
   type RecordKnowledgePackageCommand,
+  type RefreshSource,
   type SetAgentAdvertiseUrlCommand,
   type SetAgentInstallPackageCommand,
   type SetAgentUplinkCommand,
@@ -1867,5 +1869,18 @@ export function useClearAgentMetricsLabels(agentId: string) {
     onSuccess: (view: AgentMetricsLabelsView) => {
       queryClient.setQueryData(["agent-metrics-labels", view.agentId], view);
     },
+  });
+}
+
+/**
+ * 手工「重新下发」：让这台机器立刻重拉一组来源（页面只用 `metrics-labels`）。
+ *
+ * **不轮询 ack**：命令台账页已经能看结果，标签页再轮询只会多一份状态源（设计 §10.1）。
+ * 成功后也不改 `agent-metrics-labels` 缓存：命令只是让 agent 去拉，值要等它下一次上报后
+ * 由页面自己刷新，提前写缓存等于伪造一个“已生效”。
+ */
+export function useAgentRefresh(agentId: string) {
+  return useMutation({
+    mutationFn: (what: RefreshSource[]) => dispatchAgentRefresh(agentId, what),
   });
 }

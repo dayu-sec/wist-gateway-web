@@ -16,6 +16,46 @@
   margin-bottom: 22px;
 }
 
+/* 标题行：「更新知识库」主按钮常驻在这里 —— 它不能只在「录入」tab 里出现，
+   否则运维一进页看不到入口，会以为功能不存在。 */
+.pageHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 出厂初始内容 / 空载时的引导条：状态说明 + 下一步 CTA。 */
+.updateGuide {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: var(--prose-max);
+  margin: -6px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+
+.updateGuideText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.updateGuideText strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.updateGuide button {
+  flex: none;
+}
+
 .pageTitle {
   font-size: var(--page-title);
   font-weight: 700;

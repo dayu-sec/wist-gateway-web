@@ -350,11 +350,10 @@
   font-style: italic;
 }
 
-/* ---------- 状态块（彼此可区分：空 / 未授权 / 报错 / 截断） ---------- */
+/* ---------- 状态块（彼此可区分：空 / 未授权 / 报错 / 轮转） ---------- */
 
 .idleNotice,
 .errorBanner,
-.truncatedNotice,
 .resetNotice {
   width: calc(100% - 48px);
   max-width: calc(var(--content-max) - 48px);
@@ -405,17 +404,6 @@
   line-height: 1.75;
 }
 
-/* 截断提示：不是错误，但改变「这是不是全部」的判断。 */
-.truncatedNotice {
-  padding: 8px 13px;
-  border: 1px solid var(--warn-border);
-  border-radius: var(--radius-sm);
-  background: var(--warn-soft);
-  color: var(--warn);
-  font-size: 12px;
-  line-height: 1.7;
-}
-
 .resetNotice {
   padding: 8px 13px;
   border: 1px solid var(--info);
@@ -426,8 +414,7 @@
   line-height: 1.7;
 }
 
-/* 这两个提示在 tail 面板内部：宽度由父级决定，别再套一层页面宽度。 */
-.truncatedNotice,
+/* 轮转提示在 tail 面板内部：宽度由父级决定，别再套一层页面宽度。 */
 .resetNotice {
   width: auto;
   max-width: none;

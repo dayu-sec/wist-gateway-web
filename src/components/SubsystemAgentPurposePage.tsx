@@ -7,6 +7,7 @@ import { RateLimitNotice } from "./RateLimitNotice";
 import { SubsystemAgentPurposeView } from "./SubsystemAgentPurposeView";
 import { t, dateLocale } from "../i18n";
 import styles from "./SubsystemAgentPurposePage.module.css";
+import { AgentFeatureNav } from "./AgentFeatureNav";
 
 interface SubsystemAgentPurposePageProps {
   children?: React.ReactNode;
@@ -92,18 +93,6 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
           <span className={styles.scopeBadge}>
             {t("用途：事实 / 推断 / 判定", "Purpose: facts / inference / classification")}
           </span>
-          <Link
-            className={styles.crossLink}
-            to={`/agents/${encodeURIComponent(agentId)}/metrics`}
-          >
-            {t("主机指标", "Host metrics")} <span aria-hidden="true">→</span>
-          </Link>
-          <Link
-            className={styles.crossLink}
-            to={`/agents/${encodeURIComponent(agentId)}/work`}
-          >
-            {t("采集工作", "Collection work")} <span aria-hidden="true">→</span>
-          </Link>
         </div>
         <div className={styles.metaRow}>
           {data ? (
@@ -119,6 +108,7 @@ export function SubsystemAgentPurposePage({}: SubsystemAgentPurposePageProps) {
             )}
           </span>
         </div>
+        <AgentFeatureNav agentId={agentId} active="purpose" />
       </header>
 
       {unknownAgent ? (

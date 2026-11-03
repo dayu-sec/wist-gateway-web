@@ -5,6 +5,11 @@ import styles from "./SubsystemMetricsLabelsResult.module.css";
 
 interface SubsystemMetricsLabelsResultProps {
   view: AgentMetricsLabelsView;
+  /** 「重新下发」：让这台机器立刻重拉一次标签（命令入队，≤3s 送达）。 */
+  onRefresh?: () => void;
+  refreshing?: boolean;
+  /** 成功提示。失败不在这里渲染：429 要交给 `RateLimitNotice` 做倒计时。 */
+  refreshNotice?: string | null;
 }
 
 /**
@@ -15,6 +20,9 @@ interface SubsystemMetricsLabelsResultProps {
  */
 export function SubsystemMetricsLabelsResult({
   view,
+  onRefresh,
+  refreshing = false,
+  refreshNotice = null,
 }: SubsystemMetricsLabelsResultProps) {
   const keys = METRIC_LABEL_KEYS.filter((key) => key in view.labels);
   const overrideCount = Object.keys(view.overrides).length;
@@ -38,7 +46,30 @@ export function SubsystemMetricsLabelsResult({
             })}
           </span>
         ) : null}
+        {onRefresh ? (
+          <div className={styles.actions}>
+            <span className={styles.refreshHint}>
+              {t("排队后 ≤3s 送达", "delivered within 3s of queueing")}
+            </span>
+            <button
+              type="button"
+              className={styles.refreshButton}
+              onClick={onRefresh}
+              disabled={refreshing}
+            >
+              {refreshing
+                ? t("下发中…", "Dispatching…")
+                : t("重新下发", "Re-dispatch")}
+            </button>
+          </div>
+        ) : null}
       </header>
+
+      {refreshNotice ? (
+        <p className={styles.refreshNotice} role="status">
+          {refreshNotice}
+        </p>
+      ) : null}
 
       {keys.length === 0 ? (
         <p className={styles.empty}>

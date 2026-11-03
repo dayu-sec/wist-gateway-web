@@ -1,0 +1,57 @@
+/* 本机页面的 tab 条：一条通栏底边 + 当前页下划线。
+   与标题行里的「纯文字 + 箭头」链接相比，它是一条**控件**：
+   顺序固定、位置固定、当前项高亮 —— 换页时不会重新找入口。 */
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  /* 通栏底边：五个 tab 因此被读成同一组，而不是五个散落的链接。 */
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 12px 10px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.tab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 当前页：走正文色 + 下划线，不加背景 —— 背景块会和下面卡片的底色抢注意力。 */
+.tabActive,
+.tabActive:hover {
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  cursor: default;
+}
+
+/* 下划线压在底边上（-1px），与通栏那条线连成一体。 */
+.tabActive::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: -1px;
+  left: 12px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}

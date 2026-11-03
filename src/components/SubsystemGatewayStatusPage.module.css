@@ -212,7 +212,45 @@
   color: var(--crit);
 }
 
-/* ── 明细网格：一格一项，通栏分栏 ── */
+/* 「基本信息」：只放**不随刷新变化**的事实（网关 ID / 版本 / 硬件总量）。
+   实时读数不在这里 —— 上面状态卡给结论，趋势图给曲线；这张表刷新一百次也是同样的值。 */
+.factsTitle {
+  margin: 4px 0 8px;
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/*
+ * 实时读数：**一行**紧凑文字（原来是一张 14 行两列表格）。
+ * 这些值每 5 秒变一次，做成表格看上去像静态规格；趋势图只覆盖 CPU / 内存 / 负载 /
+ * 在线数 / 磁盘占用，其余读数只在这里出现，所以不能省。
+ */
+.liveLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+}
+
+.liveItem {
+  white-space: nowrap;
+}
+
+.liveItem + .liveItem::before {
+  content: "·";
+  margin-right: 14px;
+  color: var(--text-4);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

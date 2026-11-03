@@ -25,6 +25,7 @@ import { SubsystemAgentUplinkStatusPanel } from "./SubsystemAgentUplinkStatusPan
 import { SubsystemAgentIdentityPanel } from "./SubsystemAgentIdentityPanel";
 import { summarizeAddresses } from "../lib/format";
 import styles from "./SubsystemAgentWorkPage.module.css";
+import { AgentFeatureNav } from "./AgentFeatureNav";
 
 interface SubsystemAgentWorkPageProps {
   children?: React.ReactNode;
@@ -204,19 +205,6 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
               "Collection work: grant / confirm / drift",
             )}
           </span>
-          <Link
-            className={styles.crossLink}
-            to={`/agents/${encodeURIComponent(agentId)}/purpose`}
-          >
-            {t("用途判定", "Purpose classification")}{" "}
-            <span aria-hidden="true">→</span>
-          </Link>
-          <Link
-            className={styles.crossLink}
-            to={`/agents/${encodeURIComponent(agentId)}/metrics`}
-          >
-            {t("主机指标", "Host metrics")} <span aria-hidden="true">→</span>
-          </Link>
         </div>
         <div className={styles.metaRow}>
           {runtime.data ? (
@@ -247,6 +235,7 @@ export function SubsystemAgentWorkPage({}: SubsystemAgentWorkPageProps) {
             )}
           </span>
         </div>
+        <AgentFeatureNav agentId={agentId} active="work" />
       </header>
 
       {unknownAgent ? (

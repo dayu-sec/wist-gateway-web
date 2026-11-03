@@ -461,28 +461,6 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
             ) : null}
           </div>
 
-            {tail.skippedBefore > 0 && tail.text ? (
-              <div className={styles.truncatedNotice} role="status">
-                <span>
-                  {t(
-                    "只载入了文件尾部：更早的 {bytes} 没有加载，",
-                    "Only the tail of the file is loaded: the earlier {bytes} were not loaded. ",
-                    { bytes: formatBytes(tail.skippedBefore) },
-                  )}
-                  <strong>
-                    {t(
-                      "页面不会把整份日志拉进浏览器",
-                      "The page does not pull the whole log into the browser",
-                    )}
-                  </strong>
-                  {t(
-                    "；需要完整历史时去宿主上 tail / grep 该文件。",
-                    "; for the full history, tail / grep the file on the host.",
-                  )}
-                </span>
-              </div>
-            ) : null}
-
             {tail.resetCount > 0 ? (
               <div className={styles.resetNotice} role="status">
                 {t(
