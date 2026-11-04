@@ -21,7 +21,6 @@ import {
 } from "./uplinkForm";
 import { SubsystemDiscoverySnapshotSection } from "./SubsystemDiscoverySnapshotSection";
 import styles from "./SubsystemGatewayInfoPage.module.css";
-import { SubsystemKafkaAclHelp } from "./SubsystemKafkaAclHelp";
 
 /** 关于「未设置」：不是「用默认值」，而是压根没有上送目标。
  * 文案在函数里取词 —— 模块顶层求值一次的话，切语言不会变。 */
@@ -424,8 +423,6 @@ export function SubsystemGatewayInfoPage() {
             </div>
           ) : null}
         </section>
-
-        <SubsystemKafkaAclHelp />
       </main>
     </div>
   );

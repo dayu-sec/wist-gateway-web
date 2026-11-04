@@ -9,6 +9,7 @@ import { SubsystemGatewayStatusPage } from "./components/SubsystemGatewayStatusP
 import { SubsystemAgentPackageListPage } from "./components/SubsystemAgentPackageListPage";
 import { SubsystemAgentPackageAddPage } from "./components/SubsystemAgentPackageAddPage";
 import { SubsystemKnowledgePage } from "./components/SubsystemKnowledgePage";
+import { SubsystemKafkaAccessPage } from "./components/SubsystemKafkaAccessPage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentMetricsLabelsPage } from "./components/SubsystemAgentMetricsLabelsPage";
 import { SubsystemAgentPurposePage } from "./components/SubsystemAgentPurposePage";
@@ -42,6 +43,7 @@ export function App() {
           element={<SubsystemAgentPackageAddPage />}
         />
         <Route path="/knowledge" element={<SubsystemKnowledgePage />} />
+        <Route path="/kafka-access" element={<SubsystemKafkaAccessPage />} />
         <Route path="/link-upstream" element={<SubsystemLinkUpstreamPage />} />
         {/* 旧入口一律留重定向，外部链接与书签不至于落到 404：
             「Gateway 初始化 / /gateway-init」（与已并入它的 /uplink、/agent-init）已改名

@@ -21,6 +21,8 @@ export { SubsystemGatewayInfoPage } from "./SubsystemGatewayInfoPage";
 export { SubsystemAgentPackageListPage } from "./SubsystemAgentPackageListPage";
 export { SubsystemAgentPackageAddPage } from "./SubsystemAgentPackageAddPage";
 export { SubsystemKnowledgePage } from "./SubsystemKnowledgePage";
+export { SubsystemKafkaAccessPage } from "./SubsystemKafkaAccessPage";
+export { SubsystemKafkaAclHelp } from "./SubsystemKafkaAclHelp";
 export { SubsystemShowAgentRuntimeStatusUsecaseCard } from "./SubsystemShowAgentRuntimeStatusUsecaseCard";
 export { SubsystemAgentRuntimeStatusResult } from "./SubsystemAgentRuntimeStatusResult";
 export { SubsystemRuntimeStatusAgentInput } from "./SubsystemRuntimeStatusAgentInput";

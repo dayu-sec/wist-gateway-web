@@ -124,6 +124,8 @@ function describeRoute(pathname: string): RouteMeta {
       };
     case "/knowledge":
       return { section: "ops", crumbs: [t("知识库", "Knowledge base")] };
+    case "/kafka-access":
+      return { section: "ops", crumbs: [t("Kafka 接入", "Kafka access")] };
     case "/link-upstream":
       return { section: "settings", crumbs: [t("链接上级", "Link upstream")] };
     case "/":

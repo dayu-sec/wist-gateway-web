@@ -1,0 +1,108 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  gap: 16px;
+  padding-bottom: 56px;
+}
+
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--page-pad-top) var(--page-pad-x) 0;
+}
+
+.pageTitle {
+  color: var(--text);
+  font-size: var(--page-title);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pageSummary {
+  max-width: var(--prose-max);
+  color: var(--text-3);
+  font-size: var(--page-summary);
+  line-height: 1.7;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: calc(100% - var(--page-pad-x) * 2);
+  max-width: calc(var(--content-max) - var(--page-pad-x) * 2);
+  margin: 0 auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cardTitle {
+  color: var(--text);
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.cardNote {
+  max-width: var(--prose-max);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+
+.code {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  overflow-x: auto;
+}
+
+.faq {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.faqRow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.faqRow dt {
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.faqRow dd {
+  max-width: var(--prose-max);
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.6;
+}
