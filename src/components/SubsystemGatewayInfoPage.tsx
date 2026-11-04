@@ -21,6 +21,7 @@ import {
 } from "./uplinkForm";
 import { SubsystemDiscoverySnapshotSection } from "./SubsystemDiscoverySnapshotSection";
 import styles from "./SubsystemGatewayInfoPage.module.css";
+import { SubsystemKafkaAclHelp } from "./SubsystemKafkaAclHelp";
 
 /** 关于「未设置」：不是「用默认值」，而是压根没有上送目标。
  * 文案在函数里取词 —— 模块顶层求值一次的话，切语言不会变。 */
@@ -40,7 +41,10 @@ function loadErrorMessage(error: unknown): string {
         'Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click "Apply".',
       );
     if (error.status === 429)
-      return t("认证失败次数过多，请稍后再试。", "Too many failed authentications — try again later.");
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentications — try again later.",
+      );
     // 404 特指「路由不存在」：网关进程在应答（否则会是网络错误），只是没有这个接口，
     // 绝大多数情况是在跑旧构建的 gateway，而不是服务未启动。
     if (error.status === 404)
@@ -49,13 +53,21 @@ function loadErrorMessage(error: unknown): string {
         "The gateway has no such endpoint (HTTP 404): the running gateway is probably an old build — rebuild and restart the gateway, then retry.",
       );
     return error.detail
-      ? t("网关返回 HTTP {status}：{detail}", "Gateway returned HTTP {status}: {detail}", {
-          status: error.status,
-          detail: error.detail,
-        })
-      : t("网关返回 HTTP {status}，请检查网关日志。", "Gateway returned HTTP {status} — check the gateway logs.", {
-          status: error.status,
-        });
+      ? t(
+          "网关返回 HTTP {status}：{detail}",
+          "Gateway returned HTTP {status}: {detail}",
+          {
+            status: error.status,
+            detail: error.detail,
+          },
+        )
+      : t(
+          "网关返回 HTTP {status}，请检查网关日志。",
+          "Gateway returned HTTP {status} — check the gateway logs.",
+          {
+            status: error.status,
+          },
+        );
   }
   return t(
     "读取失败：响应不符合当前契约，请检查网关与前端版本。",
@@ -75,35 +87,52 @@ function updatedAtText(value: string | null): string {
  * 与页面上「来源」是同一个判据（`updatedAt`），不另造一套。
  */
 function modifiedText(updatedAt: string | null, updatedBy: string): string {
-  if (!updatedAt) return t("部署配置 · 未修改", "Deployment config, never edited");
-  return updatedBy ? `${updatedAtText(updatedAt)} · ${updatedBy}` : updatedAtText(updatedAt);
+  if (!updatedAt)
+    return t("部署配置 · 未修改", "Deployment config, never edited");
+  return updatedBy
+    ? `${updatedAtText(updatedAt)} · ${updatedBy}`
+    : updatedAtText(updatedAt);
 }
 
 /** 保存失败时的提示。400 的原因由网关写在正文里（主机/端口的形状要求），原样透出。 */
 function saveErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 400)
-      return error.detail ?? t("输入不成立（HTTP 400）。", "Invalid input (HTTP 400).");
+      return (
+        error.detail ??
+        t("输入不成立（HTTP 400）。", "Invalid input (HTTP 400).")
+      );
     if (error.status === 401)
       return t(
         "Admin Token 缺失或无效：请在右上角点钥匙按钮，粘贴 Admin Token 后点击“应用”。",
         'Admin Token missing or invalid: click the key button in the top bar, paste the Admin Token and click "Apply".',
       );
     if (error.status === 429)
-      return t("认证失败次数过多，请稍后再试。", "Too many failed authentications — try again later.");
+      return t(
+        "认证失败次数过多，请稍后再试。",
+        "Too many failed authentications — try again later.",
+      );
     if (error.status === 404)
       return t(
         "网关没有这个接口（HTTP 404）：正在运行的 gateway 很可能是旧构建，请重新构建并重启网关后重试。",
         "The gateway has no such endpoint (HTTP 404): the running gateway is probably an old build — rebuild and restart the gateway, then retry.",
       );
     return error.detail
-      ? t("网关返回 HTTP {status}：{detail}", "Gateway returned HTTP {status}: {detail}", {
-          status: error.status,
-          detail: error.detail,
-        })
-      : t("网关返回 HTTP {status}，请检查网关日志。", "Gateway returned HTTP {status} — check the gateway logs.", {
-          status: error.status,
-        });
+      ? t(
+          "网关返回 HTTP {status}：{detail}",
+          "Gateway returned HTTP {status}: {detail}",
+          {
+            status: error.status,
+            detail: error.detail,
+          },
+        )
+      : t(
+          "网关返回 HTTP {status}，请检查网关日志。",
+          "Gateway returned HTTP {status} — check the gateway logs.",
+          {
+            status: error.status,
+          },
+        );
   }
   return t(
     "保存失败：响应不符合当前契约，请检查网关与前端版本。",
@@ -112,13 +141,7 @@ function saveErrorMessage(error: unknown): string {
 }
 
 /** 读取中 / 读取失败的提示条，三处查询共用一个实现。 */
-function LoadNotice({
-  loading,
-  error,
-}: {
-  loading: boolean;
-  error: unknown;
-}) {
+function LoadNotice({ loading, error }: { loading: boolean; error: unknown }) {
   if (loading) {
     return (
       <div className={styles.notice} role="status">
@@ -181,7 +204,9 @@ export function SubsystemGatewayInfoPage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>{t("Gateway 信息", "Gateway info")}</h1>
+          <h1 className={styles.pageTitle}>
+            {t("Gateway 信息", "Gateway info")}
+          </h1>
           <p className={styles.pageSummary}>
             {t(
               "网关的接入地址、上送目标与开关，以及宿主侧接入代理的运行状态。",
@@ -193,7 +218,9 @@ export function SubsystemGatewayInfoPage() {
         <section className={styles.card} aria-labelledby="gateway-info-current">
           <header className={styles.cardHead}>
             <div className={styles.cardTitleRow}>
-              <h2 id="gateway-info-current">{t("当前配置", "Current settings")}</h2>
+              <h2 id="gateway-info-current">
+                {t("当前配置", "Current settings")}
+              </h2>
               <span className={styles.cardChip}>{t("只读", "Read-only")}</span>
             </div>
             <p className={styles.cardNote}>
@@ -210,7 +237,9 @@ export function SubsystemGatewayInfoPage() {
               <dd className={styles.configValue}>
                 {effectiveAdvertiseUrl ? (
                   <>
-                    <span className={styles.configValueText}>{effectiveAdvertiseUrl}</span>
+                    <span className={styles.configValueText}>
+                      {effectiveAdvertiseUrl}
+                    </span>
                     <CopyButton
                       text={effectiveAdvertiseUrl}
                       label={t("复制", "Copy")}
@@ -223,7 +252,10 @@ export function SubsystemGatewayInfoPage() {
               </dd>
               <dd className={styles.configMeta}>
                 {advertise.data
-                  ? modifiedText(advertise.data.updatedAt, advertise.data.updatedBy)
+                  ? modifiedText(
+                      advertise.data.updatedAt,
+                      advertise.data.updatedBy,
+                    )
                   : "—"}
               </dd>
             </div>
@@ -235,7 +267,9 @@ export function SubsystemGatewayInfoPage() {
                   <span className={styles.configValueEmpty}>—</span>
                 ) : currentAddress ? (
                   <>
-                    <span className={styles.configValueText}>{currentAddress}</span>
+                    <span className={styles.configValueText}>
+                      {currentAddress}
+                    </span>
                     <CopyButton
                       text={currentAddress}
                       label={t("复制", "Copy")}
@@ -244,12 +278,17 @@ export function SubsystemGatewayInfoPage() {
                   </>
                 ) : (
                   <span className={styles.configValueWarn}>
-                    {t("未设置（还没有上送目标）", "Not set (no reporting target yet)")}
+                    {t(
+                      "未设置（还没有上送目标）",
+                      "Not set (no reporting target yet)",
+                    )}
                   </span>
                 )}
               </dd>
               <dd className={styles.configMeta}>
-                {uplink.data ? modifiedText(uplink.data.updatedAt, uplink.data.updatedBy) : "—"}
+                {uplink.data
+                  ? modifiedText(uplink.data.updatedAt, uplink.data.updatedBy)
+                  : "—"}
               </dd>
             </div>
 
@@ -257,10 +296,15 @@ export function SubsystemGatewayInfoPage() {
               <dt>{t("上送开关", "Reporting switch")}</dt>
               <dd className={styles.configValue}>
                 {uplinkKnown ? (
-                  <span className={`${styles.switchState} ${uplinkEnabled ? styles.switchOn : ""}`}>
+                  <span
+                    className={`${styles.switchState} ${uplinkEnabled ? styles.switchOn : ""}`}
+                  >
                     {uplinkEnabled
                       ? t("已打开：所有 Agent 都上送", "On: all agents report")
-                      : t("未打开：按派工启用", "Off: enabled when work is assigned")}
+                      : t(
+                          "未打开：按派工启用",
+                          "Off: enabled when work is assigned",
+                        )}
                   </span>
                 ) : (
                   <span className={styles.configValueEmpty}>—</span>
@@ -303,10 +347,15 @@ export function SubsystemGatewayInfoPage() {
         {/* 读不到当前值时整张卡不出现：空表单会让人以为「可以填了」——
             读取失败的原因在上一张卡的提示条里，别在这里再重复一遍。 */}
         {uplink.data && !uplink.isError ? (
-          <section className={styles.card} aria-labelledby="gateway-info-uplink">
+          <section
+            className={styles.card}
+            aria-labelledby="gateway-info-uplink"
+          >
             <header className={styles.cardHead}>
               <div className={styles.cardTitleRow}>
-                <h2 id="gateway-info-uplink">{t("修改上送设置", "Edit reporting settings")}</h2>
+                <h2 id="gateway-info-uplink">
+                  {t("修改上送设置", "Edit reporting settings")}
+                </h2>
                 <span className={styles.cardChip}>{t("可改", "Editable")}</span>
               </div>
               <p className={styles.cardNote}>
@@ -355,7 +404,8 @@ export function SubsystemGatewayInfoPage() {
             ) : null}
             {linkdView?.hasStatus ? (
               <span className={styles.linkdMeta}>
-                {t("宿主依赖", "Host tools")} gops {linkdView.gopsVersion || t("未检测到", "not found")} · gx{" "}
+                {t("宿主依赖", "Host tools")} gops{" "}
+                {linkdView.gopsVersion || t("未检测到", "not found")} · gx{" "}
                 {linkdView.gxVersion || t("未检测到", "not found")}
               </span>
             ) : null}
@@ -374,6 +424,8 @@ export function SubsystemGatewayInfoPage() {
             </div>
           ) : null}
         </section>
+
+        <SubsystemKafkaAclHelp />
       </main>
     </div>
   );
@@ -429,14 +481,22 @@ function UplinkForm({ setting }: { setting: AgentUplink }) {
           <input
             value={host}
             onChange={(event) => setHost(event.target.value)}
-            placeholder={t("gw.example.com 或 10.0.0.1", "gw.example.com or 10.0.0.1")}
+            placeholder={t(
+              "gw.example.com 或 10.0.0.1",
+              "gw.example.com or 10.0.0.1",
+            )}
             autoComplete="off"
             spellCheck={false}
             autoCapitalize="none"
             // 主机唯一的错就是「空」——所以不与端口同形（端口可以是「非空但非法」）。
             aria-invalid={!hostOk}
           />
-          <small>{t("主机名或 IP，不带 scheme、不带端口。", "Host name or IP, without scheme or port.")}</small>
+          <small>
+            {t(
+              "主机名或 IP，不带 scheme、不带端口。",
+              "Host name or IP, without scheme or port.",
+            )}
+          </small>
         </label>
         <label className={styles.field}>
           {t("端口", "Port")}
@@ -448,7 +508,12 @@ function UplinkForm({ setting }: { setting: AgentUplink }) {
             autoComplete="off"
             aria-invalid={!portOk && port.length > 0}
           />
-          <small>{t("数据面 TCP 入口（wparse 的 tcp source）。", "Data plane TCP entry point (wparse tcp source).")}</small>
+          <small>
+            {t(
+              "数据面 TCP 入口（wparse 的 tcp source）。",
+              "Data plane TCP entry point (wparse tcp source).",
+            )}
+          </small>
         </label>
       </div>
 
@@ -466,12 +531,19 @@ function UplinkForm({ setting }: { setting: AgentUplink }) {
           onChange={(event) => setEnabled(event.target.checked)}
         />
         <span>
-          {t("启用数据面上送（本网关授权的所有 Agent）", "Enable data plane reporting (all agents authorized by this gateway)")}
+          {t(
+            "启用数据面上送（本网关授权的所有 Agent）",
+            "Enable data plane reporting (all agents authorized by this gateway)",
+          )}
         </span>
       </label>
 
       <div className={styles.formActions}>
-        <button type="submit" className={styles.primaryButton} disabled={!canSubmit}>
+        <button
+          type="submit"
+          className={styles.primaryButton}
+          disabled={!canSubmit}
+        >
           {setUplink.isPending ? t("保存中…", "Saving…") : t("保存", "Save")}
         </button>
       </div>
@@ -484,7 +556,10 @@ function UplinkForm({ setting }: { setting: AgentUplink }) {
             {
               targets:
                 affectedAgents === null
-                  ? t("本网关授权的所有 Agent", "all agents authorized by this gateway")
+                  ? t(
+                      "本网关授权的所有 Agent",
+                      "all agents authorized by this gateway",
+                    )
                   : t(
                       "当前已注册的 {n} 台 Agent",
                       "the {n} agents currently enrolled",
@@ -502,16 +577,12 @@ function UplinkForm({ setting }: { setting: AgentUplink }) {
       ) : null}
       {setUplink.isSuccess ? (
         <div className={styles.formNotice} role="status">
-          {t(
-            "已保存：{address}（{state}）",
-            "Saved: {address} ({state})",
-            {
-              address: `${setUplink.data.host}:${setUplink.data.port}`,
-              state: setUplink.data.enabled
-                ? t("开关已打开", "switch on")
-                : t("开关未打开", "switch off"),
-            },
-          )}
+          {t("已保存：{address}（{state}）", "Saved: {address} ({state})", {
+            address: `${setUplink.data.host}:${setUplink.data.port}`,
+            state: setUplink.data.enabled
+              ? t("开关已打开", "switch on")
+              : t("开关未打开", "switch off"),
+          })}
         </div>
       ) : null}
     </form>
