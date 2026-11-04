@@ -9,7 +9,7 @@ bootstrap_servers = ["kafka-0:9093", "kafka-1:9093"]
 security_protocol = "SASL_SSL"   # PLAINTEXT | SSL | SASL_PLAINTEXT | SASL_SSL
 sasl_mechanism    = "auto"       # 由 broker 的 SaslHandshake 在同一加密等级内挑
 username          = "wist-probe"
-password_file     = "/etc/wist-agentd/kafka-password"   # 0600，不要写进配置
+password_file     = "/etc/wist-agentd/kafka-password"   # agentd 可读即可，别写进配置
 tls_ca_file       = "/etc/wist-agentd/kafka-ca.pem"     # 可选：覆盖系统根证书
 interval_ms       = 30000`;
 
@@ -42,8 +42,8 @@ export function SubsystemKafkaAccessPage() {
           </div>
           <p className={styles.cardNote}>
             {t(
-              "写在 agentd 的 agentd.toml 里。密码只从 0600 文件读，不进配置、不进日志、也不进诊断包。sasl_mechanism = auto 时，探针按 broker 返回的可用机制在同一加密等级内选，不会从 TLS 降级到明文。",
-              "Put this in agentd.toml. The password is read from a 0600 file only — never in the config, logs, or diagnostics. With sasl_mechanism = auto the probe picks from the mechanisms the broker advertises, within the same encryption level; it never downgrades from TLS to plaintext.",
+              "写在 agentd 的 agentd.toml 里。密码只从文件读（agentd 能读即可，权限由运维约定），不进配置、不进日志、也不进诊断包。sasl_mechanism = auto 时，探针按 broker 返回的可用机制在同一加密等级内选，不会从 TLS 降级到明文。",
+              "Put this in agentd.toml. The password is read from a file (agentd just needs read access; permissions are an ops convention) — never in the config, logs, or diagnostics. With sasl_mechanism = auto the probe picks from the mechanisms the broker advertises, within the same encryption level; it never downgrades from TLS to plaintext.",
             )}
           </p>
           <pre className={styles.code}>
