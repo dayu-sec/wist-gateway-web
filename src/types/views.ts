@@ -200,7 +200,7 @@ export interface WorkSpecSource {
   /** 路径通配 / 导出器标识 / 谓词 / 周期。 */
   target: string;
   /**
-   * 读法（W4）：`none` | `indented` | `mysql_slow` | `postgres_csv`。
+   * 读法（W4）：`none` | `indented` | `mysql_slow` | `postgres_csv` | `container_cri`。
    *
    * 旧网关的 spec 里没有这个字段 → 可选；页面只在非 `none` 时展示。
    */
