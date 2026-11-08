@@ -22,6 +22,8 @@ import {
   FIRST_ACK_GRACE_SECONDS,
   blockedFamilies,
   collectedLogFiles,
+  collectionStatusLabel,
+  collectionStatusTone,
   driftingCount,
   driftingCountAt,
   duplicatedCollectedPaths,
@@ -288,6 +290,11 @@ const localPayload = {
           startup_position: "tail",
         },
       ],
+      collection: {
+        status: "degraded",
+        observed_at: "2026-09-26T08:00:02Z",
+        detail: "1/2 个采集任务失败：/var/log/system.log 不存在",
+      },
     },
   ],
   one_shot: [
@@ -327,6 +334,109 @@ assert(
 assert(
   withLocal.local?.standing[0].tasks[0].startupPosition === "tail",
   "local task startup_position was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].collection?.status === "degraded",
+  "local collection status was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].collection?.observedAt === "2026-09-26T08:00:02Z",
+  "local collection observed_at was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].collection?.detail ===
+    "1/2 个采集任务失败：/var/log/system.log 不存在",
+  "local collection detail must survive",
+);
+
+// 旧 agentd 不报采集结果：必须是 null（与「报了 unknown」区分），不能把整张卡判成坏数据。
+const noCollection = normalizeAgentWorkView(
+  workViewPayload({
+    local: {
+      ...localPayload,
+      standing: [{ ...localPayload.standing[0], collection: undefined }],
+    },
+  }),
+);
+assert(
+  noCollection.local?.error === null,
+  `missing collection must not break the view: ${noCollection.local?.error}`,
+);
+assert(
+  noCollection.local?.standing[0].collection === null,
+  "missing collection must stay null",
+);
+const nullCollection = normalizeAgentWorkView(
+  workViewPayload({
+    local: {
+      ...localPayload,
+      standing: [{ ...localPayload.standing[0], collection: null }],
+    },
+  }),
+);
+assert(
+  nullCollection.local?.standing[0].collection === null,
+  "collection: null must stay null",
+);
+
+// 采集结果的展示口径：开放状态值不能把页面弄挂，认不出就原样显示 + 中性色。
+assert(
+  collectionStatusTone("degraded") === "warn",
+  "partial failure must be a warning, not a hard error",
+);
+assert(
+  collectionStatusTone("failed") === "crit",
+  "failed collection must be red",
+);
+assert(
+  collectionStatusTone("paused") === "unknown",
+  "paused is not a failure",
+);
+assert(
+  collectionStatusLabel("future_state") === "future_state",
+  "unknown status must be shown verbatim rather than swallowed",
+);
+assert(
+  collectionStatusTone("future_state") === "unknown",
+  "unknown status must use the neutral tone",
+);
+
+// detail 是加性字段：缺了就按空串（ok 时本来就该没有话说）。
+const noDetail = normalizeAgentWorkView(
+  workViewPayload({
+    local: {
+      ...localPayload,
+      standing: [
+        {
+          ...localPayload.standing[0],
+          collection: { status: "ok", observed_at: "2026-09-26T08:00:02Z" },
+        },
+      ],
+    },
+  }),
+);
+assert(
+  noDetail.local?.standing[0].collection?.detail === "",
+  "missing collection.detail must default to empty",
+);
+
+// 形状不对（缺 status）要能说出来：不能静默当成一个正常结论。
+const brokenCollection = normalizeAgentWorkView(
+  workViewPayload({
+    local: {
+      ...localPayload,
+      standing: [
+        {
+          ...localPayload.standing[0],
+          collection: { observed_at: "2026-09-26T08:00:02Z" },
+        },
+      ],
+    },
+  }),
+);
+assert(
+  brokenCollection.local?.error !== null,
+  "malformed collection must surface an error instead of being dropped",
 );
 assert(
   withLocal.local?.oneShot[0].execution === "unexecuted",

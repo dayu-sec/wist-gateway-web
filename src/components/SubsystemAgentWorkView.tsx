@@ -21,6 +21,8 @@ import type { GrantStandingWorkCommand } from "../api/admin";
 import {
   STANDING_STATUS_LABEL,
   STANDING_STATUS_TONE,
+  collectionStatusLabel,
+  collectionStatusTone,
   blockedFamilies,
   collectedLogFiles,
   ACK_STATE_LABEL,
@@ -186,6 +188,13 @@ export function SubsystemAgentWorkView({
     : [];
   const manualInputs = local ? local.localInputs : [];
   const sharedPaths = duplicatedCollectedPaths(agentWorkView.standing);
+  // 采集异常（failed / degraded）：与「漂移」（确认回执）分开 —— 那是没拉到授权，
+  // 这是拉到了但真没采成（文件不存在 / 导出器没装 / 指标目标全挂）。
+  const collectionProblems = agentWorkView.standing.filter((work) => {
+    const status = local?.standing.find((entry) => entry.workId === work.workId)
+      ?.collection?.status;
+    return status === "failed" || status === "degraded";
+  }).length;
 
   return (
     <div className={styles.view}>
@@ -231,6 +240,22 @@ export function SubsystemAgentWorkView({
             {t(
               "期望版本与 Agent 确认对不上的工作数",
               "Work items whose expected version does not match what the agent acknowledged",
+            )}
+          </span>
+        </div>
+        <div
+          className={`${styles.summaryItem} ${
+            collectionProblems > 0 ? styles.summaryAlert : ""
+          }`}
+        >
+          <span className={styles.summaryLabel}>
+            {t("采集异常", "Collection issues")}
+          </span>
+          <span className={styles.summaryValue}>{collectionProblems}</span>
+          <span className={styles.summaryHint}>
+            {t(
+              "本机自报「部分失败 / 采集失败」的采集面数",
+              "Collection families the agent reports as partially or fully failing",
             )}
           </span>
         </div>
@@ -663,6 +688,10 @@ function StandingWorkCard({
   const localWork = local
     ? (local.standing.find((entry) => entry.workId === work.workId) ?? null)
     : null;
+  // 本机自报的**采集结果**：与工作状态 / 确认版本分开，回答「到底采成没采成」。
+  const collection = localWork?.collection ?? null;
+  const collectionBroken =
+    collection?.status === "failed" || collection?.status === "degraded";
   // 本机自报「实际在采」的文件：与上面的 `files`（期望折算）配对，两者不同就要说清差在哪。
   const localFiles = localWork
     ? localWork.tasks.map((task) => task.path)
@@ -692,7 +721,8 @@ function StandingWorkCard({
         localWork.status !== work.status ||
         staleLocalVersion ||
         localAckBehind ||
-        filesMismatch)) ||
+        filesMismatch ||
+        collectionBroken)) ||
     sharedFiles.length > 0;
   // 展开状态提到父级按「视觉行」共享：点一张卡，同一行的卡一起展开。
   // 有本地不一致 / 参数错误 / 撤回确认时自动展开整行，不把问题藏进收起态。
@@ -756,6 +786,16 @@ function StandingWorkCard({
         >
           {ACK_STATE_LABEL[ackState]}
         </span>
+        {collection ? (
+          <span
+            className={`${styles.badge} ${toneClass(
+              collectionStatusTone(collection.status),
+            )}`}
+            title={collection.detail || undefined}
+          >
+            {collectionStatusLabel(collection.status)}
+          </span>
+        ) : null}
         <span className={styles.cardChevron} aria-hidden="true">
           {expanded ? "▾" : "▸"}
         </span>
@@ -765,6 +805,31 @@ function StandingWorkCard({
         <div className={styles.cardDetails} id={detailsId}>
           {familySummary ? (
             <p className={styles.workSummary}>{familySummary}</p>
+          ) : null}
+
+          {collection ? (
+            <div className={styles.localRow}>
+              <span className={styles.localRowLabel}>
+                {t("采集结果", "Collection")}
+              </span>
+              <span
+                className={`${styles.badge} ${toneClass(
+                  collectionStatusTone(collection.status),
+                )}`}
+              >
+                {collectionStatusLabel(collection.status)}
+              </span>
+              <span className={styles.mono}>
+                {formatTimestamp(collection.observedAt)}
+              </span>
+              {collection.detail ? (
+                <span
+                  className={collectionBroken ? styles.critText : styles.muted}
+                >
+                  {collection.detail}
+                </span>
+              ) : null}
+            </div>
           ) : null}
 
           {work.spec.error ? (

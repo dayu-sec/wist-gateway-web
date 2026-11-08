@@ -106,9 +106,7 @@ export function filterFamilyOverview(
     case "all":
       // 「全部」只列**有采集单元**的面：没有单元的面在任何平台都派不下去，
       // 页面上每一列都是空的（无平台、无单元、无就绪、无模板覆盖），纯噪音。
-      // 当前知识库里「没有单元」的面就是**已废弃**的那批（`KafkaMetrics` /
-      // `PostgresMetrics` / `MysqlMetrics` / `DorisMetrics`，0.9.3 起由
-      // `DatabaseMetrics` / `MessageQueueMetrics` 取代，保留 id 只为历史数据可解释）。
+      // 当前知识库里「没有单元」的面通常是**尚未配置**的面。
       //
       // 判据刻意是**结构性的**（有没有单元），不是去匹配名字里的「（已废弃）」——
       // 后半句是知识库文案，会改、会翻译，不该当前端逻辑。

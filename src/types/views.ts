@@ -362,6 +362,21 @@ export interface AgentLocalTaskView {
   startupPosition: string;
 }
 
+/**
+ * agentd 对一个采集面的**采集结果**（本机观测）。
+ *
+ * 与 `status`（工作状态）/ `acknowledgedVersion`（确认到哪一版）分开：那两个是**期望**侧，
+ * 这里回答「到底采成没采成」—— 文件不存在、导出器没装、指标目标全失败都只在这里体现。
+ */
+export interface AgentLocalCollectionView {
+  /** `ok` | `degraded` | `failed` | `unknown` | `paused`（开放值：认不出的照原样显示）。 */
+  status: string;
+  /** 本机时钟：得出这个结论的那一轮采集。 */
+  observedAt: string;
+  /** 人看的说明：失败原因原样带上；`ok` 时为空。 */
+  detail: string;
+}
+
 /** agentd 上报的一份**本机**常驻工作（与授权对照：期望版本 vs 回报版本）。 */
 export interface AgentLocalStandingWorkView {
   workId: string;
@@ -375,6 +390,8 @@ export interface AgentLocalStandingWorkView {
   acknowledgedVersion: number;
   effectiveFrom: string;
   tasks: AgentLocalTaskView[];
+  /** 本机对这份工作的采集结果；`null` = 旧 agentd 没报（与 `unknown` 不同）。 */
+  collection: AgentLocalCollectionView | null;
 }
 
 /** agentd 上报的一份**本机**一次性工作。 */

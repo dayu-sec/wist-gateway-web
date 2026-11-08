@@ -5,6 +5,7 @@ import type {
   AgentLogsView,
   AgentLocalOneShotWorkView,
   AgentLocalStandingWorkView,
+  AgentLocalCollectionView,
   AgentLocalTaskView,
   AgentLocalWorkView,
   AgentPurposeView,
@@ -3866,6 +3867,24 @@ function normalizeAgentLocalStandingWork(
     tasks: requiredArray(payload.tasks, "agentLocalStandingWork.tasks").map(
       normalizeAgentLocalTask,
     ),
+    collection: normalizeAgentLocalCollection(payload.collection),
+  };
+}
+
+function normalizeAgentLocalCollection(
+  payload: unknown,
+): AgentLocalCollectionView | null {
+  // 字段可选：旧 agentd 不报「采集结果」是正常的（与「报了 unknown」不是一回事）。
+  if (payload === null || payload === undefined) return null;
+  const record = requiredRecord(payload, "agentLocalCollection");
+  return {
+    status: requiredString(record.status, "agentLocalCollection.status"),
+    observedAt: requiredString(
+      record.observed_at ?? record.observedAt,
+      "agentLocalCollection.observedAt",
+    ),
+    // 说明可以为空（ok 时没有话说）；缺字段按空串，不把整张卡判成坏数据。
+    detail: optionalStringValue(record.detail),
   };
 }
 

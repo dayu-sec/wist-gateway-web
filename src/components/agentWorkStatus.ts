@@ -21,6 +21,56 @@ import type {
 /** 与全局设计变量同一套语气：ok / warn / crit / unknown。 */
 export type WorkTone = "ok" | "warn" | "crit" | "unknown";
 
+/** 采集结果（agentd 本机观测）。 */
+export type CollectionStatus =
+  | "ok"
+  | "degraded"
+  | "failed"
+  | "unknown"
+  | "paused";
+
+/**
+ * 采集结果的可读写法。逐项 getter 的理由同 [`STANDING_STATUS_LABEL`]（渲染期才求值）。
+ *
+ * `ok` 只代表**本轮没观测到失败**，不代表“有新数据”——安静的日志文件是正常态；
+ * `paused` 不是故障（工作暂停 / 输出关闸）。这套语义的边界在契约里，别在页面上改。
+ */
+export const COLLECTION_STATUS_LABEL: Record<CollectionStatus, string> = {
+  get ok() {
+    return t("采集正常", "Collecting");
+  },
+  get degraded() {
+    return t("部分失败", "Partially failing");
+  },
+  get failed() {
+    return t("采集失败", "Collection failed");
+  },
+  get unknown() {
+    return t("尚未观测", "Not observed yet");
+  },
+  get paused() {
+    return t("未采集（暂停）", "Not collecting (paused)");
+  },
+};
+
+export function collectionStatusLabel(status: string): string {
+  const labels: Record<string, string> = COLLECTION_STATUS_LABEL;
+  return labels[status] ?? status;
+}
+
+export const COLLECTION_STATUS_TONE: Record<CollectionStatus, WorkTone> = {
+  ok: "ok",
+  degraded: "warn",
+  failed: "crit",
+  unknown: "unknown",
+  // 暂停不是错误：本就不该采（期望状态 / 输出关闸）。
+  paused: "unknown",
+};
+
+export function collectionStatusTone(status: string): WorkTone {
+  return COLLECTION_STATUS_TONE[status as CollectionStatus] ?? "unknown";
+}
+
 /**
  * 常驻工作状态的可读写法。
  *
