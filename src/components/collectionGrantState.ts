@@ -5,22 +5,32 @@ import type {
   MachineClass,
   StandingWork,
 } from "../types";
+import type { CollectionPreflightView } from "../api";
 import {
   blockedFamilies,
   grantableFamilies,
   platformForMachineClass,
 } from "./agentWorkStatus";
 import { t } from "../i18n";
+import {
+  preflightFamily,
+  preflightReason,
+  preflightUndeterminedLabel,
+} from "./collectionPreflightState";
 import type { FamilyOverviewRow, FamilyState } from "./familyOverviewRows";
 
 /**
  * 「按采集面授权」里，一台主机对**当前选中的采集面**的判定结果。
  *
- * 这是纯派生：输入是网关已经返回的用途、现有工作与内容目录，不在这里发请求。
+ * 这是纯派生：输入是网关已经返回的用途、现有工作、内容目录与预检，不在这里发请求。
  * 判定顺序刻意是「先看现状，再看能不能派」：
  *   · 已经有常驻工作 → 已授权 / 已暂停（即使目录后来改了，也不把现状说成不可授权）；
  *   · 没有用途判定 → 不能派（派活的前置是机器类别）；
  *   · 模板不含此面 / 该平台采集未就绪 → 不能派，并带上 `blockedFamilies` 的理由；
+ *   · 预检（**事实**）说这个面在本机选不出单元（`grantable` 之外的任何状态）→ 不能派：
+ *     网关授权就是从目录 + 事实里裁单元，裁空了回 409。只按目录说「可授权」
+ *     会把人推去做一次注定失败的授权；
+ *   · 预检还在读 → `checking`（宁可不说话，也不先说「可授权」再翻脸）；
  *   · 其余 → 可授权。
  */
 export type HostGrantKind =
@@ -38,6 +48,12 @@ export interface HostGrantState {
   machineClass?: MachineClass;
   /** blocked / unclassified 的原因；error 时是原始 error。 */
   reason?: string;
+  /**
+   * `blocked` 是**预检**给的（本机事实不匹配），不是目录给的。
+   *
+   * 页面据此不再重复展示一次预检结论：行状态里已经有同一句话了。
+   */
+  preflightBlocked?: boolean;
   error?: unknown;
   /** 已授权 / 已暂停时的常驻工作。 */
   work?: StandingWork;
@@ -48,6 +64,15 @@ export function resolveHostGrantState(input: {
   family: string;
   purpose?: AgentPurposeView;
   work?: AgentWorkView;
+  /** 预检结论（可选）：有值时用**事实**复核目录给的「可授权」。 */
+  preflight?: CollectionPreflightView | null;
+  /**
+   * 预检还在读（且没有结论）。
+   *
+   * 只影响「目录说可派」那一支：事实没到之前不冒充「可授权」—— 否则页面先给一个
+   * 能勾的绿点，几百毫秒后翻成不可授权，手快的人已经点了授权（然后接到 409）。
+   */
+  preflightLoading?: boolean;
   purposeLoading: boolean;
   workLoading: boolean;
   purposeError?: unknown;
@@ -58,6 +83,8 @@ export function resolveHostGrantState(input: {
     family,
     purpose,
     work,
+    preflight,
+    preflightLoading,
     purposeLoading,
     workLoading,
     purposeError,
@@ -96,6 +123,40 @@ export function resolveHostGrantState(input: {
     (entry) => entry.family === family,
   );
   if (grantable) {
+    // 目录只说「这个面在某类机器上能派」；**这台**机器上到底有没有可采的东西，
+    // 只有事实知道。预检与网关 `expand` 用的是**同一份**事实与判据
+    // （`selected_units` 为空 ⇒ 该面的单元全被排除 ⇒ `derive_spec` 拿空集回 409），
+    // 所以除了 `grantable`，其余状态都不能再说「可授权」：
+    //   · `absent` / `source_unresolved` / `unreadable` / `agent_too_old` / `not_ready`；
+    //   · `unprobed`（事实还没到）也算 —— 网关此刻一样会回 409，只是它会顺手替我们
+    //     补一条探测；页面改成「不可授权 + 预检按钮」，比让人撞一次 409 更直接。
+    const entry = preflightFamily(preflight, family);
+    if (entry && entry.state !== "grantable") {
+      return {
+        kind: "blocked",
+        machineClass,
+        preflightBlocked: true,
+        reason: preflightReason(entry) ?? undefined,
+      };
+    }
+    // 预检判不了（典型：这台机器还没上报过事实，`families` 为空）：网关此刻也
+    // 画不出 spec（回 400 `还没有事实摘要`），不能报「可授权」。
+    if (
+      !entry &&
+      preflight?.verdict === "undetermined" &&
+      preflight.undeterminedReason
+    ) {
+      return {
+        kind: "blocked",
+        machineClass,
+        preflightBlocked: true,
+        reason: preflightUndeterminedLabel(preflight.undeterminedReason),
+      };
+    }
+    if (!entry && preflightLoading) {
+      // 事实还没到：不打「可授权」的包票。预检失败（非 pending）时不会走到这里。
+      return { kind: "checking", machineClass };
+    }
     return { kind: "grantable", machineClass };
   }
 

@@ -5,6 +5,10 @@ import type {
   ContentCatalogView,
   StandingWork,
 } from "../src/types";
+import type {
+  CollectionPreflightFamilyState,
+  CollectionPreflightView,
+} from "../src/api";
 import {
   countHostGrantStates,
   familyBadgeState,
@@ -154,6 +158,172 @@ const blocked = resolveHostGrantState({
 });
 assert.equal(blocked.kind, "blocked", "机器类别模板不含此面 → 不可授权");
 assert.ok(blocked.reason && blocked.reason.length > 0, "不可授权要带原因");
+
+// ── 预检（事实）复核：目录说「可派」不等于这台机器上真有东西可采 ──────────────
+const preflightView = (
+  state: CollectionPreflightFamilyState,
+  reason: string | null,
+): CollectionPreflightView => ({
+  agentId: "agent-a",
+  machineClass: "LinuxHost",
+  platform: "linux",
+  catalogVersion: 3,
+  verdict: "partial",
+  undeterminedReason: null,
+  summary: "…",
+  probe: {
+    source: "reported",
+    observedAt: "2026-10-26T00:00:00Z",
+    stale: false,
+    pending: false,
+    pendingSince: null,
+    probedPaths: [],
+    presentPaths: [],
+    unreadablePaths: [],
+    notProbedPaths: [],
+  },
+  families: [
+    {
+      family: "HostMetrics",
+      state,
+      reason,
+      selectedUnits: state === "grantable" ? ["linux-host-metrics"] : [],
+      units: [],
+    },
+  ],
+  generatedAt: "2026-10-26T00:00:00Z",
+});
+
+const matched = resolveHostGrantState({
+  ...base,
+  purpose: purpose("LinuxHost"),
+  work: work([]),
+  preflight: preflightView("grantable", null),
+});
+assert.equal(
+  matched.kind,
+  "grantable",
+  "预检说可授权 → 仍可授权（预检不夺掉目录给的结论）",
+);
+
+const absentReason =
+  "目录约定的位置没有 /opt/homebrew/var/log（服务可能装在非标准目录，尚未自动定位）";
+const absent = resolveHostGrantState({
+  ...base,
+  purpose: purpose("LinuxHost"),
+  work: work([]),
+  preflight: preflightView("absent", absentReason),
+});
+assert.equal(
+  absent.kind,
+  "blocked",
+  "预检 absent（单元一条都没匹配）→ 不可授权：网关 derive_spec 会回 409",
+);
+assert.equal(absent.preflightBlocked, true, "要标记「是预检拦的」供页面去重");
+assert.equal(absent.reason, absentReason, "理由用网关那句具体原因");
+
+assert.equal(
+  resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([]),
+    preflight: preflightView("unprobed", null),
+  }).kind,
+  "blocked",
+  "还没探（unprobed）也选不出单元，网关同样回 409：改成不可授权 + 预检按钮",
+);
+
+assert.equal(
+  resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([]),
+    preflight: preflightView("source_unresolved", "找不到日志目录"),
+  }).kind,
+  "blocked",
+  "服务在但找不到日志（source_unresolved）→ 同样选不出单元，也是 409",
+);
+
+assert.equal(
+  resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([standing("active")]),
+    preflight: preflightView("absent", absentReason),
+  }).kind,
+  "granted",
+  "现有授权优先于预检结论（不把已授权的面说成不可授权）",
+);
+
+// 所有「选不出单元」的状态一律不可授权（网关 `expand` 会把这些单元全排除）。
+for (const state of [
+  "absent",
+  "source_unresolved",
+  "unreadable",
+  "agent_too_old",
+  "not_ready",
+] as const) {
+  const resolved = resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([]),
+    preflight: preflightView(state, "why"),
+  });
+  assert.equal(resolved.kind, "blocked", `${state} → 不可授权`);
+  assert.equal(resolved.preflightBlocked, true, `${state} 要标记来源`);
+  assert.equal(resolved.reason, "why", `${state} 用网关那句原因`);
+}
+
+// 预检还没读回来：不先打「可授权」的包票（否则先绿后红，手快就点了授权）。
+assert.equal(
+  resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([]),
+    preflightLoading: true,
+  }).kind,
+  "checking",
+  "预检读取中 → 检查中",
+);
+
+// 没有预检（旧网关没这个接口 / 读取失败）时保持原判：不能因为拿不到事实就全拦。
+assert.equal(
+  resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([]),
+    preflight: null,
+  }).kind,
+  "grantable",
+  "没有预检结论 → 仍按目录判可授权",
+);
+
+// 预检判不了（典型：从没上报过事实）。网关此时也画不出 spec（400），不能报可授权。
+const undetermined: CollectionPreflightView = {
+  ...preflightView("grantable", null),
+  verdict: "undetermined",
+  undeterminedReason: "no_facts",
+  families: [],
+};
+const noFacts = resolveHostGrantState({
+  ...base,
+  purpose: purpose("LinuxHost"),
+  work: work([]),
+  preflight: undetermined,
+});
+assert.equal(noFacts.kind, "blocked", "预检 undetermined/no_facts → 不可授权");
+assert.equal(noFacts.preflightBlocked, true, "同样要标记来源");
+assert.ok(noFacts.reason && noFacts.reason.length > 0, "要给出「先探一次」的原因");
+assert.equal(
+  resolveHostGrantState({
+    ...base,
+    purpose: purpose("LinuxHost"),
+    work: work([]),
+    preflight: { ...preflightView("grantable", null), families: [] },
+  }).kind,
+  "grantable",
+  "预检里没有这个面（面不在模板 scope）→ 保持目录判定",
+);
 
 assert.equal(
   resolveHostGrantState({

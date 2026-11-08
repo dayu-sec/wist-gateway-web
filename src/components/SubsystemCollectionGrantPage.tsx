@@ -483,6 +483,18 @@ export function SubsystemCollectionGrantPage() {
   const visibleHosts = filteredHosts.slice(0, HOST_LIMIT);
   const overflowHosts = Math.max(0, filteredHosts.length - visibleHosts.length);
 
+  // 已发起预检的主机 → 最新视图（批量查询按 preflightIds 顺序返回）。
+  // 放在行状态之前：目录说「可授权」只是必要条件，事实得由预检复核。
+  const preflightByAgent = new Map<string, CollectionPreflightView>();
+  // 其中"还在读"的（没结论）：用来避免先报「可授权」再翻成不可授权。
+  const preflightPendingByAgent = new Map<string, boolean>();
+  preflightQueries.forEach((query, index) => {
+    const agentId = preflightIds[index];
+    if (!agentId) return;
+    if (query.data) preflightByAgent.set(agentId, query.data);
+    preflightPendingByAgent.set(agentId, query.isPending);
+  });
+
   const stateByAgent = useMemo(() => {
     const map = new Map<string, RowState>();
     if (!catalogForRows || !selectedFamily) return map;
@@ -505,6 +517,10 @@ export function SubsystemCollectionGrantPage() {
           family: selectedFamily,
           purpose: purpose.data,
           work: work.data,
+          // 预检是「事实」那一半：目录说可派不等于这台机器上有东西可采。
+          // 两边不一致时以它为准，否则页面会把人推去做一次必然 409 的授权。
+          preflight: preflightByAgent.get(agent.agentId) ?? null,
+          preflightLoading: preflightPendingByAgent.get(agent.agentId) ?? false,
           purposeLoading: purpose.isPending,
           workLoading: work.isPending,
           purposeError: purpose.error,
@@ -520,6 +536,8 @@ export function SubsystemCollectionGrantPage() {
     checkedIndex,
     purposes,
     works,
+    preflightByAgent,
+    preflightPendingByAgent,
   ]);
 
   const checkedVisible = visibleHosts.filter((agent) =>
@@ -602,16 +620,16 @@ export function SubsystemCollectionGrantPage() {
     });
   }
 
-  // 已发起预检的主机 → 最新视图（批量查询按 preflightIds 顺序返回）。
-  const preflightByAgent = new Map<string, CollectionPreflightView>();
-  preflightQueries.forEach((query, index) => {
-    const agentId = preflightIds[index];
-    if (agentId && query.data) preflightByAgent.set(agentId, query.data);
-  });
-  const preflightViews = preflightIds.map((agentId) =>
-    Object.prototype.hasOwnProperty.call(preflightErrors, agentId)
-      ? { error: preflightErrors[agentId] }
-      : preflightByAgent.get(agentId),
+  /**
+   * 预检汇总**只看当前筛选里已检查的主机**。
+   *
+   * 预检现在是「检查主机」时自动跟取的，跟踪集（`preflightIds`）会比当前可见的多；
+   * 拿它直接汇总会出现「列表里 2 台，上面却写 6 台可授权」。行与汇总用同一个集合。
+   */
+  const preflightViews = checkedVisible.map((agent) =>
+    Object.prototype.hasOwnProperty.call(preflightErrors, agent.agentId)
+      ? { error: preflightErrors[agent.agentId] }
+      : preflightByAgent.get(agent.agentId),
   );
   const preflightSummary = summarizePreflight(preflightViews, selectedFamily);
   const preflightParts = preflightSummaryParts(preflightSummary);
@@ -661,6 +679,22 @@ export function SubsystemCollectionGrantPage() {
       Array.from(new Set([...agentIds, ...current])),
     );
   }
+
+  /**
+   * 检查一批主机时顺带取它们的预检。
+   *
+   * 用途/现有授权回答「能不能派」，预检回答「这台机器上到底有没有可采的东西」——
+   * 缺了后一半，页面会把 `DatabaseService` 这类带 `match` 条件的面报成「可授权」，
+   * 而网关用**同一批事实**裁完单元会回 409。GET 是只读的，与用途/授权同一量级，
+   * 且按 Agent 缓存，切面不重复取。
+   */
+  useEffect(() => {
+    if (!checkRequest) return;
+    setPreflightIds((current) => {
+      const merged = Array.from(new Set([...checkRequest.ids, ...current]));
+      return merged.length === current.length ? current : merged;
+    });
+  }, [checkRequest]);
 
   function resetSelection() {
     setSelectedHosts(new Set());
@@ -1381,8 +1415,8 @@ export function SubsystemCollectionGrantPage() {
                     {checkedVisible.length === 0 ? (
                       <div className={styles.checkHint}>
                         {t(
-                          "还没检查可授权主机。点击「检查当前筛选」读取前 {limit} 台的用途与现有授权；结果会缓存，切换采集面不会重复读取。",
-                          "No hosts checked yet. Click “Check current filter” to read purpose and current grants for the first {limit} hosts; results are cached, so switching families will not read them again.",
+                          "还没检查可授权主机。点击「检查当前筛选」读取前 {limit} 台的用途、现有授权与本机预检；结果会缓存，切换采集面不会重复读取。",
+                          "No hosts checked yet. Click “Check current filter” to read purpose, current grants and this host’s preflight for the first {limit} hosts; results are cached, so switching families will not read them again.",
                           { limit: HOST_LIMIT },
                         )}
                       </div>
@@ -1424,6 +1458,13 @@ export function SubsystemCollectionGrantPage() {
                           selectedFamily,
                         );
                         const preflightWhy = preflightReason(preflightEntry);
+                        // 行状态本身就是预检给的「不可授权」时，原因已经在状态列里了，
+                        // 不在下面再重复一遍（同一句话出现两次只会让人以为有两类问题）。
+                        // 但**徽标要留着**：它承载「探测中 / 超时 / 证据过期」这些时间维度，
+                        // 藏掉后人会以为这台机器卡死了。
+                        const preflightBlocked =
+                          state?.kind === "blocked" &&
+                          state.preflightBlocked === true;
                         // 探测等到超时（机器大概率离线）：徽标不能永远停在「探测中」。
                         const preflightOverdue =
                           preflightPendingTimedOut(preflightView);
@@ -1610,7 +1651,7 @@ export function SubsystemCollectionGrantPage() {
                                           )}
                                 </span>
                               ) : null}
-                              {preflightWhy && preflightView ? (
+                              {!preflightBlocked && preflightWhy && preflightView ? (
                                 <span
                                   className={styles.stateReason}
                                   title={`${preflightWhy} · ${preflightEvidenceLabel(
@@ -1622,7 +1663,8 @@ export function SubsystemCollectionGrantPage() {
                               ) : null}
                               {/* 证据不全（没实测 / 过期 / 目录多出没探的路径）：直接说出来，
                                   否则人会拿一份旧账当成“刚查过”。 */}
-                              {preflightView &&
+                              {!preflightBlocked &&
+                              preflightView &&
                               !preflightView.probe.pending &&
                               preflightNeedsProbe(preflightView) ? (
                                 <span className={styles.stateMeta}>
@@ -1630,7 +1672,8 @@ export function SubsystemCollectionGrantPage() {
                                   · {t("建议再探", "probe again")}
                                 </span>
                               ) : null}
-                              {preflightView?.verdict === "undetermined" &&
+                              {!preflightBlocked &&
+                              preflightView?.verdict === "undetermined" &&
                               preflightView.undeterminedReason ? (
                                 <span className={styles.stateReason}>
                                   {preflightUndeterminedLabel(
