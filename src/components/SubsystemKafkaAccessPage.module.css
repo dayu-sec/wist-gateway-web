@@ -106,3 +106,69 @@
   font-size: 12px;
   line-height: 1.6;
 }
+
+/* 采集面 tab（Kafka / 数据库 …）：与「知识库」页同一套视觉，
+   切的是"看哪个面"，所以用下划线 tab 而不是页内锚点。 */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
+/* tab 上的状态小字（如「尚未开放」）：跟着 tab 走，不抢标题。 */
+.tabHint {
+  margin-left: 6px;
+  color: var(--text-4);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--border-1);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--text-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table td {
+  color: var(--text-4);
+}
+
+.table code {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}

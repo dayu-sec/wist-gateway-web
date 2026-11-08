@@ -157,21 +157,46 @@ for (const route of navRoutes) {
   );
 }
 // 分组也要对：面包屑的首段来自 section，写错分组时页面标题对、归属却错了。
-// 「观测看监控、对机队动手归运维、网关自身配置归设置」—— 2026-10-25 的菜单调整：
-// gwlinkd 状态挪进监控；安装 Agent / 安装包 / 知识库挪进运维。
-check(
-  /case "\/gwlinkd":[\s\S]{0,160}?section: "monitoring"/.test(statusBar),
-  "/gwlinkd 应归「监控」组（侧边栏把它放在监控组，面包屑不能还写设置）",
-);
-check(
-  /case "\/revocations":[\s\S]{0,160}?section: "ops"/.test(statusBar),
-  "/revocations 应归「运维」组",
-);
-for (const route of ["/install", "/install-package", "/knowledge"]) {
-  check(
-    new RegExp(`case "${route}":[\\s\\S]{0,200}?section: "ops"`).test(statusBar),
-    `${route} 应归「运维」组（与侧边栏一致）`,
-  );
+//
+// 2026-11-08 的菜单重排：按**任务阶段**分四组 ——
+//   观测（总览/主机指标/资产清单/数据面链路）、采集（知识库/指南/授权/工作/日志）、
+//   Agent管理（机队/安装/安装包/升级/吊销）、网关（状态/信息/链接上级）。
+// 采集链路不再被劈成两半，网关自身也不再散在「监控」和「设置」里。
+const NAV_GROUPS = [
+  { section: "monitoring", routes: ["/", "/hosts", "/software", "/pipeline", "/logs"] },
+  {
+    section: "collection",
+    routes: [
+      "/knowledge",
+      "/collection-guide",
+      "/collection-grants",
+      "/work",
+    ],
+  },
+  {
+    section: "fleet",
+    routes: [
+      "/fleet",
+      "/install",
+      "/install-package",
+      "/upgrade",
+      "/revocations",
+    ],
+  },
+  {
+    section: "gateway",
+    routes: ["/gwlinkd", "/gateway-info", "/link-upstream"],
+  },
+];
+
+for (const { section, routes } of NAV_GROUPS) {
+  for (const route of routes) {
+    const pattern =
+      route === "/"
+        ? new RegExp(`case "/":[\\s\\S]{0,200}?section: "${section}"`)
+        : new RegExp(`case "${route}":[\\s\\S]{0,200}?section: "${section}"`);
+    check(pattern.test(statusBar), `${route} 应归「${section}」组（与侧边栏一致）`);
+  }
 }
 
 if (failures.length > 0) {

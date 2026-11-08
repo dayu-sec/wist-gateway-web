@@ -449,6 +449,29 @@ function IconRevocation() {
 }
 
 /** 知识库：书本外形 —— 网关装载的策展内容（目录 / 包 / 模板 + 规则 + 策略）。 */
+function IconGuide() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <circle
+        cx="8"
+        cy="8"
+        r="6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
+      <path
+        d="M6.4 6.2a1.7 1.7 0 0 1 3.3.5c0 1.1-1.7 1.2-1.7 2.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="11.4" r="0.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 function IconKnowledge() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -502,9 +525,14 @@ function IconGwlinkd() {
  * 全站文案都守这条（渲染期求值，见 `src/i18n/index.ts`）。
  */
 function navGroups(): { label: string; items: NavItem[] }[] {
+  // 分组按**任务阶段**（观测 → 采集 → 机器 → 网关），不按技术模块：
+  //   · 采集组内部就是一条工作流：知识库（有什么可采）→ 采集指南（目标系统怎么授权）
+  //     → 采集授权（派给哪些机器）→ 采集工作（在采吗）→ 采集日志（为什么没采到）；
+  //   · 「网关状态 / Gateway 信息 / 链接上级」都是**网关自己**（活着吗 / 对外是什么 / 连到谁），
+  //     不再拆在「监控」与「设置」两组。
   return [
     {
-      label: t("监控", "Monitoring"),
+      label: t("观测", "Monitoring"),
       items: [
         {
           to: "/",
@@ -518,100 +546,97 @@ function navGroups(): { label: string; items: NavItem[] }[] {
           icon: <IconHost />,
         },
         {
-          to: "/work",
-          label: t("采集工作", "Collection work"),
-          icon: <IconWork />,
-        },
-        {
-          to: "/collection-grants",
-          label: t("授权", "Authorization"),
-          icon: <IconGrant />,
-        },
-        {
           to: "/software",
           label: t("资产清单", "Software inventory"),
           icon: <IconSoftware />,
         },
+        // 数据面（wparse）的吞吐与规则；不叫「数据采集」，免得和「采集」组撞词。
         {
           to: "/pipeline",
-          label: t("数据采集", "Data pipeline"),
+          label: t("数据面链路", "Data pipeline"),
           icon: <IconPipeline />,
         },
+        // agentd 的采集日志：读的是"采下来/没采下来"的证据，属于观测而非配置动作。
         {
           to: "/logs",
           label: t("采集日志", "Collection logs"),
           icon: <IconLogs />,
         },
-        // gwlinkd（宿主侧常驻）专用观测页：一页看清网关两层 —— 「网关容器」与「接入代理 gwlinkd」
-        // 的运行状态。它回答的是「现在活着吗」，与上面几页同属**观测**，所以放在监控组末尾；
-        // 「接入成没成」仍归「链接上级」页。
-        {
-          to: "/gwlinkd",
-          label: t("网关状态", "Gateway status"),
-          icon: <IconGwlinkd />,
-        },
       ],
     },
     {
-      label: t("运维", "Operations"),
+      label: t("采集", "Collection"),
       items: [
-        // 机队 = 注册在册的机器（含离线）。删除离线机器在这里（不可恢复，两次确认）。
-        {
-          to: "/fleet",
-          label: t("Agent 机队", "Agent fleet"),
-          icon: <IconFleet />,
-        },
-        // 被按 agent_id 封锁的一批机器（拒绝名单）：机队页看「在册」，这里看「被封」。
-        {
-          to: "/revocations",
-          label: t("吊销名单", "Revocations"),
-          icon: <IconRevocation />,
-        },
-        {
-          to: "/upgrade",
-          label: t("Agent 升级", "Agent upgrade"),
-          icon: <IconUpgrade />,
-        },
-        // 接入一台新机器（装 Agent）、给网关配从哪取件、往机器端推策展内容 —— 这三件都是
-        // 「往机队里加/改东西」的运维动作，与「机队 / 升级」同一组；它们不是网关自身的设置。
-        {
-          to: "/install",
-          label: t("安装 Agent", "Install agent"),
-          icon: <IconInstall />,
-        },
-        // 取包来源单独一页（从 Gateway 信息页拆回）：配网关从哪取件 + 看已录入的包历史。
-        {
-          to: "/install-package",
-          label: t("安装包", "Install packages"),
-          icon: <IconPackage />,
-        },
-        // 策展内容（知识库）单独一页：录入包 + 切生效版本 + 看谁还锁在旧版目录。
         {
           to: "/knowledge",
           label: t("知识库", "Knowledge base"),
           icon: <IconKnowledge />,
         },
         {
-          to: "/kafka-access",
-          label: t("Kafka 接入", "Kafka access"),
-          icon: <IconKnowledge />,
+          to: "/collection-guide",
+          label: t("采集指南", "Collection guide"),
+          icon: <IconGuide />,
+        },
+        {
+          to: "/collection-grants",
+          label: t("采集授权", "Collection grants"),
+          icon: <IconGrant />,
+        },
+        {
+          to: "/work",
+          label: t("采集工作", "Collection work"),
+          icon: <IconWork />,
         },
       ],
     },
     {
-      label: t("设置", "Settings"),
+      // 机器本身的生命周期：在册 → 装 → 升 → 封。取件来源（安装包）也归这里。
+      label: t("Agent管理", "Agent management"),
       items: [
-        // 「链接上级」= 把本网关接入**上级控制中心**（Center 那一侧）—— 页名点明动作与对象。
         {
-          to: "/link-upstream",
-          label: t("链接上级", "Link upstream"),
-          icon: <IconLinkUpstream />,
+          to: "/fleet",
+          label: t("Agent 列表", "Agent fleet"),
+          icon: <IconFleet />,
         },
-        // 网关对外地址（只读，由部署配置派生）与数据面上送目标 + 启用开关（可改）合成一页。
+        {
+          to: "/install",
+          label: t("安装 Agent", "Install agent"),
+          icon: <IconInstall />,
+        },
+        {
+          to: "/install-package",
+          label: t("安装包", "Install packages"),
+          icon: <IconPackage />,
+        },
+        {
+          to: "/upgrade",
+          label: t("Agent 升级", "Agent upgrade"),
+          icon: <IconUpgrade />,
+        },
+        {
+          to: "/revocations",
+          label: t("吊销名单", "Revocations"),
+          icon: <IconRevocation />,
+        },
+      ],
+    },
+    {
+      label: t("网关", "Gateway"),
+      items: [
+        {
+          to: "/gwlinkd",
+          label: t("网关状态", "Gateway status"),
+          icon: <IconGwlinkd />,
+        },
         {
           to: "/gateway-info",
           label: t("Gateway 信息", "Gateway info"),
           icon: <IconGatewayInfo />,
+        },
+        {
+          to: "/link-upstream",
+          label: t("链接上级", "Link upstream"),
+          icon: <IconLinkUpstream />,
         },
       ],
     },

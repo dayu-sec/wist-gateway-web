@@ -54,7 +54,7 @@ export function SubsystemKafkaAclHelp() {
       <header className={styles.head}>
         <div className={styles.titleRow}>
           <h2 className={styles.title} id="kafka-acl-help">
-            {t("Kafka 探针授权", "Kafka probe authorization")}
+            {t("2. Kafka 侧：授权给探针", "2. Kafka side: authorize the probe")}
           </h2>
           <span className={styles.chip}>
             {t("由 Kafka 管理员执行", "Run by the Kafka admin")}

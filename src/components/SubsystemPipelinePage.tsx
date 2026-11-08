@@ -143,7 +143,7 @@ export function SubsystemPipelinePage() {
   const header = (
     <>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>{t("数据采集", "Data pipeline")}</h1>
+        <h1 className={styles.pageTitle}>{t("数据面链路", "Data pipeline")}</h1>
         <p className={styles.pageSummary}>
           {t(
             "数据面（wparse）三层的实时吞吐：来源接入 → 规则解析 → 落存储。点击任意节点，下方会画出它的速率与累计量曲线。",

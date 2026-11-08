@@ -8,13 +8,14 @@ import { AdminTokenControl } from "./AdminTokenControl";
 import styles from "./AppStatusBar.module.css";
 
 /** 一级分组。文案表必须是**函数**：模块级常量只在导入时求值一次，切语言不会变。 */
-type RouteSection = "monitoring" | "ops" | "settings";
+type RouteSection = "monitoring" | "collection" | "fleet" | "gateway";
 
 function sectionLabels(): Record<RouteSection, string> {
   return {
-    monitoring: t("监控", "Monitoring"),
-    ops: t("运维", "Operations"),
-    settings: t("设置", "Settings"),
+    monitoring: t("观测", "Monitoring"),
+    collection: t("采集", "Collection"),
+    fleet: t("Agent管理", "Agent management"),
+    gateway: t("网关", "Gateway"),
   };
 }
 
@@ -46,7 +47,7 @@ function describeRoute(pathname: string): RouteMeta {
   }
   if (matchPath("/agents/:agentId/work", pathname)) {
     return {
-      section: "monitoring",
+      section: "collection",
       crumbs: [t("采集工作", "Collection work"), t("工作清单", "Work list")],
     };
   }
@@ -61,7 +62,7 @@ function describeRoute(pathname: string): RouteMeta {
   }
   if (matchPath("/upgrade/:planId", pathname)) {
     return {
-      section: "ops",
+      section: "fleet",
       crumbs: [t("Agent 升级", "Agent upgrade"), t("升级计划", "Upgrade plan")],
     };
   }
@@ -76,7 +77,7 @@ function describeRoute(pathname: string): RouteMeta {
     case "/pipeline":
       return {
         section: "monitoring",
-        crumbs: [t("数据采集", "Data pipeline")],
+        crumbs: [t("数据面链路", "Data pipeline")],
       };
     case "/logs":
       return {
@@ -85,49 +86,52 @@ function describeRoute(pathname: string): RouteMeta {
       };
     case "/work":
       return {
-        section: "monitoring",
+        section: "collection",
         crumbs: [t("采集工作", "Collection work")],
       };
     case "/collection-grants":
       return {
-        section: "monitoring",
-        crumbs: [t("授权", "Authorization")],
+        section: "collection",
+        crumbs: [t("采集授权", "Collection grants")],
       };
     case "/upgrade":
-      return { section: "ops", crumbs: [t("Agent 升级", "Agent upgrade")] };
+      return { section: "fleet", crumbs: [t("Agent 升级", "Agent upgrade")] };
     case "/fleet":
-      return { section: "ops", crumbs: [t("Agent 机队", "Agent fleet")] };
+      return { section: "fleet", crumbs: [t("Agent 列表", "Agent fleet")] };
     case "/revocations":
-      return { section: "ops", crumbs: [t("吊销名单", "Revocations")] };
+      return { section: "fleet", crumbs: [t("吊销名单", "Revocations")] };
     case "/install":
-      return { section: "ops", crumbs: [t("安装 Agent", "Install agent")] };
+      return { section: "fleet", crumbs: [t("安装 Agent", "Install agent")] };
     case "/gateway-info":
       return {
-        section: "settings",
+        section: "gateway",
         crumbs: [t("Gateway 信息", "Gateway info")],
       };
     case "/gwlinkd":
-      // 与侧边栏「监控」组一致：这一页看的是「网关两层谁活着」，属于观测。
+      // 与侧边栏「网关」组一致：这一页看的是网关自己（两层谁活着）。
       return {
-        section: "monitoring",
+        section: "gateway",
         crumbs: [t("网关状态", "Gateway status")],
       };
     case "/install-package":
-      return { section: "ops", crumbs: [t("安装包管理", "Install packages")] };
+      return { section: "fleet", crumbs: [t("安装包管理", "Install packages")] };
     case "/install-package/add":
       return {
-        section: "ops",
+        section: "fleet",
         crumbs: [
           t("安装包管理", "Install packages"),
           t("安装包录入", "Install package entry"),
         ],
       };
     case "/knowledge":
-      return { section: "ops", crumbs: [t("知识库", "Knowledge base")] };
-    case "/kafka-access":
-      return { section: "ops", crumbs: [t("Kafka 接入", "Kafka access")] };
+      return { section: "collection", crumbs: [t("知识库", "Knowledge base")] };
+    case "/collection-guide":
+      return {
+        section: "collection",
+        crumbs: [t("采集指南", "Collection guide")],
+      };
     case "/link-upstream":
-      return { section: "settings", crumbs: [t("链接上级", "Link upstream")] };
+      return { section: "gateway", crumbs: [t("链接上级", "Link upstream")] };
     case "/":
       return {
         section: "monitoring",

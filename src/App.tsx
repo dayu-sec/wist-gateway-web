@@ -43,7 +43,12 @@ export function App() {
           element={<SubsystemAgentPackageAddPage />}
         />
         <Route path="/knowledge" element={<SubsystemKnowledgePage />} />
-        <Route path="/kafka-access" element={<SubsystemKafkaAccessPage />} />
+        <Route path="/collection-guide" element={<SubsystemKafkaAccessPage />} />
+        {/* 旧路径兼容：`/kafka-access` 改名前后都在用（书签 / 外部链接）。 */}
+        <Route
+          path="/kafka-access"
+          element={<Navigate to="/collection-guide" replace />}
+        />
         <Route path="/link-upstream" element={<SubsystemLinkUpstreamPage />} />
         {/* 旧入口一律留重定向，外部链接与书签不至于落到 404：
             「Gateway 初始化 / /gateway-init」（与已并入它的 /uplink、/agent-init）已改名
