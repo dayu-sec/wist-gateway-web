@@ -104,7 +104,16 @@ export function filterFamilyOverview(
 ): FamilyOverviewRow[] {
   switch (filter) {
     case "all":
-      return [...rows];
+      // 「全部」只列**有采集单元**的面：没有单元的面在任何平台都派不下去，
+      // 页面上每一列都是空的（无平台、无单元、无就绪、无模板覆盖），纯噪音。
+      // 当前知识库里「没有单元」的面就是**已废弃**的那批（`KafkaMetrics` /
+      // `PostgresMetrics` / `MysqlMetrics` / `DorisMetrics`，0.9.3 起由
+      // `DatabaseMetrics` / `MessageQueueMetrics` 取代，保留 id 只为历史数据可解释）。
+      //
+      // 判据刻意是**结构性的**（有没有单元），不是去匹配名字里的「（已废弃）」——
+      // 后半句是知识库文案，会改、会翻译，不该当前端逻辑。
+      // 要排查「某个面为什么派不下去」，点「仅定义」仍能看到它们。
+      return rows.filter((row) => row.state !== "unconfigured");
     case "ready":
       return rows.filter((row) => row.state === "ready");
     case "unready":
@@ -117,10 +126,13 @@ export function filterFamilyOverview(
 export function familyFilterCounts(
   rows: readonly FamilyOverviewRow[],
 ): Record<FamilyFilter, number> {
+  const unconfigured = rows.filter((row) => row.state === "unconfigured").length;
   return {
-    all: rows.length,
+    // `all` 与「全部」的可见行一致（= ready + unready），不把 unconfigured 算进去：
+    // 否则 chip 上的数字会互相矛盾（all 比 ready + unready 多出几个看不见的行）。
+    all: rows.length - unconfigured,
     ready: rows.filter((row) => row.state === "ready").length,
     unready: rows.filter((row) => row.state === "draft").length,
-    unconfigured: rows.filter((row) => row.state === "unconfigured").length,
+    unconfigured,
   };
 }

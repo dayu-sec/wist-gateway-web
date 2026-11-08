@@ -220,12 +220,17 @@ assert(crash.units.length === 1, "CrashPanic 一个单元");
 assert(container.units.length === 0, "未建单元的面没有任何单元");
 
 const counts = familyFilterCounts(rows);
-assert(counts.all === 4, "全部计数");
+assert(counts.all === 3, "全部计数 = 有单元的面（不含未建单元的）");
 assert(counts.ready === 2, "已就绪计数");
 assert(counts.unready === 1, "未就绪计数");
 assert(counts.unconfigured === 1, "未建单元计数");
 
-assert(filterFamilyOverview(rows, "all").length === 4, "all 不筛");
+assert(
+  filterFamilyOverview(rows, "all")
+    .map((row) => row.family.id)
+    .join(",") === "LoginSession,KernelSystem,CrashPanic",
+  "all 默认不列没有单元的面（已废弃 / 尚未配置），免得占一行空白",
+);
 assert(
   filterFamilyOverview(rows, "ready").map((row) => row.family.id).join(",") ===
     "LoginSession,KernelSystem",
@@ -241,6 +246,15 @@ assert(
     .map((row) => row.family.id)
     .join(",") === "ContainerRuntime",
   "unconfigured 只留未建单元",
+);
+// 计数与可见行必须自洽：否则 chip 上的数字会对不上（全部 ≠ 已就绪 + 有单元未就绪）。
+assert(
+  counts.all === counts.ready + counts.unready,
+  "all 等于 ready + unready（unconfigured 不占默认视图）",
+);
+assert(
+  counts.all + counts.unconfigured === rows.length,
+  "all + unconfigured 覆盖整份词表",
 );
 
 // 没有内容 / 没有词表：空表，而不是崩。

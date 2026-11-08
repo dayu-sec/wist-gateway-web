@@ -307,7 +307,16 @@ export function ContentFamilyOverview({
                 v: catalog?.catalogVersion ?? "—",
               })}
             </span>
-            <span>{t("共 {n} 个面", "{n} families", { n: counts.all })}</span>
+            <span>
+              {t("共 {n} 个面", "{n} families", { n: counts.all })}
+              {counts.unconfigured > 0
+                ? t(
+                    "（另有 {n} 个面无采集单元，默认不显示：已废弃或尚未配置，点「仅定义」查看）",
+                    " ({n} more have no collection unit and are hidden by default — deprecated or not yet configured; use “Defined only” to see them)",
+                    { n: counts.unconfigured },
+                  )
+                : null}
+            </span>
           </div>
 
           <div
