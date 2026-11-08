@@ -343,9 +343,14 @@ export function SubsystemCollectionGrantPage() {
       draft: 1,
       unconfigured: 2,
     };
-    return buildFamilyOverview(catalogForRows)
-      .slice()
-      .sort((left, right) => order[left.state] - order[right.state]);
+    return (
+      buildFamilyOverview(catalogForRows)
+        // 与「采集面全景」同口径：**没有采集单元的面**（已废弃 / 尚未配置）默认不列。
+        // 这一页的动作是「把面授权给主机」，没有单元的面根本派不出去，列出来只会误导。
+        // 判据是结构性的（有没有单元），不是去匹配名字里的「（已废弃）」文案。
+        .filter((row) => row.state !== "unconfigured")
+        .sort((left, right) => order[left.state] - order[right.state])
+    );
   }, [catalogForRows]);
   const familyText = useMemo(
     () => indexCollectionFamilies(catalogForRows?.families),
