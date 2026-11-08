@@ -39,6 +39,11 @@ jobs:
       - name: Test (routes contract)
         run: npm run test:routes
 
+      # 「采集指南」页的内容契约：凭据 key 口径、门控条件、SQL 权限、采集结果状态闭集。
+      # 这页是跨权限域的操作手册，与 agentd / 知识库脱节时没有任何其它测试会红。
+      - name: Test (collection guide content)
+        run: npm run test:collection-guide
+
       - name: Test (agent purpose contract)
         run: npm run test:agent-purpose
 

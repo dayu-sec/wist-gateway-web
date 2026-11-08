@@ -13,6 +13,7 @@
     "test:i18n": "tsx tests/i18n-contract.test.ts",
     "test:theme": "tsx tests/theme-contract.test.ts",
     "test:collection-grants": "tsx tests/collection-grant-state.test.ts",
+    "test:collection-guide": "tsx tests/collection-guide-contract.test.ts",
     "test:install-command": "tsx tests/install-command.test.ts",
     "test:version": "tsx tests/version-contract.test.ts",
     "test:routes": "node tests/routes-contract.test.mjs",
