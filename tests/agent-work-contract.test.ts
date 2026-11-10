@@ -291,6 +291,11 @@ const localPayload = {
         },
       ],
       collection: {
+        prerequisites: "blocked",
+        result: "cancelled",
+        reasons: [
+          { kind: "missing_tool", subject: "smartctl", detail: "工具缺失（装上后自动恢复）" },
+        ],
         status: "degraded",
         observed_at: "2026-09-26T08:00:02Z",
         detail: "1/2 个采集任务失败：/var/log/system.log 不存在",
@@ -347,6 +352,18 @@ assert(
   withLocal.local?.standing[0].collection?.detail ===
     "1/2 个采集任务失败：/var/log/system.log 不存在",
   "local collection detail must survive",
+);
+assert(
+  withLocal.local?.standing[0].collection?.prerequisites === "blocked",
+  "local collection prerequisites was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].collection?.result === "cancelled",
+  "local collection result was not normalized",
+);
+assert(
+  withLocal.local?.standing[0].collection?.reasons?.[0].kind === "missing_tool",
+  "local collection reasons were not normalized",
 );
 
 // 旧 agentd 不报采集结果：必须是 null（与「报了 unknown」区分），不能把整张卡判成坏数据。

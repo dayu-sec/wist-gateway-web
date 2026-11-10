@@ -368,12 +368,27 @@ export interface AgentLocalTaskView {
  * 与 `status`（工作状态）/ `acknowledgedVersion`（确认到哪一版）分开：那两个是**期望**侧，
  * 这里回答「到底采成没采成」—— 文件不存在、导出器没装、指标目标全失败都只在这里体现。
  */
+export interface AgentCollectionReasonView {
+  /** 原因类别：`missing_tool` / `run_failed` / …（开放值：认不出的照原样显示）。 */
+  kind: string;
+  /** 具体对象：工具名 / 输入 id / 指标域。 */
+  subject: string;
+  /** 人看的说明。 */
+  detail: string;
+}
+
 export interface AgentLocalCollectionView {
-  /** `ok` | `degraded` | `failed` | `unknown` | `paused`（开放值：认不出的照原样显示）。 */
-  status: string;
+  /** 前置条件：`ready` | `blocked`；`null` = 旧 agentd 没报。 */
+  prerequisites: string | null;
+  /** 执行结果：`success` | `partial` | `failure` | `cancelled` | `pending`；`null` = 旧 agentd。 */
+  result: string | null;
+  /** 原因（结构化）；`null` = 旧 agentd 没报。 */
+  reasons: AgentCollectionReasonView[] | null;
+  /** **兼容字段**：旧单一状态（`ok` | `degraded` | `failed` | `unknown` | `paused`）。 */
+  status: string | null;
   /** 本机时钟：得出这个结论的那一轮采集。 */
   observedAt: string;
-  /** 人看的说明：失败原因原样带上；`ok` 时为空。 */
+  /** **兼容字段**：旧版人看说明。新模型用 `reasons`。 */
   detail: string;
 }
 

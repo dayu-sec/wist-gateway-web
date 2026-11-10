@@ -1,5 +1,6 @@
 import { t } from "../i18n";
 import type {
+  AgentLocalCollectionView,
   ContainerFilters,
   ContentCatalogView,
   MachineClass,
@@ -69,6 +70,76 @@ export const COLLECTION_STATUS_TONE: Record<CollectionStatus, WorkTone> = {
 
 export function collectionStatusTone(status: string): WorkTone {
   return COLLECTION_STATUS_TONE[status as CollectionStatus] ?? "unknown";
+}
+
+/**
+ * 新模型（`prerequisites` / `result` / `reasons`）优先；旧 agentd 回退到 `status`。
+ *
+ * 采集结果的展示口径集中在这里，页面与契约测试共用一份。
+ */
+export function collectionLabelOf(collection: AgentLocalCollectionView): string {
+  const result = collection.result;
+  if (!result) {
+    return collection.status
+      ? collectionStatusLabel(collection.status)
+      : t("未上报", "Not reported");
+  }
+  switch (result) {
+    case "success":
+      return t("采集正常", "Collecting");
+    case "partial":
+      return t("部分失败", "Partially failing");
+    case "failure":
+      return t("采集失败", "Collection failed");
+    case "cancelled":
+      return collection.prerequisites === "blocked"
+        ? t("待就绪", "Not ready")
+        : t("未采集（暂停）", "Not collecting (paused)");
+    case "pending":
+      return collection.prerequisites === "blocked"
+        ? t("待就绪（等目标）", "Not ready (waiting)")
+        : t("尚未观测", "Not observed yet");
+    default:
+      return result;
+  }
+}
+
+export function collectionToneOf(collection: AgentLocalCollectionView): WorkTone {
+  switch (collection.result) {
+    case "success":
+      return "ok";
+    case "partial":
+      return "warn";
+    case "failure":
+      return "crit";
+    case "cancelled":
+    case "pending":
+      return "unknown";
+    default:
+      return collectionStatusTone(collection.status ?? "");
+  }
+}
+
+/** 只有真正失败 / 部分失败才用醒目色；待就绪与未观测都是信息。 */
+export function collectionIsBroken(
+  collection: AgentLocalCollectionView,
+): boolean {
+  return collection.result === "failure" || collection.result === "partial";
+}
+
+/** 原因优先用结构化列表；旧 agentd 回退到 `detail`。 */
+export function collectionDetailText(
+  collection: AgentLocalCollectionView,
+): string {
+  const reasons = collection.reasons;
+  if (reasons && reasons.length > 0) {
+    return reasons
+      .map((reason) =>
+        reason.subject ? `${reason.subject}: ${reason.detail}` : reason.detail,
+      )
+      .join("；");
+  }
+  return collection.detail;
 }
 
 /**

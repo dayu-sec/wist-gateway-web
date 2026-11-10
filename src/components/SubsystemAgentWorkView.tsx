@@ -21,8 +21,10 @@ import type { GrantStandingWorkCommand } from "../api/admin";
 import {
   STANDING_STATUS_LABEL,
   STANDING_STATUS_TONE,
-  collectionStatusLabel,
-  collectionStatusTone,
+  collectionDetailText,
+  collectionIsBroken,
+  collectionLabelOf,
+  collectionToneOf,
   blockedFamilies,
   collectedLogFiles,
   ACK_STATE_LABEL,
@@ -690,8 +692,7 @@ function StandingWorkCard({
     : null;
   // 本机自报的**采集结果**：与工作状态 / 确认版本分开，回答「到底采成没采成」。
   const collection = localWork?.collection ?? null;
-  const collectionBroken =
-    collection?.status === "failed" || collection?.status === "degraded";
+  const collectionBroken = collection ? collectionIsBroken(collection) : false;
   // 本机自报「实际在采」的文件：与上面的 `files`（期望折算）配对，两者不同就要说清差在哪。
   const localFiles = localWork
     ? localWork.tasks.map((task) => task.path)
@@ -789,11 +790,11 @@ function StandingWorkCard({
         {collection ? (
           <span
             className={`${styles.badge} ${toneClass(
-              collectionStatusTone(collection.status),
+              collectionToneOf(collection),
             )}`}
-            title={collection.detail || undefined}
+            title={collectionDetailText(collection) || undefined}
           >
-            {collectionStatusLabel(collection.status)}
+            {collectionLabelOf(collection)}
           </span>
         ) : null}
         <span className={styles.cardChevron} aria-hidden="true">
@@ -814,19 +815,19 @@ function StandingWorkCard({
               </span>
               <span
                 className={`${styles.badge} ${toneClass(
-                  collectionStatusTone(collection.status),
+                  collectionToneOf(collection),
                 )}`}
               >
-                {collectionStatusLabel(collection.status)}
+                {collectionLabelOf(collection)}
               </span>
               <span className={styles.mono}>
                 {formatTimestamp(collection.observedAt)}
               </span>
-              {collection.detail ? (
+              {collectionDetailText(collection) ? (
                 <span
                   className={collectionBroken ? styles.critText : styles.muted}
                 >
-                  {collection.detail}
+                  {collectionDetailText(collection)}
                 </span>
               ) : null}
             </div>

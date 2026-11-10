@@ -3,6 +3,7 @@ import type {
   AgentFactSummary,
   AgentLogRecord,
   AgentLogsView,
+  AgentCollectionReasonView,
   AgentLocalOneShotWorkView,
   AgentLocalStandingWorkView,
   AgentLocalCollectionView,
@@ -3871,14 +3872,47 @@ function normalizeAgentLocalStandingWork(
   };
 }
 
+function optionalStringOrNull(value: unknown): string | null {
+  const text = optionalStringValue(value).trim();
+  return text === "" ? null : text;
+}
+
+function normalizeAgentCollectionReasons(
+  payload: unknown,
+): AgentCollectionReasonView[] | null {
+  if (payload === null || payload === undefined) return null;
+  if (!Array.isArray(payload)) return null;
+  return payload.map((item, index) => {
+    const at = `agentLocalCollection.reasons[${index}]`;
+    const record = requiredRecord(item, at);
+    return {
+      kind: requiredString(record.kind, `${at}.kind`),
+      subject: optionalStringValue(record.subject),
+      detail: optionalStringValue(record.detail),
+    };
+  });
+}
+
 function normalizeAgentLocalCollection(
   payload: unknown,
 ): AgentLocalCollectionView | null {
   // 字段可选：旧 agentd 不报「采集结果」是正常的（与「报了 unknown」不是一回事）。
   if (payload === null || payload === undefined) return null;
   const record = requiredRecord(payload, "agentLocalCollection");
+  const result = optionalStringOrNull(record.result);
+  // 兼容字段：新 agentd 可能不再写 `status`。
+  const status = optionalStringOrNull(record.status);
+  // 两者都没有 = 形状不对：不能静默当成一个正常结论。
+  if (!result && !status) {
+    throw new Error(
+      "agentLocalCollection must carry result (new) or status (legacy)",
+    );
+  }
   return {
-    status: requiredString(record.status, "agentLocalCollection.status"),
+    prerequisites: optionalStringOrNull(record.prerequisites),
+    result,
+    reasons: normalizeAgentCollectionReasons(record.reasons),
+    status,
     observedAt: requiredString(
       record.observed_at ?? record.observedAt,
       "agentLocalCollection.observedAt",
