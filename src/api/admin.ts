@@ -6009,3 +6009,190 @@ export async function dispatchAgentRefresh(
   );
   return normalizeAgentRefresh(payload);
 }
+
+// ── 命令队列（agentd 要执行的一次性命令：待执行 / 执行中 / 已回执）─────────────
+//
+// 后端两条只读口（`wist-gateway` 0.44+）：
+//   · `GET /api/v1/admin/agents/{agent_id}/commands`（单机，agent 不存在 404）；
+//   · `GET /api/v1/admin/agent-commands`（全机队，可按 `agent_id` 过滤）。
+//
+// 命令**不是推送**的：agent 在下一个状态上报里认领（≤3s），执行完再回一条回执。
+// 所以 `queued` 久了不动 = 机器/agentd 没在跑，`claimed` 久了不动 = 命令还在跑（调查可能 120s）。
+//
+// `source` 由网关按 `requested_by` 派生（`center*` / `admin*` / 其它），页面不自己猜：
+// 同一个字段在中心侧叫「下发人」，在网关侧叫「谁排的队」，两处口径必须一致。
+
+/** 一条命令在网关队列里的状态（闭集）。 */
+export type AgentCommandQueueState =
+  | "queued"
+  | "claimed"
+  | "acked"
+  | "expired"
+  | "superseded";
+
+/** 查询过滤词：闭集 + `all`（不过滤）。 */
+export type AgentCommandQueueFilter = "all" | AgentCommandQueueState;
+
+/** 谁排的队：中心经 gwlinkd 下发 / 网关页面发起 / 系统自排。 */
+export type AgentCommandSource = "center" | "admin" | "system";
+
+const COMMAND_QUEUE_STATES: readonly AgentCommandQueueState[] = [
+  "queued",
+  "claimed",
+  "acked",
+  "expired",
+  "superseded",
+];
+const COMMAND_QUEUE_FILTERS: readonly AgentCommandQueueFilter[] = [
+  ...COMMAND_QUEUE_STATES,
+  "all",
+];
+const COMMAND_SOURCES: readonly AgentCommandSource[] = [
+  "center",
+  "admin",
+  "system",
+];
+
+/**
+ * 队列里的一行。
+ *
+ * `expired` / `superseded` 也是终态（写了 `acknowledged_at`），但它们**没有执行过** ——
+ * 页面必须能把这两种与「执行完（`acked`）」分开，否则会把「命令丢了」读成「做完了」。
+ */
+export interface AgentCommandQueueItem {
+  commandId: string;
+  agentId: string;
+  kind: string;
+  state: AgentCommandQueueState;
+  source: AgentCommandSource;
+  /** 原始发起人（`center:<actor>` / `admin:<token 指纹>`），审计回显用。 */
+  requestedBy: string;
+  /** 网关给的一行提示（调查 `topic=disk`、刷新 `what=a,b`）；没有就是空串。 */
+  summary: string;
+  requestedAt: string | null;
+  claimedAt: string | null;
+  acknowledgedAt: string | null;
+  outcome: AgentFactRefreshOutcome | null;
+  detail: string | null;
+}
+
+/**
+ * 队列态计数（**不受** `state` 过滤影响）。
+ *
+ * 只有 `queued` / `claimed` 两项：页面顶部的两个徽标用它回答「还有谁在等 / 谁在执行」。
+ * 终态数量按时间窗分页看，不在这里给 —— 它一直是增长的，给一个总数只会误导。
+ */
+export interface AgentCommandQueueCounts {
+  queued: number;
+  claimed: number;
+}
+
+export interface AgentCommandQueueView {
+  /** 单机口才有；全机队口不下发（列表本身就是多机）。 */
+  agentId: string | null;
+  /** 网关实际用的过滤词（回显，便于页面确认自己拿到的是哪一档）。 */
+  state: AgentCommandQueueFilter;
+  counts: AgentCommandQueueCounts;
+  commands: AgentCommandQueueItem[];
+}
+
+export interface AgentCommandQueueQuery {
+  /** 缺省 `all`；全机队口的网关缺省是 `queued`，页面总是显式传。 */
+  state?: AgentCommandQueueFilter;
+  /** 1..200，缺省 50。 */
+  limit?: number;
+  /** 只给全机队口用：按 Agent 过滤（走 query，不是路径）。 */
+  agentId?: string;
+}
+
+function normalizeAgentCommandQueueItem(
+  value: unknown,
+  index: number,
+): AgentCommandQueueItem {
+  const at = `agentCommandQueue.commands[${index}]`;
+  const record = requiredRecord(value, at);
+  const outcome = presentField(record, ["outcome"], `${at}.outcome`);
+  return {
+    commandId: requiredString(record.command_id, `${at}.command_id`),
+    agentId: requiredString(record.agent_id, `${at}.agent_id`),
+    kind: requiredString(record.kind, `${at}.kind`),
+    state: requiredClosedValue(
+      record.state,
+      COMMAND_QUEUE_STATES,
+      `${at}.state`,
+    ),
+    source: requiredClosedValue(
+      record.source,
+      COMMAND_SOURCES,
+      `${at}.source`,
+    ),
+    requestedBy: requiredString(record.requested_by, `${at}.requested_by`),
+    // 空串是正常形态（参数里没有 topic / what），不是缺字段。
+    summary: requiredString(record.summary, `${at}.summary`),
+    requestedAt: nullableStringField(record, ["requested_at"], `${at}.requested_at`),
+    claimedAt: nullableStringField(record, ["claimed_at"], `${at}.claimed_at`),
+    acknowledgedAt: nullableStringField(
+      record,
+      ["acknowledged_at"],
+      `${at}.acknowledged_at`,
+    ),
+    outcome:
+      outcome === null
+        ? null
+        : requiredAgentFactRefreshOutcome(outcome, `${at}.outcome`),
+    detail: nullableStringField(record, ["detail"], `${at}.detail`),
+  };
+}
+
+/**
+ * 归一化队列视图。
+ *
+ * `counts` **必须**是数字：读不到就让整页失败，不静默成 0 —— 0 会被读成「队列空了」，
+ * 而真实情况可能是「这一版网关还不给计数」。
+ */
+export function normalizeAgentCommandQueue(
+  payload: unknown,
+): AgentCommandQueueView {
+  const record = requiredRecord(payload, "agentCommandQueue");
+  const counts = requiredRecord(record.counts, "agentCommandQueue.counts");
+  const commands = requiredArray(record.commands, "agentCommandQueue.commands");
+  return {
+    agentId: optionalStringField(record, ["agent_id"], "agentCommandQueue.agent_id"),
+    state: requiredClosedValue(
+      record.state,
+      COMMAND_QUEUE_FILTERS,
+      "agentCommandQueue.state",
+    ),
+    counts: {
+      queued: requiredNumber(counts.queued, "agentCommandQueue.counts.queued"),
+      claimed: requiredNumber(counts.claimed, "agentCommandQueue.counts.claimed"),
+    },
+    commands: commands.map(normalizeAgentCommandQueueItem),
+  };
+}
+
+/**
+ * 读命令队列：给了 `agentId` 走单机口，否则走全机队口。
+ *
+ * 两条口返回**同一形状**，所以对调用方只暴露一个函数 —— 页面按 `agentId` 决定，
+ * 不必知道后端挂了两条路由。
+ */
+export async function fetchAgentCommandQueue(
+  query: AgentCommandQueueQuery = {},
+): Promise<AgentCommandQueueView> {
+  const params = new URLSearchParams();
+  if (query.state) params.set("state", query.state);
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  // 单机口的 agent 在路径里；全机队口才用 query 过滤（路径里的 agent 更权威，不重复发）。
+  let path: string;
+  if (query.agentId) {
+    path = `/api/v1/admin/agents/${encodeURIComponent(query.agentId)}/commands`;
+  } else {
+    path = "/api/v1/admin/agent-commands";
+  }
+  const suffix = params.toString();
+  const payload = await requestJson<unknown>(
+    suffix ? `${path}?${suffix}` : path,
+  );
+  return normalizeAgentCommandQueue(payload);
+}

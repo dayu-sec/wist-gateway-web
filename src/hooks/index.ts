@@ -22,6 +22,7 @@ import {
   dispatchAgentRefresh,
   fetchAgentAdvertiseUrl,
   fetchAgentCollectionPreflight,
+  fetchAgentCommandQueue,
   fetchAgentFactRefresh,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
@@ -84,6 +85,7 @@ import {
   viewGatewaySelfState,
   viewGatewaySelfStateHistory,
   type ActivateKnowledgePackageCommand,
+  type AgentCommandQueueQuery,
   type AgentFactRefreshCommand,
   type AgentInvestigationsView,
   type AgentMetricsLabelsView,
@@ -1882,5 +1884,30 @@ export function useClearAgentMetricsLabels(agentId: string) {
 export function useAgentRefresh(agentId: string) {
   return useMutation({
     mutationFn: (what: RefreshSource[]) => dispatchAgentRefresh(agentId, what),
+  });
+}
+
+/**
+ * 命令队列（全机队 / 单机，同一形状）。
+ *
+ * 一直轮询：这一页问的就是「**现在**谁在排队、谁在执行」，取一次的快照答不了。
+ * 5 秒与状态条同步；agent 的认领/回执本身也是 3s 级的状态上报，再快没有意义。
+ */
+const COMMAND_QUEUE_POLL_MS = 5_000;
+
+export function useAgentCommandQueue(query: AgentCommandQueueQuery) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    // 每个 (agent, state, limit) 一份缓存：切 tab 不会把上一档的数据当成这一档的。
+    queryKey: [
+      "agent-command-queue",
+      query.agentId ?? "",
+      query.state ?? "all",
+      query.limit ?? 0,
+    ],
+    queryFn: () => fetchAgentCommandQueue(query),
+    enabled: authenticated,
+    refetchInterval: COMMAND_QUEUE_POLL_MS,
+    retry: factRefreshRetry,
   });
 }

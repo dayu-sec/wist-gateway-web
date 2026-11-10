@@ -177,6 +177,7 @@ const NAV_GROUPS = [
     section: "fleet",
     routes: [
       "/fleet",
+      "/commands",
       "/install",
       "/install-package",
       "/upgrade",

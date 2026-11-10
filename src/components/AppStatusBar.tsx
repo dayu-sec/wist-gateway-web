@@ -98,6 +98,8 @@ function describeRoute(pathname: string): RouteMeta {
       return { section: "fleet", crumbs: [t("Agent 升级", "Agent upgrade")] };
     case "/fleet":
       return { section: "fleet", crumbs: [t("Agent 列表", "Agent fleet")] };
+    case "/commands":
+      return { section: "fleet", crumbs: [t("任务队列", "Command queue")] };
     case "/revocations":
       return { section: "fleet", crumbs: [t("吊销名单", "Revocations")] };
     case "/install":

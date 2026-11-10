@@ -127,6 +127,7 @@ React Query 缓存里，不会重新拉。
 | `/work` | 采集工作（按主机查看在采什么、授权/暂停/撤回） |
 | `/collection-grants` | 授权（两个 tab：采集面授权 = 按面选主机批量下发；调查授权 = 按主机勾选调查面，即时生效） |
 | `/fleet` | Agent 机队（在册 Agent，含离线；删除离线机器，不可恢复） |
+| `/commands` | 任务队列（agentd 待执行 / 执行中 / 已回执的一次性命令，含中心下发；只读） |
 | `/upgrade` | Agent 升级（灰度发布计划） |
 | `/upgrade/:planId` | 升级计划详情 |
 | `/agents/:agentId/metrics` | 主机指标详情 |

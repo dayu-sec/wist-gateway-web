@@ -387,6 +387,28 @@ function IconGrant() {
   );
 }
 
+/** 任务队列：一叠带勾的条目 —— agentd 要执行的一队命令（含中心下发）。 */
+function IconQueue() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M2.4 3.6h2.2M2.4 8h2.2M2.4 12.4h2.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6.6 3.6h7M6.6 8h7M6.6 12.4h4.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /** Agent 机队：三节点网格 —— 注册在册的一批机器（含离线）。 */
 function IconFleet() {
   return (
@@ -597,6 +619,12 @@ function navGroups(): { label: string; items: NavItem[] }[] {
           to: "/fleet",
           label: t("Agent 列表", "Agent fleet"),
           icon: <IconFleet />,
+        },
+        // 队列跟机队一样是「机器身上正在发生什么」：Agent 列表是静态名册，队列是动态待办。
+        {
+          to: "/commands",
+          label: t("任务队列", "Command queue"),
+          icon: <IconQueue />,
         },
         {
           to: "/install",

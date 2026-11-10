@@ -22,6 +22,7 @@ import { SubsystemAuthorizationPage } from "./components/SubsystemAuthorizationP
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
 import { SubsystemAgentFleetPage } from "./components/SubsystemAgentFleetPage";
+import { SubsystemAgentCommandQueuePage } from "./components/SubsystemAgentCommandQueuePage";
 import { SubsystemAgentRevocationPage } from "./components/SubsystemAgentRevocationPage";
 import { SubsystemAgentUpgradeDetailPage } from "./components/SubsystemAgentUpgradeDetailPage";
 import { SubsystemWorkListPage } from "./components/SubsystemWorkListPage";
@@ -89,6 +90,8 @@ export function App() {
         />
         <Route path="/upgrade" element={<SubsystemAgentUpgradePage />} />
         <Route path="/fleet" element={<SubsystemAgentFleetPage />} />
+        {/* 任务队列：agentd 待执行 / 执行中 / 已回执的一次性命令（含中心下发）。只读观测面。 */}
+        <Route path="/commands" element={<SubsystemAgentCommandQueuePage />} />
         <Route path="/revocations" element={<SubsystemAgentRevocationPage />} />
         <Route
           path="/upgrade/:planId"

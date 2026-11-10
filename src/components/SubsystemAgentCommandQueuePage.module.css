@@ -1,0 +1,408 @@
+.container {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.main {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 26px 24px 56px;
+}
+
+.pageHeader {
+  max-width: var(--prose-max);
+  margin-bottom: 18px;
+}
+
+.pageTitle {
+  font-size: var(--page-title);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.pageSummary {
+  margin-top: 7px;
+  color: var(--text-3);
+  font-size: var(--page-summary);
+  line-height: 1.65;
+  max-width: var(--prose-max);
+}
+
+.headerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.crossLink {
+  color: var(--accent-strong);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.crossLink:hover {
+  text-decoration: underline;
+}
+
+/* 深链接窄化（`?agent=`）：不是筛选器，是一条「我在看谁」的横幅。 */
+.filterChip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+
+.filterChipText {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.code {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.chipButton {
+  margin-left: auto;
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chipButton:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.chipButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 状态档位：一行 tab + 一句当前档的解释（解释比徽标更重要：它说清「这一档不含什么」）。 */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tab:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.tab:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.tabActive {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.tabCount {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tabCountActive {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.tabHint {
+  flex: 1 1 320px;
+  color: var(--text-4);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.notice {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.errorBanner {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.empty strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table thead th {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table tbody td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+.tdCommand {
+  min-width: 260px;
+}
+
+.commandHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.commandKind {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.commandSummary {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.commandId {
+  margin-top: 3px;
+  overflow: hidden;
+  max-width: 330px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commandId a {
+  color: var(--text-3);
+  text-decoration: none;
+}
+
+.commandId a:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.tdAgent {
+  font-weight: 600;
+}
+
+.agentLink {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.agentLink:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.agentId {
+  margin-top: 2px;
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.tdTime {
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tdResult {
+  min-width: 130px;
+}
+
+.resultMeta {
+  margin-top: 3px;
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.resultDetail {
+  margin-top: 3px;
+  overflow: hidden;
+  max-width: 220px;
+  color: var(--text-3);
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toneOk {
+  border-color: var(--ok-border);
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.toneWarn {
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.toneInfo {
+  border-color: var(--info);
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.toneAccent {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.toneNeutral {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text-3);
+}
+
+.cardFoot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-4);
+  font-size: 11.5px;
+}
+
+@media (max-width: 560px) {
+  .main {
+    padding: 22px 16px 40px;
+  }
+
+  .table thead th,
+  .table tbody td {
+    padding: 10px 12px;
+  }
+}
