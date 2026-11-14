@@ -6231,39 +6231,267 @@ export async function fetchAgentCommandQueue(
   return normalizeAgentCommandQueue(payload);
 }
 
-/** 云资产采集（harvest）的中心侧开关：网关持有，`wist-harvest` 自己轮询。 */
-export interface HarvestSetting {
-  enabled: boolean;
-  updatedAt: string | null;
-  updatedBy: string | null;
+/** 云资产采集（harvest）的工作授权视图：worker / 常驻工作 / 确认 / 漂移。
+ *
+ * 采集指令来自网关（`standing`），本机 `.toml` 只管「怎么连」。见网关仓
+ * `docs/design/harvest-work-grant.md`。
+ */
+export interface HarvestWorker {
+  workerId: string;
+  sourceCode: string;
+  instanceId: string;
+  /** pending | active | revoked */
+  status: string;
+  enrolledAt: string;
+  lastSeenAt: string | null;
+  revokedAt: string | null;
+  revokedBy: string;
 }
 
-function normalizeHarvestSetting(payload: unknown): HarvestSetting {
+export interface HarvestAck {
+  workId: string;
+  workerId: string;
+  workKind: string;
+  planVersion: number;
+  acknowledgedAt: string;
+}
+
+export interface HarvestCadence {
+  mode: string;
+  at?: string;
+  jitterSeconds?: number;
+  seconds?: number;
+}
+
+export interface HarvestSpec {
+  credentialRef: string;
+  vendor: string;
+  assets: string[];
+  regions: string | string[];
+  cadence: HarvestCadence;
+}
+
+export interface HarvestWork {
+  workerId: string;
+  workId: string;
+  family: string;
+  spec: HarvestSpec;
+  planVersion: number;
+  /** active | paused */
+  status: string;
+  effectiveFrom: string;
+  updatedBy: string;
+  updatedAt: string;
+  ack: HarvestAck | null;
+  /** in_sync | awaiting_ack | drift | inactive */
+  ackState: string;
+  drift: boolean;
+}
+
+export interface HarvestTicket {
+  ticket: string;
+  workerId: string;
+  sourceCode: string;
+  expiresAt: string;
+}
+
+/** 一次性工作（页面「立即采集」/「忽略缓存重扫」）。 */
+export interface HarvestOneShot {
+  workerId: string;
+  workId: string;
+  /** `inventory.run` | `inventory.rescan` */
+  action: string;
+  /** dispatched | running | succeeded | failed | timed_out | canceled | expired */
+  status: string;
+  outstanding: boolean;
+  scheduledAt: string;
+  deadlineAt: string;
+  issuedBy: string;
+  issuedAt: string;
+  result: {
+    status: string;
+    detail: string;
+    reportedAt: string;
+  } | null;
+}
+
+function asRecord(payload: unknown, label: string): Record<string, unknown> {
   if (typeof payload !== "object" || payload === null) {
-    throw new Error("Invalid API response: harvest setting");
+    throw new Error(`Invalid API response: ${label}`);
   }
-  const record = payload as Record<string, unknown>;
+  return payload as Record<string, unknown>;
+}
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function normalizeHarvestWorker(payload: unknown): HarvestWorker {
+  const record = asRecord(payload, "harvest worker");
   return {
-    enabled: record.enabled === true,
-    updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : null,
-    updatedBy: typeof record.updatedBy === "string" ? record.updatedBy : null,
+    workerId: String(record.worker_id ?? ""),
+    sourceCode: String(record.source_code ?? ""),
+    instanceId: String(record.instance_id ?? ""),
+    status: String(record.status ?? ""),
+    enrolledAt: String(record.enrolled_at ?? ""),
+    lastSeenAt: optionalString(record.last_seen_at),
+    revokedAt: optionalString(record.revoked_at),
+    revokedBy: String(record.revoked_by ?? ""),
   };
 }
 
-export async function fetchHarvestSetting(): Promise<HarvestSetting> {
-  return normalizeHarvestSetting(
-    await requestJson<unknown>("/api/v1/admin/harvest"),
+function normalizeHarvestAck(payload: unknown): HarvestAck | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const record = payload as Record<string, unknown>;
+  return {
+    workId: String(record.work_id ?? ""),
+    workerId: String(record.worker_id ?? ""),
+    workKind: String(record.work_kind ?? ""),
+    planVersion: Number(record.plan_version ?? 0),
+    acknowledgedAt: String(record.acknowledged_at ?? ""),
+  };
+}
+
+function normalizeHarvestCadence(payload: unknown): HarvestCadence {
+  const record = asRecord(payload ?? {}, "harvest cadence");
+  const cadence: HarvestCadence = { mode: String(record.mode ?? "") };
+  if (typeof record.at === "string") cadence.at = record.at;
+  if (typeof record.jitter_seconds === "number") {
+    cadence.jitterSeconds = record.jitter_seconds;
+  }
+  if (typeof record.seconds === "number") cadence.seconds = record.seconds;
+  return cadence;
+}
+
+function normalizeHarvestSpec(payload: unknown): HarvestSpec {
+  const record = asRecord(payload ?? {}, "harvest spec");
+  const regions = record.regions;
+  return {
+    credentialRef: String(record.credential_ref ?? ""),
+    vendor: String(record.vendor ?? ""),
+    assets: Array.isArray(record.assets) ? record.assets.map(String) : [],
+    regions: Array.isArray(regions)
+      ? regions.map(String)
+      : typeof regions === "string"
+        ? regions
+        : "auto",
+    cadence: normalizeHarvestCadence(record.cadence),
+  };
+}
+
+function normalizeHarvestWork(payload: unknown): HarvestWork {
+  const record = asRecord(payload, "harvest work");
+  return {
+    workerId: String(record.worker_id ?? ""),
+    workId: String(record.work_id ?? ""),
+    family: String(record.family ?? ""),
+    spec: normalizeHarvestSpec(record.spec),
+    planVersion: Number(record.plan_version ?? 0),
+    status: String(record.status ?? ""),
+    effectiveFrom: String(record.effective_from ?? ""),
+    updatedBy: String(record.updated_by ?? ""),
+    updatedAt: String(record.updated_at ?? ""),
+    ack: normalizeHarvestAck(record.ack),
+    ackState: String(record.ack_state ?? ""),
+    drift: record.drift === true,
+  };
+}
+
+export async function fetchHarvestWorkers(): Promise<HarvestWorker[]> {
+  const payload = asRecord(
+    await requestJson<unknown>("/api/v1/admin/harvest/workers"),
+    "harvest workers",
+  );
+  const rows = Array.isArray(payload.workers) ? payload.workers : [];
+  return rows.map(normalizeHarvestWorker);
+}
+
+export async function fetchHarvestWorks(): Promise<HarvestWork[]> {
+  const payload = asRecord(
+    await requestJson<unknown>("/api/v1/admin/harvest/works"),
+    "harvest works",
+  );
+  const rows = Array.isArray(payload.works) ? payload.works : [];
+  return rows.map(normalizeHarvestWork);
+}
+
+function normalizeHarvestOneShot(payload: unknown): HarvestOneShot {
+  const record = asRecord(payload, "harvest one-shot");
+  const rawResult = record.result;
+  const result =
+    typeof rawResult === "object" && rawResult !== null
+      ? (() => {
+          const row = rawResult as Record<string, unknown>;
+          return {
+            status: String(row.status ?? ""),
+            detail: String(row.detail ?? ""),
+            reportedAt: String(row.reported_at ?? ""),
+          };
+        })()
+      : null;
+  return {
+    workerId: String(record.worker_id ?? ""),
+    workId: String(record.work_id ?? ""),
+    action: String(record.action ?? ""),
+    status: String(record.status ?? ""),
+    outstanding: record.outstanding === true,
+    scheduledAt: String(record.scheduled_at ?? ""),
+    deadlineAt: String(record.deadline_at ?? ""),
+    issuedBy: String(record.issued_by ?? ""),
+    issuedAt: String(record.issued_at ?? ""),
+    result,
+  };
+}
+
+/** 一次性工作的只读视图（与 `fetchHarvestWorks` 同一个端点，`one_shot` 数组合并）。 */
+export async function fetchHarvestOneShots(): Promise<HarvestOneShot[]> {
+  const payload = asRecord(
+    await requestJson<unknown>("/api/v1/admin/harvest/works"),
+    "harvest one-shot",
+  );
+  const rows = Array.isArray(payload.one_shot) ? payload.one_shot : [];
+  return rows.map(normalizeHarvestOneShot);
+}
+
+/**
+ * 派一件一次性工作（页面按钮）。
+ *
+ * `inventory.rescan` 的「忽略缓存」由网关强制（调用方写什么都会变成 fresh），
+ * 所以这里不传 `spec` —— 采集面/地域仍用本机数据源配置。
+ */
+export async function dispatchHarvestOneShot(
+  workerId: string,
+  action: "inventory.run" | "inventory.rescan",
+): Promise<void> {
+  await requestJson<unknown>("/api/v1/admin/harvest/one-shot", {
+    method: "POST",
+    body: JSON.stringify({ worker_id: workerId, action }),
+  });
+}
+
+/** 撤回还没跑完的一次性工作（已到终态的不会被改）。 */
+export async function cancelHarvestOneShot(workId: string): Promise<void> {
+  await requestJson<unknown>(
+    `/api/v1/admin/harvest/one-shot/${encodeURIComponent(workId)}/cancel`,
+    { method: "POST", body: JSON.stringify({}) },
   );
 }
 
-/** 开/关云资产采集。幂等：写的是同一行；采集器下一拍生效，不重启容器。 */
-export async function setHarvestEnabled(
-  enabled: boolean,
-): Promise<HarvestSetting> {
-  return normalizeHarvestSetting(
-    await requestJson<unknown>("/api/v1/admin/harvest", {
-      method: "PUT",
-      body: JSON.stringify({ enabled }),
+/** 签发一次性接入券（明文只出现一次；写进宿主 `.wist/sec-value.yml`，不进配置文件）。 */
+export async function createHarvestTicket(
+  sourceCode: string,
+): Promise<HarvestTicket> {
+  const payload = asRecord(
+    await requestJson<unknown>("/api/v1/admin/harvest/enroll-ticket", {
+      method: "POST",
+      body: JSON.stringify({ source_code: sourceCode }),
     }),
+    "harvest ticket",
   );
+  return {
+    ticket: String(payload.ticket ?? ""),
+    workerId: String(payload.worker_id ?? ""),
+    sourceCode: String(payload.source_code ?? ""),
+    expiresAt: String(payload.expires_at ?? ""),
+  };
 }
