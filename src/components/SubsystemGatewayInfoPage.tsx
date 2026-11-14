@@ -20,6 +20,7 @@ import {
   uplinkFormState,
 } from "./uplinkForm";
 import { SubsystemDiscoverySnapshotSection } from "./SubsystemDiscoverySnapshotSection";
+import { SubsystemHarvestSettingSection } from "./SubsystemHarvestSettingSection";
 import styles from "./SubsystemGatewayInfoPage.module.css";
 
 /** 关于「未设置」：不是「用默认值」，而是压根没有上送目标。
@@ -374,6 +375,8 @@ export function SubsystemGatewayInfoPage() {
             />
           </section>
         ) : null}
+
+        <SubsystemHarvestSettingSection />
 
         <SubsystemDiscoverySnapshotSection />
 

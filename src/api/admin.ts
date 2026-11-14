@@ -6230,3 +6230,40 @@ export async function fetchAgentCommandQueue(
   );
   return normalizeAgentCommandQueue(payload);
 }
+
+/** 云资产采集（harvest）的中心侧开关：网关持有，`wist-harvest` 自己轮询。 */
+export interface HarvestSetting {
+  enabled: boolean;
+  updatedAt: string | null;
+  updatedBy: string | null;
+}
+
+function normalizeHarvestSetting(payload: unknown): HarvestSetting {
+  if (typeof payload !== "object" || payload === null) {
+    throw new Error("Invalid API response: harvest setting");
+  }
+  const record = payload as Record<string, unknown>;
+  return {
+    enabled: record.enabled === true,
+    updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : null,
+    updatedBy: typeof record.updatedBy === "string" ? record.updatedBy : null,
+  };
+}
+
+export async function fetchHarvestSetting(): Promise<HarvestSetting> {
+  return normalizeHarvestSetting(
+    await requestJson<unknown>("/api/v1/admin/harvest"),
+  );
+}
+
+/** 开/关云资产采集。幂等：写的是同一行；采集器下一拍生效，不重启容器。 */
+export async function setHarvestEnabled(
+  enabled: boolean,
+): Promise<HarvestSetting> {
+  return normalizeHarvestSetting(
+    await requestJson<unknown>("/api/v1/admin/harvest", {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }),
+  );
+}
