@@ -5,6 +5,12 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.36.2-alpha] - 2026-11-15
+
+- 接入券的说明改成“瞬时通道”：同栈由 `harvest-bootstrap` 自动接入；跨机写
+  `<state_dir>/enroll.ticket`（0600）或一次性环境变量 `HARVEST_ENROLL_TICKET`。
+  **不再**提示写进 `.wist/sec-value.yml` —— 券是一次性的，不该进长期密钥库。
+
 ## [0.36.1-alpha] - 2026-11-15
 
 ### 修复

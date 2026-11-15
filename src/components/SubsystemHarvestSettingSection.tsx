@@ -470,8 +470,8 @@ export function SubsystemHarvestSettingSection() {
           <div className={styles.ticketBox}>
             <div className={styles.meta}>
               {t(
-                "只能看这一次。券是一次性的：同栈部署无需人工处理（harvest-bootstrap 会自动完成接入）；跨机部署才需要写进宿主 .wist/sec-value.yml 的 harvest_enroll_ticket 后重启采集器。",
-                "Shown once. The ticket is single-use: in a same-stack deployment harvest-bootstrap handles enrollment automatically; only cross-host deployments need it written into the host's .wist/sec-value.yml (harvest_enroll_ticket) followed by a collector restart.",
+                "只能看这一次。券是一次性的（默认 24 小时）：同栈部署无需人工处理（harvest-bootstrap 会自动接入）；跨机部署把它写进采集器的 <state_dir>/enroll.ticket（0600），或作为一次性环境变量 HARVEST_ENROLL_TICKET 传入。",
+                "Shown once. The ticket is single-use (24h by default): a same-stack deployment enrolls automatically via harvest-bootstrap; for cross-host deployments write it to the collector's <state_dir>/enroll.ticket (0600) or pass it once via HARVEST_ENROLL_TICKET.",
               )}
             </div>
             <code className={styles.code}>{ticket.ticket}</code>
