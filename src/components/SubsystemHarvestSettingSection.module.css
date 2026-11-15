@@ -167,6 +167,51 @@
   background: var(--surface-2);
 }
 
+/* 「什么时候需要 / 怎么用」：券是给现场人照做的，所以直接排成清单 + 可复制的命令，
+   不写成一段散文（以前的文案只说了通道，没说何时用、敲什么）。 */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 780px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.guideTitle {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guideList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.guideList li + li {
+  margin-top: 4px;
+}
+
+.guideCode {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
 .code {
   overflow-wrap: anywhere;
   font-family: var(--font-mono, monospace);

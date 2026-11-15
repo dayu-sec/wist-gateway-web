@@ -17,6 +17,7 @@ import type {
 } from "../api";
 import { dateLocale, t } from "../i18n";
 import { RateLimitNotice } from "./RateLimitNotice";
+import { CopyButton } from "./CopyButton";
 import styles from "./SubsystemHarvestSettingSection.module.css";
 
 /**
@@ -256,8 +257,8 @@ export function SubsystemHarvestSettingSection() {
         {(workers ?? []).length === 0 && !loading ? (
           <p className={styles.hint}>
             {t(
-              "还没有 worker 接入。先签发一张接入券，把票据写进宿主的 .wist/sec-value.yml（键名见 harvest 仓文档），再重启采集器。",
-              "No worker enrolled yet. Issue an enrollment ticket, write it into the host's .wist/sec-value.yml and restart the collector.",
+              "还没有 worker 接入。同栈部署不需要人工介入：harvest-bootstrap 会在十几秒内自己换取证书并出现在这里；表一直是空的，先看采集器日志（容器没起来 / 连不上网关 / CA 不匹配），别急着签券。只有跨机部署、或采集器身份丢了，才用下面的接入券。",
+              "No worker enrolled yet. A same-stack deployment needs no manual step: harvest-bootstrap enrolls by itself within seconds and shows up here. If this table stays empty, read the collector log first (container not up / cannot reach the gateway / CA mismatch) instead of issuing a ticket. The ticket below is only for cross-host deployments or a lost collector identity.",
             )}
           </p>
         ) : (
@@ -466,15 +467,72 @@ export function SubsystemHarvestSettingSection() {
           </button>
         </div>
 
+        <div className={styles.guide}>
+          <p className={styles.guideTitle}>{t("什么时候需要这张券", "When you need a ticket")}</p>
+          <ul className={styles.guideList}>
+            <li>
+              {t(
+                "不需要：这台采集器已经在上面的表里 —— 身份就是 state/identity/ 里的证书，重启、重建容器都不丢。",
+                "Not needed when the collector is already in the table above: its identity is the certificate under state/identity/, which survives restarts and container rebuilds.",
+              )}
+            </li>
+            <li>
+              {t(
+                "需要：跨机第一次接入，或 state/identity/ 被删 / 换了机器。判据只有一条 —— 采集器手上还没有网关签发的客户端证书。",
+                "Needed for a first cross-host enrollment, or after state/identity/ was deleted / the host was replaced. One test: the collector does not hold a client certificate issued by the gateway yet.",
+              )}
+            </li>
+          </ul>
+
+          <p className={styles.guideTitle}>{t("怎么用", "How to use it")}</p>
+          <ol className={styles.guideList}>
+            <li>
+              {t(
+                "在上面填 source_code，点「签发接入券」，复制券（只显示这一次）。",
+                "Fill in source_code above, press Issue enrollment ticket, copy the ticket (shown only once).",
+              )}
+            </li>
+            <li>
+              {t(
+                "在采集器那台机器上落成一个 0600 的文件 —— 属主必须是容器的运行身份（本栈是 999:999），否则采集器读不到会当成「没有券」。本栈的宿主路径是 <栈根>/harvest-run/state/enroll.ticket（容器内 /var/lib/wist-harvest/state/enroll.ticket）；其他部署换成采集器的 state_dir 与它自己的 uid:gid。下一拍（≤30 秒）就读到，换到证书后文件自动删除，不用重启容器：",
+                "Drop it as a 0600 file on the collector host, owned by the container's runtime uid (999:999 in this stack) — otherwise the collector silently treats it as missing. In this stack the host path is <stack root>/harvest-run/state/enroll.ticket (container: /var/lib/wist-harvest/state/enroll.ticket); for other deployments use the collector's state_dir and its own uid:gid. The next attempt (≤30s) picks it up, the file is deleted once the certificate is obtained, and no restart is needed:",
+              )}
+              <pre className={styles.guideCode}>
+                {"install -m 600 -o 999 -g 999 /dev/stdin \\\n  <栈根>/harvest-run/state/enroll.ticket <<'EOF'\nhwt_…\nEOF"}
+              </pre>
+            </li>
+            <li>
+              {t(
+                "成功的样子：上面的表出现该 source_code 的 worker，状态 pending → active，plan/ack 版本出现，「最近心跳」开始走。",
+                "Success looks like: a worker with that source_code shows up above, goes pending → active, plan/ack versions appear and Last seen starts moving.",
+              )}
+            </li>
+          </ol>
+
+          <p className={styles.hint}>
+            {t(
+              "券一次一用、默认 24 小时（最长 7 天）：换证失败（网络不通 / 时钟偏差 / CA 不匹配）或过期，就重新签一张，不要拿同一张重试。也可以一次性地用环境变量 HARVEST_ENROLL_TICKET=… 传，但它会留在 shell 历史与 docker inspect 里，不如文件。券不进 .wist/sec-value.yml —— 那里放的是 admin token 与云账号凭据这类要轮换、要进备份的长期密钥。",
+              "A ticket is single-use and expires in 24h by default (7d max): if enrollment fails (gateway unreachable / clock skew / CA mismatch) or it expires, issue a new one instead of retrying the same. You can also pass it once via HARVEST_ENROLL_TICKET=…, but that lingers in shell history and docker inspect — the file is better. Tickets never go into .wist/sec-value.yml: that file holds long-lived secrets that must be rotated and backed up (admin token, cloud credentials).",
+            )}
+          </p>
+        </div>
+
         {ticket ? (
           <div className={styles.ticketBox}>
             <div className={styles.meta}>
               {t(
-                "只能看这一次。券是一次性的（默认 24 小时）：同栈部署无需人工处理（harvest-bootstrap 会自动接入）；跨机部署把它写进采集器的 <state_dir>/enroll.ticket（0600），或作为一次性环境变量 HARVEST_ENROLL_TICKET 传入。",
-                "Shown once. The ticket is single-use (24h by default): a same-stack deployment enrolls automatically via harvest-bootstrap; for cross-host deployments write it to the collector's <state_dir>/enroll.ticket (0600) or pass it once via HARVEST_ENROLL_TICKET.",
+                "只能看这一次：离开本页就不再有，需要再用请重新签发。",
+                "Shown only once: it is gone when you leave this page — issue a new one if you need it again.",
               )}
             </div>
-            <code className={styles.code}>{ticket.ticket}</code>
+            <div className={styles.row}>
+              <code className={styles.code}>{ticket.ticket}</code>
+              <CopyButton
+                text={ticket.ticket}
+                label={t("复制券", "Copy ticket")}
+                className={styles.toggle}
+              />
+            </div>
             <div className={styles.meta}>
               {ticket.workerId} · {t("到期", "expires")} {formatTime(ticket.expiresAt)}
             </div>
