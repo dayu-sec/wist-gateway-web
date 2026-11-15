@@ -6288,13 +6288,6 @@ export interface HarvestWork {
   drift: boolean;
 }
 
-export interface HarvestTicket {
-  ticket: string;
-  workerId: string;
-  sourceCode: string;
-  expiresAt: string;
-}
-
 /** 一次性工作（页面「立即采集」/「忽略缓存重扫」）。 */
 export interface HarvestOneShot {
   workerId: string;
@@ -6477,21 +6470,4 @@ export async function cancelHarvestOneShot(workId: string): Promise<void> {
   );
 }
 
-/** 签发一次性接入券（明文只出现一次；写进宿主 `.wist/sec-value.yml`，不进配置文件）。 */
-export async function createHarvestTicket(
-  sourceCode: string,
-): Promise<HarvestTicket> {
-  const payload = asRecord(
-    await requestJson<unknown>("/api/v1/admin/harvest/enroll-ticket", {
-      method: "POST",
-      body: JSON.stringify({ source_code: sourceCode }),
-    }),
-    "harvest ticket",
-  );
-  return {
-    ticket: String(payload.ticket ?? ""),
-    workerId: String(payload.worker_id ?? ""),
-    sourceCode: String(payload.source_code ?? ""),
-    expiresAt: String(payload.expires_at ?? ""),
-  };
-}
+/** 撤回还没跑完的一次性工作（已到终态的不会被改）。 */

@@ -2,22 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ApiError,
   cancelHarvestOneShot,
-  createHarvestTicket,
   dispatchHarvestOneShot,
   fetchHarvestOneShots,
   fetchHarvestWorkers,
   fetchHarvestWorks,
   isRateLimitedError,
 } from "../api";
-import type {
-  HarvestOneShot,
-  HarvestTicket,
-  HarvestWorker,
-  HarvestWork,
-} from "../api";
+import type { HarvestOneShot, HarvestWorker, HarvestWork } from "../api";
 import { dateLocale, t } from "../i18n";
 import { RateLimitNotice } from "./RateLimitNotice";
-import { CopyButton } from "./CopyButton";
 import styles from "./SubsystemHarvestSettingSection.module.css";
 
 /**
@@ -25,7 +18,11 @@ import styles from "./SubsystemHarvestSettingSection.module.css";
  *
  * 采集指令不再是一个共享的布尔开关：网关下发 `standing`（采什么 / 什么节奏 / 用哪个凭据引用），
  * 采集器每次 `work:poll` 拉一份、应用后 `ack`；页面上「漂移」= 采集器确认过的版本落后于期望。
- * 云账号凭据**不在这里**（只在宿主 `.wist/sec-value.yml`），本页只签发接入券。
+ *
+ * 本页**只管看与派活**：worker 状态、授权版本、一次性动作。接入（换证书）不在这里 ——
+ * 它是 `harvest-bootstrap` 在栈启动时自动完成的（用管理面 token 现签一张券、当场换证书），
+ * 页面上不需要、也没有“把券交给采集器”这个动作。云账号凭据同样不在页面里（只在宿主
+ * `.wist/sec-value.yml`）。
  *
  * 设计：网关仓 `docs/design/harvest-work-grant.md`。
  */
@@ -142,11 +139,8 @@ export function SubsystemHarvestSettingSection() {
   const [works, setWorks] = useState<HarvestWork[] | null>(null);
   const [oneShots, setOneShots] = useState<HarvestOneShot[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [sourceCode, setSourceCode] = useState("");
-  const [ticket, setTicket] = useState<HarvestTicket | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -173,20 +167,6 @@ export function SubsystemHarvestSettingSection() {
     const timer = window.setInterval(() => void load(), REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [load]);
-
-  const issueTicket = useCallback(async () => {
-    const value = sourceCode.trim();
-    if (!value) return;
-    setBusy(true);
-    try {
-      setTicket(await createHarvestTicket(value));
-      setError(null);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-  }, [sourceCode]);
 
   /** 派一件一次性工作；`key` 让同一时刻只禁用被点的那颗按钮。 */
   const dispatch = useCallback(
@@ -449,37 +429,19 @@ export function SubsystemHarvestSettingSection() {
           </>
         ) : null}
 
-        <div className={styles.row}>
-          <input
-            className={styles.input}
-            value={sourceCode}
-            onChange={(event) => setSourceCode(event.target.value)}
-            placeholder={t("source_code（如 tencent-cloud-prod）", "source_code (e.g. tencent-cloud-prod)")}
-            aria-label={t("数据源标识", "Source code")}
-          />
-          <button
-            type="button"
-            className={styles.toggle}
-            onClick={() => void issueTicket()}
-            disabled={busy || sourceCode.trim().length === 0}
-          >
-            {busy ? t("签发中…", "Issuing…") : t("签发接入券", "Issue enrollment ticket")}
-          </button>
-        </div>
-
         <div className={styles.guide}>
-          <p className={styles.guideTitle}>{t("这张券是什么，什么时候用", "What this ticket is, and when it matters")}</p>
+          <p className={styles.guideTitle}>{t("接入是自动的，这里不用点任何东西", "Enrollment is automatic — nothing to click here")}</p>
           <ul className={styles.guideList}>
             <li>
               {t(
-                "正常不用你管：栈起来时 harvest-bootstrap 会用管理面 token 现签一张券、当场换成客户端证书（券只在内存里活几秒，不落盘），换取成功后才拉起采集器。",
-                "Normally nothing for you to do: on stack start, harvest-bootstrap mints a ticket with the admin token and immediately exchanges it for a client certificate (the ticket lives in memory for seconds and never touches disk); the collector is only started after that succeeds.",
+                "栈起来时 harvest-bootstrap 会用管理面 token 向网关现签一张一次性券、当场换成客户端证书（券只在内存里活几秒，不落盘），换取成功后才拉起采集器。所以页面上既不需要、也没有「把券交给采集器」这个动作。",
+                "On stack start, harvest-bootstrap mints a single-use ticket with the admin token and immediately exchanges it for a client certificate (the ticket lives in memory for seconds and never touches disk); the collector is only started after that succeeds. So this page has nothing to hand over — and no such action exists.",
               )}
             </li>
             <li>
               {t(
-                "在这里签发只为两件事：留痕（库里只存券的 sha256，能查谁在何时给哪个 source_code 签过）与排障核对。它不是你要投给采集器的凭据 —— 栈内没有人工投券这条路。",
-                "Issuing here is only for audit (the store keeps just the sha256, so you can see who signed a ticket for which source_code and when) and for troubleshooting. It is not a credential you deliver to the collector — inside the stack there is no manual delivery path.",
+                "接入成功后身份是证书（37 天，剩 ≤7 天自动续期，被吊销就 403），重启、重建容器都不丢。",
+                "After enrollment the identity is a certificate (37 days, auto-renewed in the last 7, 403 once revoked); it survives restarts and container rebuilds.",
               )}
             </li>
           </ul>
@@ -509,39 +471,11 @@ export function SubsystemHarvestSettingSection() {
 
           <p className={styles.hint}>
             {t(
-              "券一次一用、默认 24 小时（最长 7 天）：过期就重签一张。券不进 .wist/sec-value.yml —— 那里放的是 admin token 与云账号凭据这类要轮换、要进备份的长期密钥。",
-              "A ticket is single-use and expires in 24h by default (7d max): issue a new one when it expires. Tickets never go into .wist/sec-value.yml — that file holds long-lived secrets that must be rotated and backed up (admin token, cloud credentials).",
+              "要重新接入（换了 CA、身份泄露、换机器）：在宿主删掉 harvest-run/state/identity/，再 gops run start —— bootstrap 会重新走一遍接入。",
+              "To re-enroll (CA change, leaked identity, new host): delete harvest-run/state/identity/ on the host, then gops run start — bootstrap walks enrollment again.",
             )}
           </p>
         </div>
-
-        {ticket ? (
-          <div className={styles.ticketBox}>
-            <div className={styles.meta}>
-              {t(
-                "只能看这一次：离开本页就不再有，需要再用请重新签发。",
-                "Shown only once: it is gone when you leave this page — issue a new one if you need it again.",
-              )}
-            </div>
-            <div className={styles.row}>
-              <code className={styles.code}>{ticket.ticket}</code>
-              <CopyButton
-                text={ticket.ticket}
-                label={t("复制券", "Copy ticket")}
-                className={styles.toggle}
-              />
-            </div>
-            <div className={styles.meta}>
-              {ticket.workerId} · {t("到期", "expires")} {formatTime(ticket.expiresAt)}
-            </div>
-            <div className={styles.meta}>
-              {t(
-                "这张券对应 bootstrap 要用的那张一次性凭据：库里只存 sha256（留痕可核对），明文只在这里显示一次。",
-                "This is the one-shot credential bootstrap uses: only its sha256 is stored (for audit), and the plaintext is shown here once.",
-              )}
-            </div>
-          </div>
-        ) : null}
 
         <p className={styles.hint}>
           {t(

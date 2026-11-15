@@ -5,6 +5,21 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.36.5-alpha] - 2026-11-15
+
+**删掉「签发接入券」这块 UI：它没有消费方。**
+
+上一版把文案改对了，却把一个死按钮留在页面上：栈内接入由 `harvest-bootstrap` 现签现换，
+**没有任何人会去用页面签出来的那张券**。一个能点、能拿到 24 小时有效的凭据、却无人消费的入口，
+就是让人问「这是干什么」。
+
+- 删掉 `source_code` 输入框、「签发接入券」按钮与券展示框；同时删掉 `createHarvestTicket` /
+  `HarvestTicket`（客户端已无调用方）。网关侧的 `POST /api/v1/admin/harvest/enroll-ticket`
+  保留 —— `harvest-bootstrap` 走的就是它。
+- 卡上那段改成「接入是自动的，这里不用点任何东西」+ 两条事实（券不落盘 / 身份是 37 天证书）
+  + 「表一直是空的怎么查」三条（→ `docker logs … harvest-bootstrap` → 修 token / 域名 / 信任锚
+  → `gops run start`）+ 「要重新接入」的做法（删 `harvest-run/state/identity/` 后 `gops run start`）。
+
 ## [0.36.4-alpha] - 2026-11-15
 
 **接入券那一段不再教人搬运凭据 —— 因为栈内根本没有这一步。**
