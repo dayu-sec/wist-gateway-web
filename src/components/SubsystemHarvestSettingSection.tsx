@@ -257,8 +257,8 @@ export function SubsystemHarvestSettingSection() {
         {(workers ?? []).length === 0 && !loading ? (
           <p className={styles.hint}>
             {t(
-              "还没有 worker 接入。同栈部署不需要人工介入：harvest-bootstrap 会在十几秒内自己换取证书并出现在这里；表一直是空的，先看采集器日志（容器没起来 / 连不上网关 / CA 不匹配），别急着签券。只有跨机部署、或采集器身份丢了，才用下面的接入券。",
-              "No worker enrolled yet. A same-stack deployment needs no manual step: harvest-bootstrap enrolls by itself within seconds and shows up here. If this table stays empty, read the collector log first (container not up / cannot reach the gateway / CA mismatch) instead of issuing a ticket. The ticket below is only for cross-host deployments or a lost collector identity.",
+              "还没有 worker 接入。接入是自动的：栈起来时 harvest-bootstrap 会现签一张券、当场换成证书，十几秒内就该出现在这里。表一直是空的，看 docker logs wist-gateway-stack-harvest-bootstrap（下面写了怎么修），不要手工往容器里投券。",
+              "No worker enrolled yet. Enrollment is automatic: on stack start harvest-bootstrap mints a ticket and immediately exchanges it for a certificate, so the worker should appear here within seconds. If this table stays empty, read docker logs wist-gateway-stack-harvest-bootstrap (see below) — do not hand-deliver a ticket into the container.",
             )}
           </p>
         ) : (
@@ -468,51 +468,49 @@ export function SubsystemHarvestSettingSection() {
         </div>
 
         <div className={styles.guide}>
-          <p className={styles.guideTitle}>{t("什么时候需要这张券", "When you need a ticket")}</p>
+          <p className={styles.guideTitle}>{t("这张券是什么，什么时候用", "What this ticket is, and when it matters")}</p>
           <ul className={styles.guideList}>
             <li>
               {t(
-                "不需要：这台采集器已经在上面的表里 —— 身份就是 state/identity/ 里的证书，重启、重建容器都不丢。",
-                "Not needed when the collector is already in the table above: its identity is the certificate under state/identity/, which survives restarts and container rebuilds.",
+                "正常不用你管：栈起来时 harvest-bootstrap 会用管理面 token 现签一张券、当场换成客户端证书（券只在内存里活几秒，不落盘），换取成功后才拉起采集器。",
+                "Normally nothing for you to do: on stack start, harvest-bootstrap mints a ticket with the admin token and immediately exchanges it for a client certificate (the ticket lives in memory for seconds and never touches disk); the collector is only started after that succeeds.",
               )}
             </li>
             <li>
               {t(
-                "需要：跨机第一次接入，或 state/identity/ 被删 / 换了机器。判据只有一条 —— 采集器手上还没有网关签发的客户端证书。",
-                "Needed for a first cross-host enrollment, or after state/identity/ was deleted / the host was replaced. One test: the collector does not hold a client certificate issued by the gateway yet.",
+                "在这里签发只为两件事：留痕（库里只存券的 sha256，能查谁在何时给哪个 source_code 签过）与排障核对。它不是你要投给采集器的凭据 —— 栈内没有人工投券这条路。",
+                "Issuing here is only for audit (the store keeps just the sha256, so you can see who signed a ticket for which source_code and when) and for troubleshooting. It is not a credential you deliver to the collector — inside the stack there is no manual delivery path.",
               )}
             </li>
           </ul>
 
-          <p className={styles.guideTitle}>{t("怎么用", "How to use it")}</p>
+          <p className={styles.guideTitle}>{t("表一直是空的怎么查", "If the worker table stays empty")}</p>
           <ol className={styles.guideList}>
             <li>
               {t(
-                "在上面填 source_code，点「签发接入券」，复制券（只显示这一次）。",
-                "Fill in source_code above, press Issue enrollment ticket, copy the ticket (shown only once).",
+                "看接入那一步的日志：docker logs wist-gateway-stack-harvest-bootstrap —— 成功会打「已接入网关」与「已建立初始 standing」。",
+                "Read the enrollment step's log: docker logs wist-gateway-stack-harvest-bootstrap — success prints 已接入网关 and 已建立初始 standing.",
+              )}
+              <pre className={styles.guideCode}>{"docker logs wist-gateway-stack-harvest-bootstrap"}</pre>
+            </li>
+            <li>
+              {t(
+                "按日志修输入，三样里基本是其一：管理面 token（栈根 .wist/sec-value.yml 的 admin_token）、网关地址（由 WEB_DOMAIN 推导）、服务端信任锚（identity/gateway/public）。",
+                "Fix the input the log points at — almost always one of three: the admin token (admin_token in the stack root's .wist/sec-value.yml), the gateway endpoint (derived from WEB_DOMAIN), or the server trust anchor (identity/gateway/public).",
               )}
             </li>
             <li>
               {t(
-                "在采集器那台机器上落成一个 0600 的文件 —— 属主必须是容器的运行身份（本栈是 999:999），否则采集器读不到会当成「没有券」。本栈的宿主路径是 <栈根>/harvest-run/state/enroll.ticket（容器内 /var/lib/wist-harvest/state/enroll.ticket）；其他部署换成采集器的 state_dir 与它自己的 uid:gid。下一拍（≤30 秒）就读到，换到证书后文件自动删除，不用重启容器：",
-                "Drop it as a 0600 file on the collector host, owned by the container's runtime uid (999:999 in this stack) — otherwise the collector silently treats it as missing. In this stack the host path is <stack root>/harvest-run/state/enroll.ticket (container: /var/lib/wist-harvest/state/enroll.ticket); for other deployments use the collector's state_dir and its own uid:gid. The next attempt (≤30s) picks it up, the file is deleted once the certificate is obtained, and no restart is needed:",
-              )}
-              <pre className={styles.guideCode}>
-                {"install -m 600 -o 999 -g 999 /dev/stdin \\\n  <栈根>/harvest-run/state/enroll.ticket <<'EOF'\nhwt_…\nEOF"}
-              </pre>
-            </li>
-            <li>
-              {t(
-                "成功的样子：上面的表出现该 source_code 的 worker，状态 pending → active，plan/ack 版本出现，「最近心跳」开始走。",
-                "Success looks like: a worker with that source_code shows up above, goes pending → active, plan/ack versions appear and Last seen starts moving.",
+                "改完 gops run start：harvest-bootstrap 每次启动都会重新接入，不用重启整栈，也不用投券。",
+                "Then gops run start: harvest-bootstrap re-enrolls on every start — no need to restart the whole stack, and no ticket to deliver.",
               )}
             </li>
           </ol>
 
           <p className={styles.hint}>
             {t(
-              "券一次一用、默认 24 小时（最长 7 天）：换证失败（网络不通 / 时钟偏差 / CA 不匹配）或过期，就重新签一张，不要拿同一张重试。也可以一次性地用环境变量 HARVEST_ENROLL_TICKET=… 传，但它会留在 shell 历史与 docker inspect 里，不如文件。券不进 .wist/sec-value.yml —— 那里放的是 admin token 与云账号凭据这类要轮换、要进备份的长期密钥。",
-              "A ticket is single-use and expires in 24h by default (7d max): if enrollment fails (gateway unreachable / clock skew / CA mismatch) or it expires, issue a new one instead of retrying the same. You can also pass it once via HARVEST_ENROLL_TICKET=…, but that lingers in shell history and docker inspect — the file is better. Tickets never go into .wist/sec-value.yml: that file holds long-lived secrets that must be rotated and backed up (admin token, cloud credentials).",
+              "券一次一用、默认 24 小时（最长 7 天）：过期就重签一张。券不进 .wist/sec-value.yml —— 那里放的是 admin token 与云账号凭据这类要轮换、要进备份的长期密钥。",
+              "A ticket is single-use and expires in 24h by default (7d max): issue a new one when it expires. Tickets never go into .wist/sec-value.yml — that file holds long-lived secrets that must be rotated and backed up (admin token, cloud credentials).",
             )}
           </p>
         </div>
@@ -535,6 +533,12 @@ export function SubsystemHarvestSettingSection() {
             </div>
             <div className={styles.meta}>
               {ticket.workerId} · {t("到期", "expires")} {formatTime(ticket.expiresAt)}
+            </div>
+            <div className={styles.meta}>
+              {t(
+                "这张券对应 bootstrap 要用的那张一次性凭据：库里只存 sha256（留痕可核对），明文只在这里显示一次。",
+                "This is the one-shot credential bootstrap uses: only its sha256 is stored (for audit), and the plaintext is shown here once.",
+              )}
             </div>
           </div>
         ) : null}
