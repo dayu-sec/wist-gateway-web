@@ -469,7 +469,10 @@ export function SubsystemHarvestSettingSection() {
         {ticket ? (
           <div className={styles.ticketBox}>
             <div className={styles.meta}>
-              {t("只能看这一次：写进宿主 .wist/sec-value.yml 后重启采集器。", "Shown once: put it into the host's .wist/sec-value.yml and restart the collector.")}
+              {t(
+                "只能看这一次。券是一次性的：同栈部署无需人工处理（harvest-bootstrap 会自动完成接入）；跨机部署才需要写进宿主 .wist/sec-value.yml 的 harvest_enroll_ticket 后重启采集器。",
+                "Shown once. The ticket is single-use: in a same-stack deployment harvest-bootstrap handles enrollment automatically; only cross-host deployments need it written into the host's .wist/sec-value.yml (harvest_enroll_ticket) followed by a collector restart.",
+              )}
             </div>
             <code className={styles.code}>{ticket.ticket}</code>
             <div className={styles.meta}>
@@ -480,8 +483,8 @@ export function SubsystemHarvestSettingSection() {
 
         <p className={styles.hint}>
           {t(
-            "「立即采集」这类一次性动作与采集面授权编辑在 P2 接入；当前 P1 只读展示 worker、standing 与确认状态。",
-            "One-shot actions (run now) and editable grants arrive in P2; P1 is a read-only view of workers, standing and acks.",
+            "一次性动作由网关派发、采集器执行并上报结果：「立即采集」按当前授权跑一轮（可续跑），「忽略缓存重扫」强制开新快照。两者只影响这一轮，不改常驻授权。",
+            "One-shot actions are dispatched by the gateway, executed by the collector and reported back. Run now collects one round with the current grant (resumable); Rescan forces a fresh snapshot. Neither changes the standing grant.",
           )}
         </p>
       </div>
