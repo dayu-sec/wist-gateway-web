@@ -43,6 +43,7 @@ import {
   standingDrift,
   ungrantedFamilies,
   sourceText,
+  sourceIsCollectable,
   unsupportedSourceCount,
   unsupportedSourceReason,
 } from "../src/components/agentWorkStatus";
@@ -870,6 +871,110 @@ assert(
 assert(
   unsupportedSourceCount(metricsOnly) === 0,
   "上面的 spec 三条来源都可采（两条 MetricInterval + 一条单层 glob）",
+);
+
+// `KeyProcessMetrics`：target 是**签名列表**，不是 `auto` / 路径 / 周期。
+// 这组边界与 `wist-contracts::parse_key_process_target` 逐条对齐。
+assert(isExecutableSource("KeyProcessMetrics", "unit:kafka"), "单元签名可采");
+assert(
+  isExecutableSource("KeyProcessMetrics", "port:9092|exe:kafka"),
+  "多条签名（或语义）可采",
+);
+assert(
+  isExecutableSource("KeyProcessMetrics", "cmdline:app.jar"),
+  "命令行签名可采",
+);
+assert(
+  isExecutableSource("KeyProcessMetrics", "cmdline:app:v2.jar"),
+  "值里的冒号保留（第一个冒号才是分隔符）",
+);
+assert(
+  isExecutableSource("KeyProcessMetrics", "  unit:kafka | exe:kafka  "),
+  "段两端空白容忍",
+);
+for (const bad of [
+  "",
+  "auto",
+  "kafka",
+  "bogus:kafka",
+  "Unit:kafka",
+  "unit:",
+  "unit: kafka",
+  "unit:kafka|",
+  "cmdline:java -jar",
+  "exe:/usr/bin/nginx",
+  "port:0",
+  "port:65536",
+  "port:+9092",
+]) {
+  assert(
+    !isExecutableSource("KeyProcessMetrics", bad),
+    `"${bad}" 不合法，页面不能说可采`,
+  );
+}
+assert(
+  (unsupportedSourceReason("KeyProcessMetrics", "auto") ?? "").includes(
+    "前缀",
+  ),
+  "`auto` 要说清是缺前缀，而不是笼统的未知类型",
+);
+assert(
+  unsupportedSourceReason("KeyProcessMetrics", "unit:kafka") === null,
+  "合法签名不该报原因",
+);
+
+// 四个自探域：`target` 只认空或 `auto`（与 contracts 的 `auto_target_only` 同口径）。
+// 这里漏掉它们，页面会把本该可采的数据库/消息队列指标标成「未接」。
+for (const kind of [
+  "KafkaCluster",
+  "MysqlInstance",
+  "PostgresInstance",
+  "DorisCluster",
+]) {
+  assert(isExecutableSource(kind, "auto"), `${kind} 的 auto 可采`);
+  assert(isExecutableSource(kind, ""), `${kind} 的空 target 可采（兼容旧网关）`);
+  assert(
+    !isExecutableSource(kind, "10.0.0.1:9092"),
+    `${kind} 不接受手写地址`,
+  );
+}
+
+// 指标专属来源只在 `collect_metrics` 单元里成立（网关 `is_collectable_source` 同口径）：
+// 挂在 `collect_logs` 下页面不能说可采，否则 agent 会把它归成 `collect_not_ready`。
+const keyProcessUnit = (capability: string) => ({
+  unit_id: "u",
+  capability,
+  rule_ref: "r",
+  requires_privilege: "root",
+  sources: [{ kind: "KeyProcessMetrics", target: "unit:kafka" }],
+});
+const keyProcMetricsSpec = parseWorkSpec(
+  JSON.stringify({ units: [keyProcessUnit("collect_metrics")] }),
+);
+const keyProcLogsSpec = parseWorkSpec(
+  JSON.stringify({ units: [keyProcessUnit("collect_logs")] }),
+);
+assert(
+  sourceIsCollectable(
+    keyProcMetricsSpec.units[0],
+    keyProcMetricsSpec.units[0].sources[0],
+  ),
+  "指标单元里的关键进程签名可采",
+);
+assert(
+  !sourceIsCollectable(
+    keyProcLogsSpec.units[0],
+    keyProcLogsSpec.units[0].sources[0],
+  ),
+  "日志单元里挂指标来源不算可采（能力不对）",
+);
+assert(
+  unsupportedSourceCount(keyProcLogsSpec) === 1,
+  "能力不对的来源要计入「采不到」",
+);
+assert(
+  unsupportedSourceCount(keyProcMetricsSpec) === 0,
+  "指标单元里的关键进程来源不该被计成「采不到」",
 );
 
 // --- 6c. 「在采的日志文件」= work.json tasks 的来源 --------------------------

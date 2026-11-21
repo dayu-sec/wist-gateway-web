@@ -5,6 +5,20 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.37.0-alpha] - 2026-11-21
+
+**页面能认得「关键进程指标」这个来源，并且不再把可采的来源报成未接。**
+
+- 新增 `keyProcessTargetIssue()`：校验 `KeyProcessMetrics` 的签名列表（`unit:kafka|port:9092`），
+  与 `wist-contracts` 的 `parse_key_process_target` 逐条对齐 —— 空 target、空段、缺前缀、
+  未知前缀（大小写敏感）、空值、值里带空白、`exe` 写路径、`port` 非十进制 / 越界，全部在页面就报出来，
+  而不是等 agent 拿到后报 `unsupported`。
+- 新增 `sourceIsCollectable(unit, source)`：镜像网关的 `is_collectable_source` ——
+  指标专属来源（`KeyProcessMetrics` 与四个自探域）只在 `collect_metrics` 单元里成立。
+  “工作里采不到的来源条数”现在会把这神能力错配也算进去。
+- 修复：`KafkaCluster` / `MysqlInstance` / `PostgresInstance` / `DorisCluster` 之前没进可采词表，
+  页面会把本该能采的数据库 / 消息队列指标标成「未接」。现在与契约一致：`target` 只认空或 `auto`。
+
 ## [0.36.5-alpha] - 2026-11-15
 
 **删掉「签发接入券」这块 UI：它没有消费方。**

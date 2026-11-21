@@ -195,9 +195,9 @@ export type WorkKind = "Standing" | "OneShot";
 
 /** 采集来源（模型 `CollectionSource` 的物化形态）：`kind` 决定 `target` 的含义。 */
 export interface WorkSpecSource {
-  /** FileGlob | Exporter | UnifiedLogPredicate | MetricInterval。 */
+  /** FileGlob | Exporter | UnifiedLogPredicate | MetricInterval | KeyProcessMetrics。 */
   kind: string;
-  /** 路径通配 / 导出器标识 / 谓词 / 周期。 */
+  /** 路径通配 / 导出器标识 / 谓词 / 周期 / 关键进程签名列表（`unit:kafka|port:9092`）。 */
   target: string;
   /**
    * 读法（W4）：`none` | `indented` | `mysql_slow` | `postgres_csv` | `container_cri`。

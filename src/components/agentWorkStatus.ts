@@ -474,17 +474,106 @@ export function isKnownExporter(target: string): boolean {
   return parsed !== null && (EXPORTER_IDS as readonly string[]).includes(parsed.id);
 }
 
+/** 关键进程签名前缀（与 `wist-contracts` 的 `KEY_PROCESS_SIGNATURE_PREFIXES` 同源）。 */
+export const KEY_PROCESS_SIGNATURE_PREFIXES = [
+  "unit",
+  "exe",
+  "port",
+  "cmdline",
+] as const;
+
+/**
+ * 校验 `KeyProcessMetrics` 的 `target`（签名列表）；能采返回 `null`，否则返回原因。
+ *
+ * 与 `wist-contracts::parse_key_process_target` **逐条对齐**：段两端空白容忍、值的内部
+ * 不允许空白、前缀大小写敏感、`exe` 不许带路径、`port` 必须是 1..=65535 的十进制数。
+ * 两侧判据不一致，页面就会把 agent 真能采的单元标成「未接」（或反过来）。
+ */
+export function keyProcessTargetIssue(target: string): string | null {
+  if (target.trim() === "") return t("签名列表为空", "Empty signature list");
+  for (const raw of target.split("|")) {
+    const segment = raw.trim();
+    if (segment === "")
+      return t("`|` 之间有空段", "Empty segment between `|`");
+    const colon = segment.indexOf(":");
+    if (colon < 0) return t("缺少 `前缀:`", "Missing `prefix:`");
+    const prefix = segment.slice(0, colon);
+    if (prefix === "") return t("缺少签名前缀", "Missing signature prefix");
+    if (!(KEY_PROCESS_SIGNATURE_PREFIXES as readonly string[]).includes(prefix))
+      return t("未知签名前缀 {prefix}", "Unknown signature prefix {prefix}", {
+        prefix,
+      });
+    const value = segment.slice(colon + 1);
+    if (value === "")
+      return t("`前缀:` 后面没有值", "Empty value after `prefix:`");
+    if (/\s/.test(value))
+      return t("值里不许有空白", "Whitespace is not allowed in the value");
+    if (prefix === "exe" && value.includes("/"))
+      return t(
+        "exe 只认 basename（不要写路径）",
+        "exe takes a basename, not a path",
+      );
+    if (prefix === "port") {
+      if (!/^\d+$/.test(value))
+        return t("port 必须是十进制数字", "port must be decimal digits");
+      const port = Number(value);
+      if (port < 1 || port > 65535)
+        return t("port 必须在 1..=65535", "port must be within 1..=65535");
+    }
+  }
+  return null;
+}
+
 /**
  * 一条来源今天**能不能被采**（与模型 / agentd 的 `is_executable_source` 同一口径）。
  *
  * 这个判据必须与 agentd 完全一致：不一致就会出现「页面说可采、agent 拿到后报 unsupported」
  * 这种没人能发现的矛盾。加一种可采 kind 时，两侧一起改。
+ *
+ * `KeyProcessMetrics` 的 target 不是路径也不是周期，而是**签名列表**（见
+ * [`keyProcessTargetIssue`]）；不校验就直接说“可采”会把配错的授权显示成正常。
  */
 export function isExecutableSource(kind: string, target: string): boolean {
   if (kind === "FileGlob") return isFileTarget(target);
   if (kind === "MetricInterval") return true;
   if (kind === "Exporter") return isKnownExporter(target);
+  if (kind === "KeyProcessMetrics") return keyProcessTargetIssue(target) === null;
+  // 四个自探域：端点只来自 agentd 本机自探，`target` 只认空或 `auto`。
+  // 与 `wist-contracts` 的 `auto_target_only` + `accepts_target` 逐条对齐 ——
+  // 这里漏掉它们，页面会把本该可采的数据库/消息队列指标标成「未接」。
+  if (
+    kind === "KafkaCluster" ||
+    kind === "MysqlInstance" ||
+    kind === "PostgresInstance" ||
+    kind === "DorisCluster"
+  )
+    return target.trim() === "" || target.trim().toLowerCase() === "auto";
   return false;
+}
+
+/**
+ * 指标专属来源（只能挂在 `collect_metrics` 单元上）。
+ *
+ * 与网关 `is_collectable_source` 同一个判据：kind 合法但能力不对时，agentd 会把它归成
+ * `collect_not_ready`。页面必须说同一句话，否则“页面说采、agent 说不采”没人能解释。
+ */
+const METRICS_ONLY_KINDS: readonly string[] = [
+  "KafkaCluster",
+  "MysqlInstance",
+  "PostgresInstance",
+  "DorisCluster",
+  "KeyProcessMetrics",
+];
+
+/** 一条来源在这份工作里今天到底会不会被采（kind + target + 单元能力）。 */
+export function sourceIsCollectable(
+  unit: WorkSpecUnit,
+  source: WorkSpecSource,
+): boolean {
+  if (!isExecutableSource(source.kind, source.target)) return false;
+  if (METRICS_ONLY_KINDS.includes(source.kind))
+    return unit.capability === "collect_metrics";
+  return true;
 }
 
 /**
@@ -504,6 +593,11 @@ export function unsupportedSourceReason(
     );
   if (kind === "Exporter")
     return t("未知导出器（未实现）", "Unknown exporter (not implemented)");
+  if (kind === "KeyProcessMetrics")
+    return (
+      keyProcessTargetIssue(target) ??
+      t("关键进程签名列表不合法", "Invalid key-process signature list")
+    );
   if (kind === "UnifiedLogPredicate")
     return t("统一日志谓词", "Unified log predicate");
   return t("未知类型 {kind}", "Unknown kind {kind}", { kind });
@@ -514,7 +608,7 @@ export function unsupportedSourceCount(spec: WorkSpec): number {
   let total = 0;
   for (const unit of spec.units) {
     for (const source of unit.sources) {
-      if (!isExecutableSource(source.kind, source.target)) total += 1;
+      if (!sourceIsCollectable(unit, source)) total += 1;
     }
   }
   return total;
