@@ -13,7 +13,7 @@ import { SubsystemKafkaAccessPage } from "./components/SubsystemKafkaAccessPage"
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentMetricsLabelsPage } from "./components/SubsystemAgentMetricsLabelsPage";
 import { SubsystemAgentPurposePage } from "./components/SubsystemAgentPurposePage";
-import { SubsystemAgentHostListPage } from "./components/SubsystemAgentHostListPage";
+import { SubsystemAgentHostPage } from "./components/SubsystemAgentHostPage";
 import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareInventoryPage";
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
@@ -45,7 +45,10 @@ export function App() {
           element={<SubsystemAgentPackageAddPage />}
         />
         <Route path="/knowledge" element={<SubsystemKnowledgePage />} />
-        <Route path="/collection-guide" element={<SubsystemKafkaAccessPage />} />
+        <Route
+          path="/collection-guide"
+          element={<SubsystemKafkaAccessPage />}
+        />
         {/* 旧路径兼容：`/kafka-access` 改名前后都在用（书签 / 外部链接）。 */}
         <Route
           path="/kafka-access"
@@ -75,7 +78,7 @@ export function App() {
           path="/init"
           element={<Navigate to="/link-upstream" replace />}
         />
-        <Route path="/hosts" element={<SubsystemAgentHostListPage />} />
+        <Route path="/hosts" element={<SubsystemAgentHostPage />} />
         <Route path="/software" element={<SubsystemSoftwareInventoryPage />} />
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route path="/logs" element={<SubsystemAgentLogsPage />} />

@@ -6758,3 +6758,174 @@ export async function revokeResponseGrant(
   );
   return normalizeResponseGrantEnvelope(payload);
 }
+
+// ── 发起响应：目标画像 / 执行结果 ────────────────────────────────────────────
+//
+// 两个只读端点，都服务于「发起响应」页：
+//   * `plan-target`：把注册表 + 事实摘要拼成一份 `ActionPlan.target` 的形状。
+//     `platform` / `arch` **只能来自 agent 上报的事实** —— 前端不编默认值
+//     （一份会被签名的计划里写错系统信息，事后没法分辨是谁写错的）。
+//   * `action-results`：执行结果。命令队列只有 `outcome` 与一行 `detail`，
+//     清理类动作的价值全在产出里（扫出哪些文件、共多少字节）。
+
+export interface PlanTargetView {
+  agentId: string;
+  instanceId: string | null;
+  nodeId: string;
+  hostName: string | null;
+  /** 平台词表与 opcode 的 `platforms` 同源（`linux` / `macos`）。 */
+  platform: string;
+  arch: string;
+}
+
+export function normalizePlanTarget(payload: unknown): PlanTargetView {
+  const record = requiredRecord(payload, "planTarget");
+  return {
+    agentId: requiredString(record.agent_id, "planTarget.agent_id"),
+    instanceId: optionalStringOrNull(record.instance_id),
+    nodeId: requiredString(record.node_id, "planTarget.node_id"),
+    hostName: optionalStringOrNull(record.host_name),
+    platform: requiredString(record.platform, "planTarget.platform"),
+    arch: requiredString(record.arch, "planTarget.arch"),
+  };
+}
+
+export async function fetchPlanTarget(
+  agentId: string,
+): Promise<PlanTargetView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/plan-target`,
+  );
+  return normalizePlanTarget(payload);
+}
+
+export interface ActionResultView {
+  agentId: string;
+  actionId: string;
+  executionId: string;
+  planDigest: string;
+  /** 契约的 wire 值（`succeeded` / `failed` / `partial` …）。 */
+  finalStatus: string;
+  reportedAt: string;
+  receivedAt: string;
+  /** 整份 `ReportActionResult`（原样；形状由 wist-api 契约演进）。 */
+  report: unknown;
+}
+
+export function normalizeActionResult(payload: unknown): ActionResultView {
+  const record = requiredRecord(payload, "actionResult");
+  return {
+    agentId: requiredString(record.agent_id, "actionResult.agent_id"),
+    actionId: requiredString(record.action_id, "actionResult.action_id"),
+    executionId: requiredString(
+      record.execution_id,
+      "actionResult.execution_id",
+    ),
+    planDigest: requiredString(record.plan_digest, "actionResult.plan_digest"),
+    finalStatus: requiredString(
+      record.final_status,
+      "actionResult.final_status",
+    ),
+    reportedAt: requiredString(record.reported_at, "actionResult.reported_at"),
+    receivedAt: requiredString(record.received_at, "actionResult.received_at"),
+    report: record.report,
+  };
+}
+
+export async function fetchActionResult(
+  agentId: string,
+  actionId: string,
+): Promise<ActionResultView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/action-results/${encodeURIComponent(actionId)}`,
+  );
+  return normalizeActionResult(payload);
+}
+
+// ── 发起响应：下发计划 / 提交审批 ───────────────────────────────────────────
+
+/** 一份执行计划的 wire 形状（与 agentd `run-plan --plan` 读的文件同形）。 */
+export interface ActionPlanPayload {
+  api_version: string;
+  kind: string;
+  meta: {
+    action_id: string;
+    request_id: string;
+    template_id: string | null;
+    tenant_id: string;
+    environment_id: string;
+    plan_version: number;
+    compiled_at: string;
+    expires_at: string;
+  };
+  target: {
+    agent_id: string;
+    instance_id: string | null;
+    node_id: string;
+    host_name: string | null;
+    platform: string;
+    arch: string;
+    selectors: Record<string, string>;
+  };
+  constraints: {
+    risk_level: string;
+    approval_ref: string | null;
+    approval_mode: string;
+    requested_by: string;
+    reason: string | null;
+    max_total_duration_ms: number;
+    step_timeout_default_ms: number;
+    execution_profile: string;
+    required_capabilities: string[];
+  };
+  program: {
+    entry: string;
+    steps: Array<{
+      id: string;
+      kind: string;
+      op: string | null;
+      args?: unknown;
+    }>;
+  };
+}
+
+/**
+ * 直发一份计划（**必须有有效响应授权单**，否则网关回 403）。
+ *
+ * 只用于 R0/R1 的预览类动作；R2 请走 {@link submitActionApproval}（一次一审）。
+ */
+export async function dispatchActionPlan(
+  agentId: string,
+  plan: ActionPlanPayload,
+): Promise<{ commandId: string | null }> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/plans`,
+    { method: "POST", body: JSON.stringify(plan) },
+  );
+  const record = requiredRecord(payload, "dispatchActionPlan");
+  return { commandId: optionalStringOrNull(record.command_id) };
+}
+
+/**
+ * 提交一份计划等待审批（R2）。
+ *
+ * 审批人身份由 token 派生，前端不发；计划的 `approval_ref` 由网关铸号后覆盖，
+ * 所以这里传 `null` 就行。
+ */
+export async function submitActionApproval(
+  agentId: string,
+  plan: ActionPlanPayload,
+  reason?: string,
+): Promise<ActionApprovalView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/approvals`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        plan,
+        ...(reason && reason.trim() ? { reason: reason.trim() } : {}),
+      }),
+    },
+  );
+  return normalizeActionApproval(payload);
+}

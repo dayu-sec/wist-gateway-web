@@ -95,6 +95,8 @@ import {
   type GrantOneShotWorkCommand,
   fetchActionApproval,
   fetchActionApprovals,
+  fetchActionResult,
+  fetchPlanTarget,
   fetchResponseGrant,
   issueActionApproval,
   putResponseGrant,
@@ -2044,5 +2046,43 @@ export function useRevokeResponseGrant() {
       });
       void queryClient.invalidateQueries({ queryKey: ["agent-command-queue"] });
     },
+  });
+}
+
+// ── 发起响应：目标画像 / 执行结果 ────────────────────────────────────────────
+
+/** 目标画像（`platform` / `arch` 来自 agent 上报的事实；没报过会回 409）。 */
+export function usePlanTarget(agentId: string | null) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["plan-target", agentId ?? ""],
+    queryFn: () => fetchPlanTarget(agentId as string),
+    enabled: authenticated && Boolean(agentId),
+    // 事实摘要刷新后 os/arch 才会出现，所以 409 不重试 —— 页面给"先刷新事实"的提示。
+    retry: false,
+  });
+}
+
+/**
+ * 一份计划的执行结果。
+ *
+ * `actionId` 为 `null` 时不请求。结果没到（404）之前会一直按 `pollMs` 轮询 ——
+ * agentd 取命令到回报之间有真实延迟，页面必须能"等"。
+ */
+export function useActionResult(
+  agentId: string | null,
+  actionId: string | null,
+  pollMs = 2000,
+) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["action-result", agentId ?? "", actionId ?? ""],
+    queryFn: () => fetchActionResult(agentId as string, actionId as string),
+    enabled: authenticated && Boolean(agentId) && Boolean(actionId),
+    // 还没结果时网关回 404；继续轮询直到拿到（真失败会带 error code）。
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status === 404 && failureCount < 150,
+    retryDelay: pollMs,
+    refetchInterval: (query) => (query.state.error ? pollMs : false),
   });
 }

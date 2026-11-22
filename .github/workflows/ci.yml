@@ -139,3 +139,6 @@ jobs:
 
       - name: Test (response grant contract)
         run: npm run test:response-grant
+
+      - name: Test (launch contract)
+        run: npm run test:launch

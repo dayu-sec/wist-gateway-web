@@ -84,6 +84,9 @@ jobs:
       - name: Test (response grant contract)
         run: npm run test:response-grant
 
+      - name: Test (launch contract)
+        run: npm run test:launch
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]
