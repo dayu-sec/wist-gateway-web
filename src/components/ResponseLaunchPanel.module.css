@@ -210,3 +210,11 @@
   color: var(--text-2);
   word-break: break-all;
 }
+
+/* 嵌在单机页头下面：页头已经有页面内边距，这里不要再叠一层。 */
+.containerEmbedded {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 8px var(--page-pad-x) 56px;
+}

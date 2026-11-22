@@ -51,6 +51,12 @@ function describeRoute(pathname: string): RouteMeta {
       crumbs: [t("采集工作", "Collection work"), t("工作清单", "Work list")],
     };
   }
+  if (matchPath("/agents/:agentId/response", pathname)) {
+    return {
+      section: "monitoring",
+      crumbs: [t("主机指标", "Host metrics"), t("响应", "Response")],
+    };
+  }
   if (matchPath("/agents/:agentId/investigations", pathname)) {
     return {
       section: "monitoring",
@@ -118,7 +124,10 @@ function describeRoute(pathname: string): RouteMeta {
         crumbs: [t("网关状态", "Gateway status")],
       };
     case "/install-package":
-      return { section: "fleet", crumbs: [t("安装包管理", "Install packages")] };
+      return {
+        section: "fleet",
+        crumbs: [t("安装包管理", "Install packages")],
+      };
     case "/install-package/add":
       return {
         section: "fleet",

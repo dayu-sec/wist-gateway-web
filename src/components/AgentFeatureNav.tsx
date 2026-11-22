@@ -3,7 +3,7 @@ import { t } from "../i18n";
 import styles from "./AgentFeatureNav.module.css";
 
 /**
- * 同一台主机下的几个页面（指标 / 采集工作 / 用途 / 标签 / 调查）。
+ * 同一台主机下的几个页面（指标 / 采集工作 / 用途 / 标签 / 调查 / 响应）。
  *
  * 为什么抽成一个组件：这五页以前各自在标题行里挂三四个「采集工作 →」「用途 →」纯文字
  * 链接，条目越加越多、位置各不相同 —— 现场反馈「不成体系、认不出当前在哪一页」
@@ -14,11 +14,7 @@ import styles from "./AgentFeatureNav.module.css";
  * 读屏也应该读成「当前位置」。
  */
 export type AgentFeatureKey =
-  | "metrics"
-  | "work"
-  | "purpose"
-  | "labels"
-  | "investigations";
+  "metrics" | "work" | "purpose" | "labels" | "investigations" | "response";
 
 /** 顺序 = 从「机器怎么样」到「出事了去查」，与机队列表、Agent 卡片的用词保持同一套短标签。
  *  必须是函数：`t()` 在模块顶层求值一次的话，切语言不会变。 */
@@ -29,6 +25,8 @@ function features(): { key: AgentFeatureKey; label: string }[] {
     { key: "purpose", label: t("用途", "Purpose") },
     { key: "labels", label: t("指标标签", "Metric labels") },
     { key: "investigations", label: t("一次性调查", "One-off investigation") },
+    // 响应在最后：调查是"看"，响应是"动"，顺序上跟在调查之后。
+    { key: "response", label: t("响应", "Response") },
   ];
 }
 

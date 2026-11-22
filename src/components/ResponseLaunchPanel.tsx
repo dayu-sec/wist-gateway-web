@@ -167,7 +167,15 @@ function buildPlan(input: {
   };
 }
 
-export function ResponseLaunchPanel() {
+export function ResponseLaunchPanel({
+  agentId: fixedAgentId,
+  embedded = false,
+}: {
+  /** 指定后**不显示机器选择器**（单机页用：机器已经由路由决定）。 */
+  agentId?: string;
+  /** 嵌在页头下面时不要再加一层页面内边距。 */
+  embedded?: boolean;
+} = {}) {
   const agentsQuery = useRegisteredAgents();
   const agents = useMemo(
     () =>
@@ -178,19 +186,21 @@ export function ResponseLaunchPanel() {
   );
   const hasToken = Boolean(getAdminApiToken());
   const [agentId, setAgentId] = useState<string>("");
-  const selected = agentId || agents[0]?.agentId || "";
+  const selected = fixedAgentId || agentId || agents[0]?.agentId || "";
 
   return (
-    <section className={styles.container}>
-      <header className={styles.header}>
-        <h1 className={styles.title}>{t("发起响应", "Launch response")}</h1>
-        <p className={styles.summary}>
-          {t(
-            "一次响应的两步：**先预览**（只读，扫出将被清理的文件），**再提交清理**（写入，进审批）。预览也走响应授权，所以这台机器需要有生效中的授权单。",
-            "Two steps: **preview** (read-only, lists what would be removed), then **submit the cleanup** (write, goes to approval). Preview is a response too, so the agent needs an active response grant.",
-          )}
-        </p>
-      </header>
+    <section className={embedded ? styles.containerEmbedded : styles.container}>
+      {embedded ? null : (
+        <header className={styles.header}>
+          <h1 className={styles.title}>{t("发起响应", "Launch response")}</h1>
+          <p className={styles.summary}>
+            {t(
+              "一次响应的两步：**先预览**（只读，扫出将被清理的文件），**再提交清理**（写入，进审批）。预览也走响应授权，所以这台机器需要有生效中的授权单。",
+              "Two steps: **preview** (read-only, lists what would be removed), then **submit the cleanup** (write, goes to approval). Preview is a response too, so the agent needs an active response grant.",
+            )}
+          </p>
+        </header>
+      )}
 
       {!hasToken ? (
         <p className={styles.note}>
@@ -211,7 +221,7 @@ export function ResponseLaunchPanel() {
         </p>
       ) : null}
 
-      {agents.length > 0 ? (
+      {!fixedAgentId && agents.length > 0 ? (
         <label className={styles.agentPicker}>
           <span>{t("目标机器", "Target agent")}</span>
           <select

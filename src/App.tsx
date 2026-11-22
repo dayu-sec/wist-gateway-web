@@ -18,6 +18,7 @@ import { SubsystemSoftwareInventoryPage } from "./components/SubsystemSoftwareIn
 import { SubsystemPipelinePage } from "./components/SubsystemPipelinePage";
 import { SubsystemAgentWorkPage } from "./components/SubsystemAgentWorkPage";
 import { SubsystemAgentInvestigationsPage } from "./components/SubsystemAgentInvestigationsPage";
+import { SubsystemAgentResponsePage } from "./components/SubsystemAgentResponsePage";
 import { SubsystemAuthorizationPage } from "./components/SubsystemAuthorizationPage";
 import { SubsystemAgentLogsPage } from "./components/SubsystemAgentLogsPage";
 import { SubsystemAgentUpgradePage } from "./components/SubsystemAgentUpgradePage";
@@ -123,6 +124,10 @@ export function App() {
         <Route
           path="/agents/:agentId/investigations"
           element={<SubsystemAgentInvestigationsPage />}
+        />
+        <Route
+          path="/agents/:agentId/response"
+          element={<SubsystemAgentResponsePage />}
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
