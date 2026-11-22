@@ -542,6 +542,36 @@ function IconGwlinkd() {
   );
 }
 
+/** 响应审批：一份带勾选的单子 —— 批的是「这一份」计划。 */
+function IconApproval() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M3.4 1.9h6.2l3 3v9.2H3.4z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.6 1.9v3h3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m5.4 9.6 1.5 1.5 2.9-3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * 导航分组。**必须是函数**：写成模块级常量的话 `t()` 只在导入时求值一次，切语言不会变 ——
  * 全站文案都守这条（渲染期求值，见 `src/i18n/index.ts`）。
@@ -625,6 +655,12 @@ function navGroups(): { label: string; items: NavItem[] }[] {
           to: "/commands",
           label: t("任务队列", "Command queue"),
           icon: <IconQueue />,
+        },
+        // 审批是下发的**前置**：先批、再签发、然后才排进任务队列。
+        {
+          to: "/approvals",
+          label: t("响应审批", "Action approvals"),
+          icon: <IconApproval />,
         },
         {
           to: "/install",

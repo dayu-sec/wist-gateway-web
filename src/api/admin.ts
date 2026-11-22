@@ -6469,5 +6469,153 @@ export async function cancelHarvestOneShot(workId: string): Promise<void> {
     { method: "POST", body: JSON.stringify({}) },
   );
 }
+// ── 响应能力的审批与签发（B 线）────────────────────────────────────────────────
+//
+// 一次「响应」的控制面链路：提交计划 → 投票 → 签发（填 attestation）→ 下发。
+// 审批绑的是**计划内容摘要**（`plan_digest`），不是 `action_id` —— 批的是「这一份」。
+//
+// 三个容易踩的点：
+//   1. **列表不带计划原文**（`plan` / `issuedPlan` 为 null）：一页几十条会把响应撑大，
+//      要看计划点进详情（`fetchActionApproval`）。
+//   2. **票数是「人」不是「次」**：`(approval_id, approver)` 唯一，同一个人再投是覆盖。
+//   3. **`issued` 与 `status` 是两件事**：`approved` 只说明票够了，`issued` 才说明签过了；
+//      签发之后既不能再投也不能再签。
 
-/** 撤回还没跑完的一次性工作（已到终态的不会被改）。 */
+export interface ActionApprovalVoteView {
+  approver: string;
+  decision: "approve" | "reject";
+  comment: string | null;
+  votedAt: string;
+}
+
+export interface ActionApprovalView {
+  approvalId: string;
+  agentId: string;
+  planDigest: string;
+  /** 契约的 wire 名：`R0` / `R1` / `R2` / `R3`。 */
+  riskLevel: string;
+  requestedBy: string;
+  reason: string | null;
+  requestedAt: string;
+  expiresAt: string;
+  requiredApprovers: number;
+  /** `pending` | `approved` | `rejected` | `expired` */
+  status: string;
+  approvedAt: string | null;
+  votes: ActionApprovalVoteView[];
+  /** 已签发（证明已写入库）：此时再投 / 再签都会被拒。 */
+  issued: boolean;
+  /** 审批时的计划原文（已由网关写入 `approval_ref`）。列表接口为 `null`。 */
+  plan: unknown | null;
+  /** 签发后的完整计划（含 attestation）。未签发为 `null`。 */
+  issuedPlan: unknown | null;
+}
+
+export interface ActionApprovalIssueResult {
+  approval: ActionApprovalView;
+  /** 签发后自动下发时的命令 id；`dispatch=false` 时为 null。 */
+  dispatchedCommandId: string | null;
+}
+
+export function normalizeActionApproval(payload: unknown): ActionApprovalView {
+  const record = requiredRecord(payload, "approval");
+  const votes = requiredArray(record.votes, "approval.votes").map((raw) => {
+    const vote = requiredRecord(raw, "approval.votes[]");
+    const decision = requiredString(vote.decision, "vote.decision");
+    if (decision !== "approve" && decision !== "reject") {
+      throw new Error(`Invalid API response: unknown vote decision ${decision}`);
+    }
+    return {
+      approver: requiredString(vote.approver, "vote.approver"),
+      decision,
+      comment: optionalString(vote.comment),
+      votedAt: requiredString(vote.voted_at, "vote.voted_at"),
+    } satisfies ActionApprovalVoteView;
+  });
+  return {
+    approvalId: requiredString(record.approval_id, "approval.approval_id"),
+    agentId: requiredString(record.agent_id, "approval.agent_id"),
+    planDigest: requiredString(record.plan_digest, "approval.plan_digest"),
+    riskLevel: requiredString(record.risk_level, "approval.risk_level"),
+    requestedBy: requiredString(record.requested_by, "approval.requested_by"),
+    reason: optionalString(record.reason),
+    requestedAt: requiredString(record.requested_at, "approval.requested_at"),
+    expiresAt: requiredString(record.expires_at, "approval.expires_at"),
+    requiredApprovers: requiredNumber(
+      record.required_approvers,
+      "approval.required_approvers",
+    ),
+    status: requiredString(record.status, "approval.status"),
+    approvedAt: optionalString(record.approved_at),
+    votes,
+    issued: requiredBoolean(record.issued, "approval.issued"),
+    plan: record.plan ?? null,
+    issuedPlan: record.issued_plan ?? null,
+  };
+}
+
+/** 审批单列表（可选按机器过滤），按申请时间新 → 旧。 */
+export async function fetchActionApprovals(
+  agentId?: string,
+): Promise<ActionApprovalView[]> {
+  const query = agentId ? `?agent_id=${encodeURIComponent(agentId)}` : "";
+  const payload = await requestJson<unknown>(`/api/v1/admin/approvals${query}`);
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid API response: approvals must be an array");
+  }
+  return payload.map(normalizeActionApproval);
+}
+
+/** 单张审批单（含计划原文与签发结果）。 */
+export async function fetchActionApproval(
+  approvalId: string,
+): Promise<ActionApprovalView> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/approvals/${encodeURIComponent(approvalId)}`,
+  );
+  return normalizeActionApproval(payload);
+}
+
+/**
+ * 投一票。审批人身份由**服务端的 token 指纹**决定，客户端不能自填 ——
+ * 请求体里只有 `decision` 与可选的 `comment`。
+ *
+ * 空评论不发：网关会把它当 `null`，与「不填」同一语义。
+ */
+export async function voteActionApproval(
+  approvalId: string,
+  decision: "approve" | "reject",
+  comment?: string,
+): Promise<ActionApprovalView> {
+  const trimmed = comment?.trim() ?? "";
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/approvals/${encodeURIComponent(approvalId)}/votes`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        decision,
+        ...(trimmed ? { comment: trimmed } : {}),
+      }),
+    },
+  );
+  return normalizeActionApproval(payload);
+}
+
+/**
+ * 签发并（默认）下发。签发前网关会重算摘要与审批时比对 —— 内容被改过会回
+ * `409 plan_changed_since_approval`，此时只能重新走审批。
+ */
+export async function issueActionApproval(
+  approvalId: string,
+  dispatch = true,
+): Promise<ActionApprovalIssueResult> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/approvals/${encodeURIComponent(approvalId)}/issue?dispatch=${dispatch}`,
+    { method: "POST" },
+  );
+  const record = requiredRecord(payload, "approvalIssue");
+  return {
+    approval: normalizeActionApproval(record),
+    dispatchedCommandId: optionalString(record.dispatched_command_id),
+  };
+}

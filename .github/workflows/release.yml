@@ -71,6 +71,16 @@ jobs:
       - name: Test (metrics labels contract)
         run: npm run test:metrics-labels-contract
 
+      # 响应审批是用户可见的写路径（签发不可撤回），发版门禁不能比 ci.yml 少跑这三条。
+      - name: Test (approval contract)
+        run: npm run test:approval
+
+      - name: Test (approval state)
+        run: npm run test:approval-state
+
+      - name: Test (approval error messages)
+        run: npm run test:approval-error
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]

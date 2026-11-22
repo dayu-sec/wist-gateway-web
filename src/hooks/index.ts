@@ -93,6 +93,10 @@ import {
   type ClassifyAgentPurposeCommand,
   type CreateRolloutPlanCommand,
   type GrantOneShotWorkCommand,
+  fetchActionApproval,
+  fetchActionApprovals,
+  issueActionApproval,
+  voteActionApproval,
   type GrantStandingWorkCommand,
   type LaunchInvestigationInput,
   type MetricLabelKey,
@@ -1909,5 +1913,71 @@ export function useAgentCommandQueue(query: AgentCommandQueueQuery) {
     enabled: authenticated,
     refetchInterval: COMMAND_QUEUE_POLL_MS,
     retry: factRefreshRetry,
+  });
+}
+
+// ── 响应能力的审批与签发（B 线）──────────────────────────────────────────────
+
+/**
+ * 审批单的轮询间隔。
+ *
+ * 为什么要轮询：这一页等的是**别人**动手（另一台机器上的管理员投票 / 签发）。
+ * 不轮询的话 A 批完了 B 的页面还显示「待批」，两边看到的世界不一致。
+ * 10s 与命令队列同一量级 —— 审批不是高频动作，没必要更密。
+ */
+const ACTION_APPROVAL_POLL_MS = 10_000;
+
+/** 审批单列表（`agentId` 省略 = 全机队）。 */
+export function useActionApprovals(agentId?: string) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["action-approvals", agentId ?? ""],
+    queryFn: () => fetchActionApprovals(agentId),
+    enabled: authenticated,
+    refetchInterval: ACTION_APPROVAL_POLL_MS,
+  });
+}
+
+/** 单张审批单（含计划原文）—— 只在展开详情 / 看签发结果时用。 */
+export function useActionApproval(approvalId: string | null) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["action-approval", approvalId ?? ""],
+    queryFn: () => fetchActionApproval(approvalId as string),
+    enabled: authenticated && Boolean(approvalId),
+  });
+}
+
+/** 投一票（通过 / 驳回）。同一人再投是**覆盖**，不是加一票。 */
+export function useVoteActionApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      approvalId: string;
+      decision: "approve" | "reject";
+      comment?: string;
+    }) => voteActionApproval(input.approvalId, input.decision, input.comment),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["action-approvals"] });
+      void queryClient.invalidateQueries({ queryKey: ["action-approval"] });
+    },
+  });
+}
+
+/**
+ * 签发（默认同时下发）。
+ *
+ * 成功后把**命令队列**一起失效：一次响应最终落在「任务队列」里，
+ * 签发完那边还显示旧列表，会让人以为没发出去。
+ */
+export function useIssueActionApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (approvalId: string) => issueActionApproval(approvalId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["action-approvals"] });
+      void queryClient.invalidateQueries({ queryKey: ["action-approval"] });
+      void queryClient.invalidateQueries({ queryKey: ["agent-command-queue"] });
+    },
   });
 }

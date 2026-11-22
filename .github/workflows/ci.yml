@@ -125,3 +125,14 @@ jobs:
       # 归一化、400 的稳定原因码、429 的退避秒数。
       - name: Test (metrics labels contract)
         run: npm run test:metrics-labels-contract
+
+      # 响应审批：列表/详情/投票/签发的路径与方法，投票体**不发 approver**、空评论不发，
+      # 以及 409 原因码到用户可见文案的分派（签发不可撤回，这条不能只在本地跑）。
+      - name: Test (approval contract)
+        run: npm run test:approval
+
+      - name: Test (approval state)
+        run: npm run test:approval-state
+
+      - name: Test (approval error messages)
+        run: npm run test:approval-error

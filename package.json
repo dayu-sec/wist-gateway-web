@@ -1,7 +1,7 @@
 {
   "name": "wist-gateway-web",
   "private": true,
-  "version": "0.37.0",
+  "version": "0.38.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -52,6 +52,9 @@
     "preview": "vite preview",
     "test:agent-work": "tsx tests/agent-work-contract.test.ts",
     "test:command-queue": "tsx tests/command-queue-contract.test.ts",
+    "test:approval": "tsx tests/approval-contract.test.ts",
+    "test:approval-state": "tsx tests/approval-state.test.ts",
+    "test:approval-error": "tsx tests/approval-error.test.ts",
     "test:runtime-status": "tsx tests/runtime-status-contract.test.ts",
     "test:agent-revocation": "tsx tests/agent-revocation-contract.test.ts",
     "test:metrics-labels": "tsx tests/metrics-labels-form.test.ts",

@@ -69,6 +69,8 @@ npm run test:i18n                # 校验双语取词：默认 zh、双向切换
 npm run test:routes              # 校验路由约定（/control 已删、/gateway-info 只读那一项 + 可写那一项、旧路名有重定向、采集授权入口）
 npm run test:collection-grants    # 校验「按采集面授权」主机状态判定（现有授权优先 / 用途 / 模板 / 就绪度）
 npm run test:gateway-initialize  # 校验网关初始化材料（initial-config）接口契约
+npm run test:approval            # 校验响应审批的路径 / 方法 / 请求体（不发 approver、空评论不发）
+npm run test:approval-state      # 校验审批页的纯逻辑（tab 过滤 / 票数 / 摘要 / 每行允许的动作）
 ```
 
 其余接口契约测试（`install-package` / `uplink` / `advertise-url` / `rollout` / `agent-logs` …）
@@ -128,6 +130,7 @@ React Query 缓存里，不会重新拉。
 | `/collection-grants` | 授权（两个 tab：采集面授权 = 按面选主机批量下发；调查授权 = 按主机勾选调查面，即时生效） |
 | `/fleet` | Agent 机队（在册 Agent，含离线；删除离线机器，不可恢复） |
 | `/commands` | 任务队列（agentd 待执行 / 执行中 / 已回执的一次性命令，含中心下发；只读） |
+| `/approvals` | 响应审批（待批 / 已批 / 全部；通过 / 驳回 / 签发并下发） |
 | `/upgrade` | Agent 升级（灰度发布计划） |
 | `/upgrade/:planId` | 升级计划详情 |
 | `/agents/:agentId/metrics` | 主机指标详情 |

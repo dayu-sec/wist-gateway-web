@@ -5,6 +5,56 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.38.0-alpha] - 2026-11-22
+
+**管理面能审批执行计划了：待批 / 已批列表 + 通过 / 驳回 / 签发下发。**
+
+- 新页面 `/approvals`（侧栏「Agent管理 → 响应审批」）：三个 tab（待批 / 已批 / 全部），
+  列出机器、风险等级、状态（含「已签发」）、票数、申请与过期时间、理由。
+- 决策动作：**通过**（二次确认 —— approved 之后不能再改票）、**驳回**（可选理由）、
+  **签发并下发**（二次确认 —— 签发会把计划投递到机器，不可撤回）。
+- 票数显示的是**人的个数**：同一人再投是覆盖，不是加一票。
+- 失败提示直接把网关的原话带出来；`plan_signing_unavailable` 单独提示
+  「网关没配 `[plan_signing] key_file`」。
+- 审批链路的 11 个稳定原因码（`plan_changed_since_approval` / `approval_closed` /
+  `approval_already_issued` / `approval_expired` / `approval_incomplete` /
+  `approval_not_found` / `approval_policy_unsupported` / `approval_not_required` /
+  `approval_load_failed` / `approval_store_failed` / `plan_signing_unavailable`）
+  各有专门文案 —— 都是「用户接下来该怎么做」，而不是把英文 `detail` 直接抛出来。
+  抽到 `src/lib/approvalError.ts`，由 `npm run test:approval-error` 锁住。
+- 页面明确写出两个边界：审批绑的是计划**内容摘要**（内容被改过只能重新审批）；
+  单 Admin Token 下需要两名审批人的 R3 走不通。
+- 新增 `tests/approval-contract.test.ts`（`npm run test:approval`）：锁路径 / 方法 /
+  投票体字段（**不发 `approver`**、空评论不发）/ 列表不带计划原文 / 未知投票决定要抛错。
+- 新增 `src/lib/approvalState.ts`（`npm run test:approval-state`）：把「状态 → 界面该显示什么」
+  抽成纯函数 —— tab 过滤 / 票数（数人）/ 摘要截断 / **每行允许的动作**（通过・驳回・签发）。
+  组件按它渲染、测试按它断言，避免两处条件各自演化出「按钮显示了但点了报错」。
+
+### 修正（代码 review 五轮）
+
+- **错误串台**：两个 mutation 的 `error` 会一直留到各自下一次调用，`vote.error ?? issue.error`
+  会让「刚才投票失败」的红条一直盖在后续签发结果上。现在发起任一动作前先 `reset()` 另一个。
+- **驳回失败丢草稿**：原来提交即清空表单，409（单子刚被别人处理）后理由也没了。
+  改为**成功后才收起**，失败保留理由可原地重试。
+- **重复提交**：`submitApprove` / `submitIssue` 先清确认态再判 `busy`，忙碌时会把确认框收掉却什么都不做。
+  改为先判 `busy` 再改状态。
+- **无障碍**：表头补 `scope="col"`、表格补 `aria-label` 与轮询期间的 `aria-busy`；
+  行内按钮的读屏名称带上机器名（「通过 · agent-xxx」）；被截断的理由与短摘要
+  可键盘聚焦并有可见焦点环，摘要另带 `aria-label` 全值；驳回理由框打开即聚焦。
+- **测试假通过**：`tests/approval-contract.test.ts` 末尾是 `void main()`，`main` 里的断言
+  若在 `await` 之后失败，未处理的 rejection 不会让进程非零退出。改为 `main().catch(...)`
+  并 `process.exit(1)`（与仓库既有 `investigation-contract` 一致）。
+- `approval-state` 测试补两条性质断言：未知 `decision` 不算票、`pending`/`approved` 两个 tab 互斥。
+
+### 已知边界
+
+- 这一页只做**决策**，不发起：构造一份 `ActionPlan` 属于「响应发起」流程。
+- **没有 DOM 渲染测试**（仓库不装 jsdom / 测试 runner）：逻辑层（tab、票数、按钮显隐）
+  已抽到 `src/lib/approvalState.ts` 并用现有 `tsx` 脚本覆盖；剩下的「点一下调了什么」
+  由 `test:approval` 的接口契约锁定，渲染本身靠 `tsc` + 人工确认。
+- `jumo-ui-model.json` 已滱后于现有页面（它只描述早期 60 个 region），本页按现有
+  手写模式新增；**重新跑 `generate.ts` 会覆盖手写组件**，这是仓库既有风险，不是本页引入的。
+
 ## [0.37.0-alpha] - 2026-11-21
 
 **页面能认得「关键进程指标」这个来源，并且不再把可采的来源报成未接。**
