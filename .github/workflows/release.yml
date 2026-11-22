@@ -81,6 +81,9 @@ jobs:
       - name: Test (approval error messages)
         run: npm run test:approval-error
 
+      - name: Test (response grant contract)
+        run: npm run test:response-grant
+
   # 2. 构建多架构镜像并推送 ghcr.io。
   docker:
     needs: [verify]

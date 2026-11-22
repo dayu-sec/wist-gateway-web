@@ -5987,12 +5987,7 @@ export async function clearAgentMetricsLabels(
  * 与凭据，误点代价大，只留给 CLI（见设计 §10.1）。
  */
 export type RefreshSource =
-  | "facts"
-  | "policies"
-  | "work"
-  | "metrics-labels"
-  | "credentials"
-  | "uplink";
+  "facts" | "policies" | "work" | "metrics-labels" | "credentials" | "uplink";
 
 /** 手工刷新的命令回执（与 `fact-refresh` 同形，这里只留“已入队”必需的四项）。 */
 export interface AgentRefreshCommand {
@@ -6058,11 +6053,7 @@ export async function dispatchAgentRefresh(
 
 /** 一条命令在网关队列里的状态（闭集）。 */
 export type AgentCommandQueueState =
-  | "queued"
-  | "claimed"
-  | "acked"
-  | "expired"
-  | "superseded";
+  "queued" | "claimed" | "acked" | "expired" | "superseded";
 
 /** 查询过滤词：闭集 + `all`（不过滤）。 */
 export type AgentCommandQueueFilter = "all" | AgentCommandQueueState;
@@ -6155,15 +6146,15 @@ function normalizeAgentCommandQueueItem(
       COMMAND_QUEUE_STATES,
       `${at}.state`,
     ),
-    source: requiredClosedValue(
-      record.source,
-      COMMAND_SOURCES,
-      `${at}.source`,
-    ),
+    source: requiredClosedValue(record.source, COMMAND_SOURCES, `${at}.source`),
     requestedBy: requiredString(record.requested_by, `${at}.requested_by`),
     // 空串是正常形态（参数里没有 topic / what），不是缺字段。
     summary: requiredString(record.summary, `${at}.summary`),
-    requestedAt: nullableStringField(record, ["requested_at"], `${at}.requested_at`),
+    requestedAt: nullableStringField(
+      record,
+      ["requested_at"],
+      `${at}.requested_at`,
+    ),
     claimedAt: nullableStringField(record, ["claimed_at"], `${at}.claimed_at`),
     acknowledgedAt: nullableStringField(
       record,
@@ -6191,7 +6182,11 @@ export function normalizeAgentCommandQueue(
   const counts = requiredRecord(record.counts, "agentCommandQueue.counts");
   const commands = requiredArray(record.commands, "agentCommandQueue.commands");
   return {
-    agentId: optionalStringField(record, ["agent_id"], "agentCommandQueue.agent_id"),
+    agentId: optionalStringField(
+      record,
+      ["agent_id"],
+      "agentCommandQueue.agent_id",
+    ),
     state: requiredClosedValue(
       record.state,
       COMMAND_QUEUE_FILTERS,
@@ -6199,7 +6194,10 @@ export function normalizeAgentCommandQueue(
     ),
     counts: {
       queued: requiredNumber(counts.queued, "agentCommandQueue.counts.queued"),
-      claimed: requiredNumber(counts.claimed, "agentCommandQueue.counts.claimed"),
+      claimed: requiredNumber(
+        counts.claimed,
+        "agentCommandQueue.counts.claimed",
+      ),
     },
     commands: commands.map(normalizeAgentCommandQueueItem),
   };
@@ -6523,7 +6521,9 @@ export function normalizeActionApproval(payload: unknown): ActionApprovalView {
     const vote = requiredRecord(raw, "approval.votes[]");
     const decision = requiredString(vote.decision, "vote.decision");
     if (decision !== "approve" && decision !== "reject") {
-      throw new Error(`Invalid API response: unknown vote decision ${decision}`);
+      throw new Error(
+        `Invalid API response: unknown vote decision ${decision}`,
+      );
     }
     return {
       approver: requiredString(vote.approver, "vote.approver"),
@@ -6618,4 +6618,143 @@ export async function issueActionApproval(
     approval: normalizeActionApproval(record),
     dispatchedCommandId: optionalString(record.dispatched_command_id),
   };
+}
+
+// ── 响应授权单（时间窗授权）──────────────────────────────────────────────────
+//
+// 与审批**并列**的第二条授权来源：给一台机器一段有期限的窗口，窗口内满足风险上限的
+// 动作可以直接下发（不需要逐次审批）。设计见 `wist-体系设计规划.md` §2.9.1。
+//
+// 三条必须在前端守住的语义：
+//   1. **期限由服务端算**：请求只发 `duration_minutes`，不发绝对时刻（客户端时钟不可信）；
+//   2. **`state` 由服务端判定**（active / pending / expired / revoked），页面不自己比时间；
+//   3. **撤销是软删**：撤销后仍然能读到这张单（`state = revoked`），它不是「不存在」。
+
+/** 授权单的生效状态（服务端按自己的时钟判定）。 */
+export type ResponseGrantState = "active" | "pending" | "expired" | "revoked";
+
+export interface ResponseGrantView {
+  grantId: string;
+  /** `R0` / `R1` / `R2`。 */
+  maxRisk: string;
+  /** 可选 opcode 白名单；`null` = 不按 op 收窄。 */
+  opcodes: string[] | null;
+  notBefore: string;
+  notAfter: string;
+  reason: string | null;
+  grantedBy: string;
+  grantedAt: string;
+  revokedAt: string | null;
+  state: ResponseGrantState;
+  /** 距到期秒数；非 `active` 时为 0。 */
+  remainingSeconds: number;
+}
+
+export interface ResponseGrantEnvelope {
+  agentId: string;
+  /** `null` = 这台机器从未签发过授权单。 */
+  grant: ResponseGrantView | null;
+}
+
+export interface PutResponseGrantInput {
+  maxRisk: string;
+  opcodes?: string[];
+  /** 窗口长度（分钟）；省略 = 服务端默认 24h。永远不可能无限期。 */
+  durationMinutes?: number;
+  reason?: string;
+}
+
+const RESPONSE_GRANT_STATES: readonly ResponseGrantState[] = [
+  "active",
+  "pending",
+  "expired",
+  "revoked",
+];
+
+export function normalizeResponseGrantView(
+  payload: unknown,
+): ResponseGrantView {
+  const record = requiredRecord(payload, "responseGrant");
+  const state = requiredString(record.state, "responseGrant.state");
+  if (!RESPONSE_GRANT_STATES.includes(state as ResponseGrantState)) {
+    throw new Error(`Invalid API response: unknown grant state ${state}`);
+  }
+  return {
+    grantId: requiredString(record.grant_id, "responseGrant.grant_id"),
+    maxRisk: requiredString(record.max_risk, "responseGrant.max_risk"),
+    opcodes: optionalStringArrayOrNull(record.opcodes, "responseGrant.opcodes"),
+    notBefore: requiredString(record.not_before, "responseGrant.not_before"),
+    notAfter: requiredString(record.not_after, "responseGrant.not_after"),
+    reason: optionalStringOrNull(record.reason),
+    grantedBy: requiredString(record.granted_by, "responseGrant.granted_by"),
+    grantedAt: requiredString(record.granted_at, "responseGrant.granted_at"),
+    revokedAt: optionalStringOrNull(record.revoked_at),
+    state: state as ResponseGrantState,
+    remainingSeconds:
+      optionalNumber(
+        record.remaining_seconds,
+        "responseGrant.remaining_seconds",
+      ) ?? 0,
+  };
+}
+
+export function normalizeResponseGrantEnvelope(
+  payload: unknown,
+): ResponseGrantEnvelope {
+  const record = requiredRecord(payload, "responseGrantEnvelope");
+  const raw = record.grant;
+  return {
+    agentId: requiredString(record.agent_id, "responseGrantEnvelope.agent_id"),
+    grant:
+      raw === null || raw === undefined
+        ? null
+        : normalizeResponseGrantView(raw),
+  };
+}
+
+/** 读这台机器当前的响应授权单（`null` = 从未签发）。 */
+export async function fetchResponseGrant(
+  agentId: string,
+): Promise<ResponseGrantEnvelope> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/response-grant`,
+  );
+  return normalizeResponseGrantEnvelope(payload);
+}
+
+/** 签发 / 重新签发（覆盖）。重新签发会换一个新的 `grant_id`。 */
+export async function putResponseGrant(
+  agentId: string,
+  input: PutResponseGrantInput,
+): Promise<ResponseGrantEnvelope> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/response-grant`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        max_risk: input.maxRisk,
+        ...(input.opcodes && input.opcodes.length > 0
+          ? { opcodes: input.opcodes }
+          : {}),
+        ...(input.durationMinutes !== undefined
+          ? { duration_minutes: input.durationMinutes }
+          : {}),
+        ...(input.reason && input.reason.trim()
+          ? { reason: input.reason.trim() }
+          : {}),
+      }),
+    },
+  );
+  return normalizeResponseGrantEnvelope(payload);
+}
+
+/** 撤销（软删）。撤销后仍然能读到这张单，`state = revoked`。 */
+export async function revokeResponseGrant(
+  agentId: string,
+): Promise<ResponseGrantEnvelope> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/response-grant`,
+    { method: "DELETE" },
+  );
+  return normalizeResponseGrantEnvelope(payload);
 }

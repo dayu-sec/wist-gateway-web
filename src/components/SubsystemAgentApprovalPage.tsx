@@ -229,8 +229,8 @@ export function SubsystemAgentApprovalPage() {
 
         <p className={styles.note}>
           {t(
-            "投票人身份由 Admin Token 决定，不能代填；同一人再投是覆盖，不是加一票。当前网关只有单一 Admin Token，因此需要两名审批人的 R3 计划无法在这里走完（会提示不支持）。",
-            "The approver identity comes from the Admin Token and cannot be typed in; re-voting by the same person overwrites, it does not add a vote. This gateway has a single Admin Token, so R3 plans that need two approvers cannot be completed here (you will see an unsupported error).",
+            "审批人身份由 Admin Token 决定，不能代填。当前是单次审批：R2 / R3 都是一人批一次就够，R0 / R1（只读）不进入这里。",
+            "The approver identity comes from the Admin Token and cannot be typed in. This gateway uses single approval: R2 / R3 need one approval each, and R0 / R1 (read-only) never appear here.",
           )}
         </p>
 

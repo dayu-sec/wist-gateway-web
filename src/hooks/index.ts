@@ -95,7 +95,10 @@ import {
   type GrantOneShotWorkCommand,
   fetchActionApproval,
   fetchActionApprovals,
+  fetchResponseGrant,
   issueActionApproval,
+  putResponseGrant,
+  revokeResponseGrant,
   voteActionApproval,
   type GrantStandingWorkCommand,
   type LaunchInvestigationInput,
@@ -1977,6 +1980,68 @@ export function useIssueActionApproval() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["action-approvals"] });
       void queryClient.invalidateQueries({ queryKey: ["action-approval"] });
+      void queryClient.invalidateQueries({ queryKey: ["agent-command-queue"] });
+    },
+  });
+}
+
+// ── 响应授权单（时间窗授权）──────────────────────────────────────────────────
+
+/**
+ * 某台机器的响应授权单。
+ *
+ * 不轮询：授权单是**人手动签的**，不会自己变（唯一会变的是到期，而 `state` 是服务端
+ * 按请求时刻算的，页面重新拉一次就准了 —— 停留时长的精度不值得每 10s 拉一遍）。
+ */
+export function useResponseGrant(agentId: string | null) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["response-grant", agentId ?? ""],
+    queryFn: () => fetchResponseGrant(agentId as string),
+    enabled: authenticated && Boolean(agentId),
+  });
+}
+
+/**
+ * 签发 / 重新签发。
+ *
+ * 成功后同时失效**命令队列**：授权变了就意味着"现在什么能发"变了，队列页的按钮状态
+ * 要跟着刷新（与签发审批同一处理）。
+ */
+export function usePutResponseGrant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      agentId: string;
+      maxRisk: string;
+      opcodes?: string[];
+      durationMinutes?: number;
+      reason?: string;
+    }) =>
+      putResponseGrant(input.agentId, {
+        maxRisk: input.maxRisk,
+        opcodes: input.opcodes,
+        durationMinutes: input.durationMinutes,
+        reason: input.reason,
+      }),
+    onSuccess: (_result, input) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["response-grant", input.agentId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["agent-command-queue"] });
+    },
+  });
+}
+
+/** 撤销（软删）。 */
+export function useRevokeResponseGrant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (agentId: string) => revokeResponseGrant(agentId),
+    onSuccess: (_result, agentId) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["response-grant", agentId],
+      });
       void queryClient.invalidateQueries({ queryKey: ["agent-command-queue"] });
     },
   });

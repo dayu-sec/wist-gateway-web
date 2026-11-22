@@ -136,3 +136,6 @@ jobs:
 
       - name: Test (approval error messages)
         run: npm run test:approval-error
+
+      - name: Test (response grant contract)
+        run: npm run test:response-grant

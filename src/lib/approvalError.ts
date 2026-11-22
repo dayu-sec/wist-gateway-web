@@ -57,9 +57,10 @@ export function approvalCodeMessage(code: string): string | null {
         "This approval request no longer exists (it may have been cleaned up). Refresh the list to see the current state.",
       );
     case "approval_policy_unsupported":
+      // 单票制后本网关不再返回它；保留是为了对**旧版网关**（仍按多票策略）给出准确指引。
       return t(
-        "这张计划要求两名以上审批人，而当前网关只有一个 Admin Token，无法在这里批完。",
-        "This plan requires more than one approver, but this gateway has only a single Admin Token, so it cannot be completed here.",
+        "这张计划要求多名审批人，而当前策略是单次审批。通常是网关还是旧版本（仍按多票策略），升级网关后重试即可。",
+        "This plan requires multiple approvers, but the current policy is single approval. The gateway is likely still on the older multi-approval policy — upgrade it and retry.",
       );
     case "approval_not_required":
       return t(
