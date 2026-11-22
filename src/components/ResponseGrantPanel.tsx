@@ -156,7 +156,7 @@ export function ResponseGrantPanel() {
         <h2 className={styles.title}>{t("响应授权", "Response grants")}</h2>
         <p className={styles.summary}>
           {t(
-            "给一台机器签发一段**有期限**的授权窗口。窗口内、风险上限以内的动作可以直接下发，不必逐次审批；窗口一过就重新签发。高风险（R3）不允许走授权单，必须一次一议。",
+            "给一台机器签发一段有期限的授权窗口。窗口内、风险上限以内的动作可以直接下发，不必逐次审批；窗口一过就重新签发。高风险（R3）不允许走授权单，必须一次一议。",
             "Issue a time-boxed authorization window for one machine. Within the window and under the risk cap, actions can be dispatched without per-action approval; once it expires, re-issue. R3 (destructive) cannot be covered by a grant and must be approved case by case.",
           )}
         </p>

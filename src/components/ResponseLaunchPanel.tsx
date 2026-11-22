@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ApiError,
@@ -10,6 +10,7 @@ import {
 } from "../api";
 import { useActionResult, usePlanTarget, useRegisteredAgents } from "../hooks";
 import { t } from "../i18n";
+import { MIN_EXEC_AGENTD, execGate } from "../lib/agentdVersion";
 import styles from "./ResponseLaunchPanel.module.css";
 
 /**
@@ -195,8 +196,8 @@ export function ResponseLaunchPanel({
           <h1 className={styles.title}>{t("发起响应", "Launch response")}</h1>
           <p className={styles.summary}>
             {t(
-              "一次响应的两步：**先预览**（只读，扫出将被清理的文件），**再提交清理**（写入，进审批）。预览也走响应授权，所以这台机器需要有生效中的授权单。",
-              "Two steps: **preview** (read-only, lists what would be removed), then **submit the cleanup** (write, goes to approval). Preview is a response too, so the agent needs an active response grant.",
+              "一次响应的两步：先预览（只读，扫出将被清理的文件），再提交清理（写入，进审批）。预览也走响应授权，所以这台机器需要有生效中的授权单。",
+              "Two steps: preview (read-only, lists what would be removed), then submit the cleanup (write, goes to approval). Preview is a response too, so the agent needs an active response grant.",
             )}
           </p>
         </header>
@@ -238,12 +239,29 @@ export function ResponseLaunchPanel({
         </label>
       ) : null}
 
-      {selected && hasToken ? <CleanupForm agentId={selected} /> : null}
+      {selected && hasToken ? (
+        <CleanupForm
+          agentId={selected}
+          agentVersion={
+            agents.find((agent) => agent.agentId === selected)?.version ?? ""
+          }
+        />
+      ) : null}
     </section>
   );
 }
 
-function CleanupForm({ agentId }: { agentId: string }) {
+function CleanupForm({
+  agentId,
+  agentVersion,
+}: {
+  agentId: string;
+  agentVersion: string;
+}) {
+  // 版本未知（空串）不拦，只提示；版本过旧则**挡住** —— 那种情况下计划永远不会被执行。
+  const gate = execGate(agentVersion);
+  const versionKnown = gate !== "unknown";
+  const execSupported = gate !== "old";
   const targetQuery = usePlanTarget(agentId);
   const [cleanupTarget, setCleanupTarget] = useState<CleanupTarget>("tmp");
   const [ageHours, setAgeHours] = useState<string>(
@@ -337,6 +355,23 @@ function CleanupForm({ agentId }: { agentId: string }) {
 
   return (
     <div className={styles.form}>
+      {!execSupported ? (
+        <p className={styles.error} role="alert">
+          {t(
+            "这台机器的 agentd 是 {version}，不认识执行计划命令（需要 ≥ {min}）。请先升级 agentd；否则计划会入队但机器永远不执行，页面只能一直等。",
+            "This agent runs agentd {version}, which does not understand action plans (needs ≥ {min}). Upgrade agentd first; otherwise the plan is queued but never executed and this page just waits.",
+            { version: agentVersion, min: MIN_EXEC_AGENTD },
+          )}
+        </p>
+      ) : null}
+      {!versionKnown ? (
+        <p className={styles.note}>
+          {t(
+            "读不到这台机器的 agentd 版本：如果点了没反应，先去任务队列看这条命令有没有被取走。",
+            "Could not read this agent's agentd version. If nothing happens after dispatch, check the command queue to see whether it was claimed.",
+          )}
+        </p>
+      ) : null}
       {targetQuery.isError ? (
         <p className={styles.error}>{launchErrorMessage(targetQuery.error)}</p>
       ) : null}
@@ -421,7 +456,7 @@ function CleanupForm({ agentId }: { agentId: string }) {
 
       <p className={styles.hint}>
         {t(
-          "上限是**硬闸**：超过就停下并在结果里标 truncated。删除被进程占用的文件不会释放空间，这类文件会被跳过。",
+          "上限是硬闸：超过就停下并在结果里标 truncated。删除被进程占用的文件不会释放空间，这类文件会被跳过。",
           "Caps are hard limits: the run stops and reports truncated. Files still open by a process are skipped — deleting them frees nothing.",
         )}
       </p>
@@ -430,7 +465,12 @@ function CleanupForm({ agentId }: { agentId: string }) {
         <button
           type="button"
           className={styles.primary}
-          disabled={!targetQuery.data || !ageValid || submitting !== null}
+          disabled={
+            !execSupported ||
+            !targetQuery.data ||
+            !ageValid ||
+            submitting !== null
+          }
           onClick={() => void runPreview()}
         >
           {submitting === "preview"
@@ -440,7 +480,12 @@ function CleanupForm({ agentId }: { agentId: string }) {
         <button
           type="button"
           className={styles.danger}
-          disabled={!targetQuery.data || !ageValid || submitting !== null}
+          disabled={
+            !execSupported ||
+            !targetQuery.data ||
+            !ageValid ||
+            submitting !== null
+          }
           onClick={() => void submitCleanup()}
         >
           {submitting === "apply"
@@ -468,6 +513,7 @@ function CleanupForm({ agentId }: { agentId: string }) {
 
       {previewActionId ? (
         <PreviewResult
+          actionId={previewActionId}
           loading={previewResult.isLoading || previewResult.isFetching}
           error={previewResult.error}
           report={previewResult.data?.report}
@@ -529,34 +575,70 @@ function formatBytes(bytes: number | undefined): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
 }
 
+/** 等多久之后把「可能卡住了」的排查路径给出来（agent 默认 5s 取一次命令）。 */
+const WAIT_HINT_SECONDS = 45;
+
 function PreviewResult({
+  actionId,
   loading,
   error,
   report,
   finalStatus,
 }: {
+  actionId: string;
   loading: boolean;
   error: unknown;
   report: unknown;
   finalStatus?: string;
 }) {
-  if (error) {
-    // 404 是「还没回」，不是错误 —— 轮询期间会一直这样。
-    const pending = error instanceof ApiError && error.status === 404;
-    return (
-      <p className={pending ? styles.note : styles.error}>
-        {pending
-          ? t(
-              "预览已下发，等机器回结果…（agent 下次取命令时执行）",
-              "Preview dispatched, waiting for the agent… (it runs on the next command poll)",
-            )
-          : launchErrorMessage(error)}
-      </p>
+  const [elapsed, setElapsed] = useState(0);
+  const settled = Boolean(report);
+  useEffect(() => {
+    if (settled) return;
+    setElapsed(0);
+    const timer = window.setInterval(
+      () => setElapsed((value) => value + 1),
+      1000,
     );
+    return () => window.clearInterval(timer);
+  }, [actionId, settled]);
+
+  if (error && !(error instanceof ApiError && error.status === 404)) {
+    return <p className={styles.error}>{launchErrorMessage(error)}</p>;
   }
-  if (loading && !report) {
+  if (!settled) {
+    // 「等」不是一个状态而是一个事实：把**已经下发了什么**与**等了多久**摆出来，
+    // 再给出「可能卡在哪」的下一步。否则用户只能盯着三个点猜。
     return (
-      <p className={styles.note}>{t("等待结果…", "Waiting for the result…")}</p>
+      <div className={styles.note}>
+        <p>
+          {t(
+            "预览已下发（action {id}），等机器取命令并回结果… 已等 {seconds}s",
+            "Preview dispatched (action {id}); waiting for the agent to pick it up… {seconds}s elapsed",
+            { id: actionId, seconds: elapsed },
+          )}
+        </p>
+        {elapsed >= WAIT_HINT_SECONDS ? (
+          <p className={styles.warn}>
+            {t(
+              "超过 {seconds}s 还没回来。常见原因：agentd 太旧（< {min}）、机器离线 / 长时间没心跳、或命令被本地终审拒了。",
+              "Nothing after {seconds}s. Common causes: agentd too old (< {min}), the agent is offline / not heartbeating, or the plan was rejected by local review.",
+              { seconds: WAIT_HINT_SECONDS, min: MIN_EXEC_AGENTD },
+            )}{" "}
+            <Link to="/commands">
+              {t("去任务队列看这条命令", "Check the command queue")}
+            </Link>
+          </p>
+        ) : null}
+        {loading ? null : (
+          <p className={styles.warn}>
+            {t(
+              "轮询已停止。到任务队列（或刷新页面）再确认一次。",
+              "Polling stopped. Check the command queue (or refresh) to confirm.",
+            )}
+          </p>
+        )}
+      </div>
     );
   }
   const preview = readPreview(report);
