@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
   dispatchActionPlan,
@@ -8,8 +9,13 @@ import {
   type ActionPlanPayload,
   type PlanTargetView,
 } from "../api";
-import { useActionResult, usePlanTarget, useRegisteredAgents } from "../hooks";
-import { t } from "../i18n";
+import {
+  useActionResult,
+  useActionResults,
+  usePlanTarget,
+  useRegisteredAgents,
+} from "../hooks";
+import { t, dateLocale } from "../i18n";
 import { MIN_EXEC_AGENTD, execGate } from "../lib/agentdVersion";
 import styles from "./ResponseLaunchPanel.module.css";
 
@@ -279,6 +285,13 @@ function CleanupForm({
   );
 
   const previewResult = useActionResult(agentId, previewActionId);
+  const queryClient = useQueryClient();
+
+  // 预览结果到了就把「最近结果」列表刷一次 —— 否则刚看到的预览要等下次进页才进列表。
+  useEffect(() => {
+    if (!previewResult.data) return;
+    void queryClient.invalidateQueries({ queryKey: ["action-results", agentId] });
+  }, [previewResult.data?.actionId, agentId, queryClient]);
 
   const floor = floorAgeHours(cleanupTarget);
   const age = Number.parseInt(ageHours, 10);
@@ -520,6 +533,8 @@ function CleanupForm({
           finalStatus={previewResult.data?.finalStatus}
         />
       ) : null}
+
+      <RecentResults agentId={agentId} />
     </div>
   );
 }
@@ -573,6 +588,26 @@ function formatBytes(bytes: number | undefined): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
   }
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`;
+}
+
+function formatTimestamp(value: string): string {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return value;
+  return at.toLocaleString(dateLocale(), { hour12: false });
+}
+
+/** 契约的 wire 状态值 → 色调（只影响样式，不映射值本身）。 */
+function statusBadgeClass(status: string): string {
+  switch (status) {
+    case "succeeded":
+      return `${styles.badge} ${styles.badgeOk}`;
+    case "failed":
+      return `${styles.badge} ${styles.badgeCrit}`;
+    case "partial":
+      return `${styles.badge} ${styles.badgeWarn}`;
+    default:
+      return `${styles.badge} ${styles.badgeUnknown}`;
+  }
 }
 
 /** 等多久之后把「可能卡住了」的排查路径给出来（agent 默认 5s 取一次命令）。 */
@@ -641,6 +676,32 @@ function PreviewResult({
       </div>
     );
   }
+  return (
+    <div className={styles.result}>
+      <CleanupListing
+        report={report}
+        finalStatus={finalStatus}
+        title={t("预览结果", "Preview")}
+      />
+    </div>
+  );
+}
+
+/**
+ * 清理类结果里那一段「候选清单」。
+ *
+ * 预览（当次会话）与「最近结果」（刷新后仍可见）共用这一份渲染 ——
+ * 两处各写一遍一定会漂，而它们形状完全相同（同一份 `outputs.items[0].value`）。
+ */
+function CleanupListing({
+  report,
+  finalStatus,
+  title,
+}: {
+  report: unknown;
+  finalStatus?: string;
+  title?: string;
+}) {
   const preview = readPreview(report);
   if (!preview) {
     return (
@@ -654,10 +715,14 @@ function PreviewResult({
     );
   }
   return (
-    <div className={styles.result}>
+    <>
       <p className={styles.resultHead}>
-        <strong>{t("预览结果", "Preview")}</strong>
-        {" · "}
+        {title ? (
+          <>
+            <strong>{title}</strong>
+            {" · "}
+          </>
+        ) : null}
         {t("候选 {files} 个文件 / 共 {bytes}", "{files} files / {bytes}", {
           files: preview.files ?? 0,
           bytes: formatBytes(preview.bytes),
@@ -708,6 +773,99 @@ function PreviewResult({
           )}
         </p>
       )}
+    </>
+  );
+}
+
+/**
+ * 「最近的响应结果」：刷新页面后还能找回的历史入口。
+ *
+ * 为什么必须有：发起页的预览只活在当次会话里（`actionId` 是组件 state，刷新即丢），
+ * 用户执行成功后找不到任何反馈。结果恰恰是复核与审计要反复看的东西。
+ */
+function RecentResults({ agentId }: { agentId: string }) {
+  const query = useActionResults(agentId);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const results = query.data?.results ?? [];
+
+  return (
+    <div className={styles.recent}>
+      <div className={styles.recentHead}>
+        <strong>{t("最近的执行结果", "Recent results")}</strong>
+        <span className={styles.recentMeta}>
+          {t(
+            "刷新页面后仍在这里；同一个动作只保留最新一次。",
+            "Stays here after a reload; only the latest run per action is kept.",
+          )}
+        </span>
+        <button
+          type="button"
+          className={styles.recentRefresh}
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          {query.isFetching ? t("读取中…", "Loading…") : t("刷新", "Refresh")}
+        </button>
+      </div>
+
+      {query.isError ? (
+        <p className={styles.error}>{launchErrorMessage(query.error)}</p>
+      ) : null}
+
+      {!query.isLoading && results.length === 0 ? (
+        <p className={styles.note}>
+          {t(
+            "这台机器还没有执行结果。预览或清理命令执行完成后会出现在这里。",
+            "No results for this agent yet. They appear here once a preview or cleanup run finishes.",
+          )}
+        </p>
+      ) : null}
+
+      {results.length > 0 ? (
+        <ul className={styles.recentList}>
+          {results.map((item) => {
+            const open = expanded === item.actionId;
+            return (
+              <li key={item.actionId} className={styles.recentItem}>
+                <button
+                  type="button"
+                  className={styles.recentToggle}
+                  aria-expanded={open}
+                  onClick={() => setExpanded(open ? null : item.actionId)}
+                >
+                  <span className={statusBadgeClass(item.finalStatus)}>
+                    {item.finalStatus}
+                  </span>
+                  <span className={styles.mono}>{item.actionId}</span>
+                  <span className={styles.recentTime}>
+                    {formatTimestamp(item.receivedAt)}
+                  </span>
+                  <span className={styles.recentChevron}>
+                    {open ? "▾" : "▸"}
+                  </span>
+                </button>
+                {open ? (
+                  <div className={styles.recentDetail}>
+                    <CleanupListing
+                      report={item.report}
+                      finalStatus={item.finalStatus}
+                    />
+                    <p className={styles.recentFoot}>
+                      {t("execution {exec}", "execution {exec}", {
+                        exec: item.executionId,
+                      })}
+                      {" · "}
+                      {t("plan {digest}", "plan {digest}", {
+                        digest: item.planDigest,
+                      })}
+                    </p>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 }

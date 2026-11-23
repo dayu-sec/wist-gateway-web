@@ -6842,6 +6842,43 @@ export async function fetchActionResult(
   return normalizeActionResult(payload);
 }
 
+export interface ActionResultListView {
+  agentId: string;
+  /** 时间倒序（最新在前），由网关排序，前端不再重排。 */
+  results: ActionResultView[];
+}
+
+export function normalizeActionResults(payload: unknown): ActionResultListView {
+  const record = requiredRecord(payload, "actionResults");
+  return {
+    agentId: requiredString(record.agent_id, "actionResults.agent_id"),
+    results: requiredArrayOf(
+      record.results,
+      "actionResults.results",
+      normalizeActionResult,
+    ),
+  };
+}
+
+/**
+ * 这台机器最近的执行结果（`limit` 由网关夹到 1..=50，默认 10）。
+ *
+ * 为什么要有列表：单条结果只活在发起页当次会话里（`actionId` 一刷新就没），
+ * 结果却是审计与复核要反复看的东西 —— 刷新后必须还有入口。
+ */
+export async function fetchActionResults(
+  agentId: string,
+  limit?: number,
+): Promise<ActionResultListView> {
+  const params = new URLSearchParams();
+  if (limit !== undefined) params.set("limit", String(limit));
+  const search = params.toString();
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/agents/${encodeURIComponent(agentId)}/action-results${search ? `?${search}` : ""}`,
+  );
+  return normalizeActionResults(payload);
+}
+
 // ── 发起响应：下发计划 / 提交审批 ───────────────────────────────────────────
 
 /** 一份执行计划的 wire 形状（与 agentd `run-plan --plan` 读的文件同形）。 */

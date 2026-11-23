@@ -5,6 +5,24 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.43.0-alpha] - 2026-11-23
+
+### 新增（发起响应：最近的执行结果）
+
+**症状**：预览 / 清理**执行成功了**，网关也落了库，但页面上再也看不到 —— 发起页的
+预览结果只活在当次会话里（`actionId` 是组件 state，刷新即丢），用户体感是「没反馈」。
+
+- `src/api/admin.ts`：新增 `fetchActionResults(agentId, limit?)` 与 `normalizeActionResults`，
+  对应 `GET /api/v1/admin/agents/{id}/action-results`。**不重排**：顺序由网关决定
+  （`received_at` 倒序），两边各排一遍只会打架。
+- `src/hooks/index.ts`：新增 `useActionResults(agentId)`（不轮询；窗口重新聚焦或手动刷新时取）。
+- `ResponseLaunchPanel`：预览结果下方新增「**最近的执行结果**」区块 —— 持久入口，
+  刷新页面后仍能看到历史；每行展示状态 / action_id / 收到时间，展开看候选清单。
+- 抽出 `CleanupListing`：预览（当次）与最近结果（历史）共用同一份清单渲染，避免两处漂移。
+- 预览结果一到就 `invalidateQueries(["action-results", agentId])`，刚跑的预览立即进列表。
+- 新增契约测试 `tests/action-results-contract.test.ts`（`npm run test:action-results`），
+  并加入 CI / release 工作流。
+
 ## [0.42.0-alpha] - 2026-11-22
 
 ### 修复（发起页点了预览没有任何反馈）

@@ -96,6 +96,7 @@ import {
   fetchActionApproval,
   fetchActionApprovals,
   fetchActionResult,
+  fetchActionResults,
   fetchPlanTarget,
   fetchResponseGrant,
   issueActionApproval,
@@ -2084,5 +2085,24 @@ export function useActionResult(
       error instanceof ApiError && error.status === 404 && failureCount < 150,
     retryDelay: pollMs,
     refetchInterval: (query) => (query.state.error ? pollMs : false),
+  });
+}
+
+/**
+ * 这台机器最近的执行结果（时间倒序，最新在前）。
+ *
+ * 为什么要有它：单条结果只活在发起页当次会话里（`actionId` 一刷新就没），
+ * 结果却是审计与复核要反复看的东西。列表是那个**持久入口**。
+ *
+ * 不轮询：结果到没到由上游发起的动作决定，轮询一个列表只会白刷。
+ * 需要刷新时：窗口重新聚焦（React Query 默认）、手动点「刷新」，或由调用方在
+ * 动作完成时 invalidate `[`action-results`, agentId]`。
+ */
+export function useActionResults(agentId: string | null, limit?: number) {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["action-results", agentId ?? "", limit ?? "default"],
+    queryFn: () => fetchActionResults(agentId as string, limit),
+    enabled: authenticated && Boolean(agentId),
   });
 }

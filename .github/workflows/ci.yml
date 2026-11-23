@@ -143,5 +143,8 @@ jobs:
       - name: Test (launch contract)
         run: npm run test:launch
 
+      - name: Contract tests (action-results)
+        run: npm run test:action-results
+
       - name: Test (agentd version gate)
         run: npm run test:agentd-version
