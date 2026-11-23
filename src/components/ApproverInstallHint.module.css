@@ -1,7 +1,8 @@
 .section {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
+  /* 本区块现在是「安装与钥匙」tab 的**第一块**：不要再带「上一块之后」的分隔
+     （margin-top + border-top），否则会被看成掉到页面下方。分隔由后面的
+     「审批公钥」区块自己负责。 */
+  margin: 0;
 }
 
 .title {
