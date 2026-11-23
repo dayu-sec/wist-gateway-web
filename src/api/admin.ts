@@ -6966,3 +6966,65 @@ export async function submitActionApproval(
   );
   return normalizeActionApproval(payload);
 }
+
+// ── 审批公钥（外部签发）──────────────────────────────────────────────────────
+//
+// 私钥在审批人手上的 `wist-approve`，网关只持有公钥：它的作用只有两个 ——
+// 收到签名时验一遍（挡垃圾）、以及给页面和 CLI 一个**可以人工核对**的指纹。
+// 真正的授权在执行侧（agentd 的锚），所以吊销公钥不会让已签发的计划失效。
+
+export interface ApproverKeyView {
+  keyId: string;
+  /** `user:<id>` / `role:approver` …（审计与展示） */
+  owner: string;
+  /** DER 的 sha256 前 16 位 hex —— 页面与 `wist-approve key show` 核对的就是它。 */
+  fingerprint: string;
+  addedBy: string;
+  addedAt: string;
+  /** `null` = 生效中。 */
+  revokedAt: string | null;
+}
+
+export function normalizeApproverKey(payload: unknown): ApproverKeyView {
+  const record = requiredRecord(payload, "approverKey");
+  return {
+    keyId: requiredString(record.key_id, "approverKey.key_id"),
+    owner: requiredString(record.owner, "approverKey.owner"),
+    fingerprint: requiredString(record.fingerprint, "approverKey.fingerprint"),
+    addedBy: requiredString(record.added_by, "approverKey.added_by"),
+    addedAt: requiredString(record.added_at, "approverKey.added_at"),
+    revokedAt: optionalStringOrNull(record.revoked_at),
+  };
+}
+
+export async function fetchApproverKeys(): Promise<ApproverKeyView[]> {
+  const payload = await requestJson<unknown>("/api/v1/admin/approver-keys");
+  const record = requiredRecord(payload, "approverKeys");
+  return requiredArrayOf(record.keys, "approverKeys.keys", normalizeApproverKey);
+}
+
+export async function registerApproverKey(input: {
+  keyId: string;
+  owner: string;
+  publicKey: string;
+  /** 重新启用一把**已吊销**的钥匙；不传 = 保持吊销（网关回 409）。 */
+  reactivate?: boolean;
+}): Promise<ApproverKeyView> {
+  const payload = await requestJson<unknown>("/api/v1/admin/approver-keys", {
+    method: "POST",
+    body: JSON.stringify({
+      key_id: input.keyId,
+      owner: input.owner,
+      public_key: input.publicKey,
+      ...(input.reactivate ? { reactivate: true } : {}),
+    }),
+  });
+  return normalizeApproverKey(payload);
+}
+
+export async function revokeApproverKey(keyId: string): Promise<void> {
+  await requestNoContent(
+    `/api/v1/admin/approver-keys/${encodeURIComponent(keyId)}`,
+    { method: "DELETE" },
+  );
+}

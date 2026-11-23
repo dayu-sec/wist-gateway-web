@@ -97,10 +97,13 @@ import {
   fetchActionApprovals,
   fetchActionResult,
   fetchActionResults,
+  fetchApproverKeys,
   fetchPlanTarget,
   fetchResponseGrant,
   issueActionApproval,
   putResponseGrant,
+  registerApproverKey,
+  revokeApproverKey,
   revokeResponseGrant,
   voteActionApproval,
   type GrantStandingWorkCommand,
@@ -2104,5 +2107,47 @@ export function useActionResults(agentId: string | null, limit?: number) {
     queryKey: ["action-results", agentId ?? "", limit ?? "default"],
     queryFn: () => fetchActionResults(agentId as string, limit),
     enabled: authenticated && Boolean(agentId),
+  });
+}
+
+// ── 审批公钥（外部签发）──────────────────────────────────────────────────────
+
+/**
+ * 已登记 / 已吊销的审批公钥。
+ *
+ * 页面在这里只做两件事：导入、吊销 —— 以及把指纹显示给人核对。
+ * **不在这里签名**：私钥在审批人的机器上（`wist-approve`），页面拿不到也不该拿到。
+ */
+export function useApproverKeys() {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["approver-keys"],
+    queryFn: () => fetchApproverKeys(),
+    enabled: authenticated,
+  });
+}
+
+export function useRegisterApproverKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      keyId: string;
+      owner: string;
+      publicKey: string;
+      reactivate?: boolean;
+    }) => registerApproverKey(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["approver-keys"] });
+    },
+  });
+}
+
+export function useRevokeApproverKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (keyId: string) => revokeApproverKey(keyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["approver-keys"] });
+    },
   });
 }

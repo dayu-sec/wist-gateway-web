@@ -1,7 +1,7 @@
 {
   "name": "wist-gateway-web",
   "private": true,
-  "version": "0.43.0",
+  "version": "0.44.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -58,6 +58,7 @@
     "test:response-grant": "tsx tests/response-grant-contract.test.ts",
     "test:launch": "tsx tests/launch-contract.test.ts",
     "test:action-results": "tsx tests/action-results-contract.test.ts",
+    "test:approver-keys": "tsx tests/approver-keys-contract.test.ts",
     "test:agentd-version": "tsx tests/agentd-version.test.ts",
     "test:runtime-status": "tsx tests/runtime-status-contract.test.ts",
     "test:agent-revocation": "tsx tests/agent-revocation-contract.test.ts",
@@ -71,7 +72,8 @@
     "test:agent-logs": "tsx tests/agent-logs-contract.test.ts",
     "test:data-plane-output": "tsx tests/data-plane-output-contract.test.ts",
     "test:log-filter": "tsx tests/log-filter.test.ts",
-    "test:live": "tsx tests/live-gateway-check.ts"
+    "test:live": "tsx tests/live-gateway-check.ts",
+    "test:approver-install": "tsx tests/approver-install-hint.test.ts"
   },
   "dependencies": {
     "@dayu-sec/wist-web-core": "github:dayu-sec/wist-web-core#v0.2.0",

@@ -1,39 +1,34 @@
 import { Fragment, useMemo, useState } from "react";
 import { ApiError } from "../api";
-import {
-  useActionApprovals,
-  useIssueActionApproval,
-  useVoteActionApproval,
-} from "../hooks";
+import { useActionApprovals } from "../hooks";
 import { dateLocale, t } from "../i18n";
 import { describeApprovalError } from "../lib/approvalError";
 import {
   APPROVAL_TABS,
-  allowedActions,
   approvedCount,
   matchesTab,
   shortDigest,
   type ApprovalTab,
 } from "../lib/approvalState";
 import styles from "./SubsystemAgentApprovalPage.module.css";
+import { ApproverInstallHint } from "./ApproverInstallHint";
+import { ApproverKeysSection } from "./ApproverKeysSection";
 
 /**
  * 「响应审批」页（路由 `/approvals`）：把「这台机器上可以做什么」的**决策**摊开。
  *
- * 为什么需要这一页：审批链路的后端端点（创建 / 投票 / 签发）先落地了，但只有 curl 能用 ——
- * 对最终用户来说，「功能存在」与「功能不可用」没有区别。这一页给的是最小可用的决策面：
- * 谁在申请、批的是什么（摘要 + 理由）、够不够人、批完没有。
+ * **本页是只读的**（外部签发之后）：投票与签名都在审批人的机器上用 `wist-approve` 完成。
+ * 页面存在的理由变成三个：
  *
- * 三条刻意写进界面的语义：
+ * 1. **看得见**：谁在申请、批的是什么（摘要 + 理由）、够不够人、签没签；
+ * 2. **给得出命令**：每一行直接给出下一步该敲的命令（带真实审批单号）；
+ * 3. **管得住信任锚**：登记 / 吊销审批公钥，并把指纹显示出来供人核对。
  *
- * 1. **审批绑的是计划内容摘要**（`plan_digest`），不是 `action_id`：批的是「这一份」。
- *    所以签发时内容被改过会被网关拒（`plan_changed_since_approval`），此时只能重新走审批。
- * 2. **投票人来自登录凭据**（Admin Token 的指纹），客户端不能填别人的名字。同一人再投是
- *    **覆盖**，不是加一票 —— 界面上「票数」是人的个数。
- * 3. **`approved` 与 `issued` 是两件事**：批够了只是「可以签」，签了才会真正下发到机器。
- *    签发不可撤回，所以按钮要二次确认。
+ * 为什么不在页面上留「通过 / 签发」按钮：私钥在客户手上，浏览器的页面由我们运维的网关提供，
+ * 留着按钮只会让人以为「点一下就等于签了」。两条审批路径必然有一条会漂。
+ * 设计：`docs/design/plan-external-signing.md` §7。
  *
- * 只做决策，不发起：构造一份 `ActionPlan` 属于「响应发起」流程，不在这一页。
+ * 只做决策面，不发起：构造一份 `ActionPlan` 属于「响应发起」流程，不在这一页。
  */
 
 interface TabSpec {
@@ -130,20 +125,8 @@ function approvalErrorMessage(error: unknown): string {
 
 export function SubsystemAgentApprovalPage() {
   const query = useActionApprovals();
-  const vote = useVoteActionApproval();
-  const issue = useIssueActionApproval();
 
   const [tab, setTab] = useState<ApprovalTab>("pending");
-  // 二次确认只给**不可撤回**的动作：通过（approved 之后不能再改票）与签发（会下发到机器）。
-  //
-  // 只留一个槽位是**刻意**的：任何时刻全局最多一行处于「等你确认」的状态。这样
-  // 不会出现两行同时亮着红色确认按钮、点错行的机会；确认后立刻 dismiss。
-  const [confirming, setConfirming] = useState<{
-    id: string;
-    action: "approve" | "issue";
-  } | null>(null);
-  const [rejecting, setRejecting] = useState<string | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
 
   const tabCopy = approvalTabCopy();
   const approvals = query.data ?? [];
@@ -162,54 +145,22 @@ export function SubsystemAgentApprovalPage() {
     [approvals, tab],
   );
 
-  const actionError = vote.error ?? issue.error;
-  // 全局串行：一次只能有一个动作在飞。审批是低频、单管理员场景，串行换来的是
-  // 「点了哪个、哪条在跑」永远清晰，也让 `actionError` 不会同时挂着两个错误。
-  const busy = vote.isPending || issue.isPending;
   const currentHint = tabCopy[tab].hint;
 
-  function isConfirming(id: string, action: "approve" | "issue"): boolean {
-    return confirming?.id === id && confirming.action === action;
-  }
-
-  /**
-   * 发起一次动作前清掉**另一个** mutation 的错误。
-   *
-   * `actionError` 取 `vote.error ?? issue.error`，而两个 mutation 的 `error` 会一直留到
-   * 下一次同类 mutate / reset 才清。不在这里互清，就会出现「刚才投票 409 → 接着签发成功 →
-   * 顶部红条还在讲投票」的串台。
-   */
-  function startVote(
-    id: string,
-    decision: "approve" | "reject",
-    comment?: string,
-    onSuccess?: () => void,
-  ) {
-    if (busy) return;
-    issue.reset();
-    vote.mutate({ approvalId: id, decision, comment }, { onSuccess });
-  }
-
-  function submitApprove(id: string) {
-    if (busy) return;
-    setConfirming(null);
-    startVote(id, "approve");
-  }
-
-  function submitReject(id: string) {
-    // 表单与理由**成功后才收起**：失败（409 单子刚被别人处理 / 网络断）时保留草稿，
-    // 否则用户写完的理由被清空，得凭记忆重打一遍。
-    startVote(id, "reject", rejectReason, () => {
-      setRejecting(null);
-      setRejectReason("");
-    });
-  }
-
-  function submitIssue(id: string) {
-    if (busy) return;
-    setConfirming(null);
-    vote.reset();
-    issue.mutate(id);
+  /** 给这一行算出「下一步该敲什么」。签发只能由审批机发起（页面没有私钥）。 */
+  function nextStepCommand(approval: {
+    approvalId: string;
+    status: string;
+    issued: boolean;
+  }): string | null {
+    if (approval.issued) return null;
+    if (approval.status === "pending") {
+      return `wist-approve approve ${approval.approvalId}`;
+    }
+    if (approval.status === "approved") {
+      return `wist-approve sign ${approval.approvalId} --key <审批私钥>`;
+    }
+    return null;
   }
 
   return (
@@ -229,16 +180,10 @@ export function SubsystemAgentApprovalPage() {
 
         <p className={styles.note}>
           {t(
-            "审批人身份由 Admin Token 决定，不能代填。当前是单次审批：R2 / R3 都是一人批一次就够，R0 / R1（只读）不进入这里。",
-            "The approver identity comes from the Admin Token and cannot be typed in. This gateway uses single approval: R2 / R3 need one approval each, and R0 / R1 (read-only) never appear here.",
+            "本页只读：投票与签名都在审批人的机器上用 wist-approve 完成（私钥不在网关）。每一行给出了可直接执行的命令；页面底部是「怎么装这个 CLI」和「登记/吊销审批公钥」。",
+            "This page is read-only: voting and signing happen on the approver's machine with wist-approve (the gateway holds no private key). Each row shows the exact command to run; at the bottom you can install the CLI and register or revoke approver keys.",
           )}
         </p>
-
-        {actionError ? (
-          <p className={styles.errorBanner} role="alert">
-            {approvalErrorMessage(actionError)}
-          </p>
-        ) : null}
 
         <div className={styles.tabs}>
           {APPROVAL_TABS.map((tabKey) => {
@@ -253,9 +198,6 @@ export function SubsystemAgentApprovalPage() {
                 }
                 onClick={() => {
                   setTab(tabKey);
-                  // 上一档的操作错误不跟着跑：否则切过来先看到一条与自己无关的红条。
-                  vote.reset();
-                  issue.reset();
                 }}
               >
                 {tabCopy[tabKey].label}
@@ -307,16 +249,12 @@ export function SubsystemAgentApprovalPage() {
                 <th scope="col">{t("申请时间", "Requested")}</th>
                 <th scope="col">{t("过期时间", "Expires")}</th>
                 <th scope="col">{t("理由", "Reason")}</th>
-                <th scope="col">{t("操作", "Actions")}</th>
+                <th scope="col">{t("下一步", "Next step")}</th>
               </tr>
             </thead>
             <tbody>
               {visible.map((approval) => {
-                const actions = allowedActions(approval);
-                // 读屏器在「操作」列里听不到是哪一行；把机器名拼进按钮名，悬停/朗读才能
-                // 区分“通过哪一台”。视觉上不变（表格行本来就在同一行）。
-                const rowLabel = (label: string) =>
-                  `${label} · ${approval.agentId}`;
+                const command = nextStepCommand(approval);
                 return (
                   <Fragment key={approval.approvalId}>
                     <tr>
@@ -360,110 +298,11 @@ export function SubsystemAgentApprovalPage() {
                         {approval.reason ?? "—"}
                       </td>
                       <td className={styles.actions}>
-                        {actions.canApprove ? (
-                          isConfirming(approval.approvalId, "approve") ? (
-                            <>
-                              <button
-                                type="button"
-                                className={styles.primary}
-                                disabled={busy}
-                                aria-label={rowLabel(
-                                  t("确认通过", "Confirm approve"),
-                                )}
-                                onClick={() =>
-                                  submitApprove(approval.approvalId)
-                                }
-                              >
-                                {t("确认通过", "Confirm approve")}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => setConfirming(null)}
-                              >
-                                {t("取消", "Cancel")}
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              className={styles.primary}
-                              disabled={busy}
-                              aria-label={rowLabel(t("通过", "Approve"))}
-                              onClick={() =>
-                                setConfirming({
-                                  id: approval.approvalId,
-                                  action: "approve",
-                                })
-                              }
-                            >
-                              {t("通过", "Approve")}
-                            </button>
-                          )
-                        ) : null}
-                        {actions.canReject ? (
-                          <button
-                            type="button"
-                            className={styles.danger}
-                            disabled={busy}
-                            aria-label={rowLabel(t("驳回", "Reject"))}
-                            onClick={() => {
-                              setRejecting(approval.approvalId);
-                              setRejectReason("");
-                            }}
-                          >
-                            {t("驳回", "Reject")}
-                          </button>
-                        ) : null}
-                        {actions.canIssue ? (
-                          isConfirming(approval.approvalId, "issue") ? (
-                            <>
-                              <button
-                                type="button"
-                                className={styles.primary}
-                                disabled={busy}
-                                aria-label={rowLabel(
-                                  t(
-                                    "确认签发并下发",
-                                    "Confirm sign & dispatch",
-                                  ),
-                                )}
-                                onClick={() => submitIssue(approval.approvalId)}
-                              >
-                                {t("确认签发并下发", "Confirm sign & dispatch")}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => setConfirming(null)}
-                              >
-                                {t("取消", "Cancel")}
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              className={styles.primary}
-                              disabled={busy}
-                              aria-label={rowLabel(
-                                t("签发并下发", "Sign & dispatch"),
-                              )}
-                              onClick={() =>
-                                setConfirming({
-                                  id: approval.approvalId,
-                                  action: "issue",
-                                })
-                              }
-                            >
-                              {t("签发并下发", "Sign & dispatch")}
-                            </button>
-                          )
-                        ) : null}
-                        {!actions.canApprove &&
-                        !actions.canReject &&
-                        !actions.canIssue ? (
+                        {command ? (
+                          <code className={styles.command}>{command}</code>
+                        ) : (
                           <span className={styles.muted}>—</span>
-                        ) : null}
+                        )}
                       </td>
                     </tr>
                     <tr className={styles.detailRow}>
@@ -526,51 +365,18 @@ export function SubsystemAgentApprovalPage() {
                               </span>
                             </span>
                           ) : null}
+                          {approval.status === "pending" &&
+                          !approval.issued ? (
+                            <span className={styles.detailItem}>
+                              <span className={styles.detailKey}>
+                                {t("驳回", "Reject")}
+                              </span>
+                              <code className={styles.command}>
+                                {`wist-approve reject ${approval.approvalId}`}
+                              </code>
+                            </span>
+                          ) : null}
                         </div>
-                        {rejecting === approval.approvalId ? (
-                          <div className={styles.rejectForm}>
-                            <label htmlFor={`reject-${approval.approvalId}`}>
-                              {t(
-                                "驳回理由（可选）",
-                                "Rejection reason (optional)",
-                              )}
-                            </label>
-                            <textarea
-                              id={`reject-${approval.approvalId}`}
-                              className={styles.textarea}
-                              rows={2}
-                              value={rejectReason}
-                              maxLength={500}
-                              // 表单是用户刚点出来的，焦点落到理由框：键盘用户不用再 Tab 一次。
-                              autoFocus
-                              onChange={(event) =>
-                                setRejectReason(event.target.value)
-                              }
-                            />
-                            <div className={styles.rejectActions}>
-                              <button
-                                type="button"
-                                className={styles.danger}
-                                disabled={busy}
-                                onClick={() =>
-                                  submitReject(approval.approvalId)
-                                }
-                              >
-                                {t("确认驳回", "Confirm reject")}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => {
-                                  setRejecting(null);
-                                  setRejectReason("");
-                                }}
-                              >
-                                {t("取消", "Cancel")}
-                              </button>
-                            </div>
-                          </div>
-                        ) : null}
                       </td>
                     </tr>
                   </Fragment>
@@ -579,6 +385,9 @@ export function SubsystemAgentApprovalPage() {
             </tbody>
           </table>
         )}
+        {/* 顺序就是实际流程：装 CLI → 生成钥匙 → 登记公钥（下方区块）。 */}
+        <ApproverInstallHint />
+        <ApproverKeysSection />
       </main>
     </div>
   );

@@ -146,5 +146,11 @@ jobs:
       - name: Contract tests (action-results)
         run: npm run test:action-results
 
+      - name: Contract tests (approver-keys)
+        run: npm run test:approver-keys
+
+      - name: Contract tests (approver install hint)
+        run: npm run test:approver-install
+
       - name: Test (agentd version gate)
         run: npm run test:agentd-version
