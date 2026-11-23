@@ -40,8 +40,8 @@ export function ApproverInstallHint() {
       </h2>
       <p className={styles.hint}>
         {t(
-          "第一次用？这台审批机上还没有 wist-approve 的话，用下面这条命令装（装到 ~/.wist/bin，不需要 sudo；装完把这个目录加进 PATH，脚本会打印那一行）。二进制从本网关下载、不含任何凭据；私钥由你自己在这台机器上生成，不会离开本机。",
-          "First time here? If wist-approve is not on this approval machine yet, install it with the command below (into ~/.wist/bin, no sudo; add that directory to PATH afterwards — the script prints the line). The binary is downloaded from this gateway and carries no credentials; the private key is generated on this machine and never leaves it.",
+          "第一次用？这台审批机上还没有 wist-approve 的话，用下面这条命令装（装到 ~/bin，不需要 sudo；该目录通常已在 PATH 上，脚本会告诉你下一步）。二进制从本网关下载、不含任何凭据；私钥由你自己在这台机器上生成，不会离开本机。",
+          "First time here? If wist-approve is not on this approval machine yet, install it with the command below (into ~/bin, no sudo; that directory is usually already on PATH, and the script tells you the next step). The binary is downloaded from this gateway and carries no credentials; the private key is generated on this machine and never leaves it.",
         )}
       </p>
 
