@@ -123,6 +123,15 @@ assert(
   page.includes("<ApproverInstallHint />"),
   "审批页没有渲染 ApproverInstallHint（组件是死的，界面上看不到）",
 );
+// 安装与公钥是**独立 tab**，不能又挂回表格下面（那会变成两个入口/两块滚动区）。
+assert(
+  page.includes("view === SETUP_TAB"),
+  "「安装与钥匙」必须作为独立 tab 渲染（找不到 SETUP_TAB 分支）",
+);
+assert(
+  page.includes("<ApproverKeysSection />"),
+  "审批公钥区块也应在同一个 tab 里",
+);
 // 只读的约束仍然成立（与 approver-keys 那条源码闸同一理由）。
 for (const forbidden of [
   "useVoteActionApproval",

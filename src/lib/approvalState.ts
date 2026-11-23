@@ -19,6 +19,22 @@ export const APPROVAL_TABS: readonly ApprovalTab[] = [
   "all",
 ];
 
+/**
+ * 页顶 tab 的完整集合：三个**过滤**档 + 一个**设置**档。
+ *
+ * 为什么要分开：`setup` 不是审批单的过滤条件（它不筛 `status`）。把它塞进 `ApprovalTab`
+ * 就会让 `matchesTab` 多出一个分支、`counts` 多出一个永远为 0 的键 —— 那类“类型上对、语义上错”
+ * 的东西迟早会被当真用。
+ */
+export type ApprovalView = ApprovalTab | "setup";
+
+export const APPROVAL_VIEWS: readonly ApprovalView[] = [...APPROVAL_TABS, "setup"];
+
+/** 这个 view 是不是一个审批单过滤档（即：要不要渲染表格 / 算票数）。 */
+export function isApprovalTab(view: ApprovalView): view is ApprovalTab {
+  return view !== "setup";
+}
+
 /** 这张审批单是否属于这个 tab。 */
 export function matchesTab(
   approval: Pick<ActionApprovalView, "status">,

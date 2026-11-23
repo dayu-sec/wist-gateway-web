@@ -1,7 +1,9 @@
 import {
   APPROVAL_TABS,
+  APPROVAL_VIEWS,
   allowedActions,
   approvedCount,
+  isApprovalTab,
   matchesTab,
   shortDigest,
   type ApprovalTab,
@@ -20,6 +22,18 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 const STATUSES = ["pending", "approved", "rejected", "expired", "weird"];
+
+// ── 页顶 tab 的完整集合 ──────────────────────────────────────────────────
+// 三个过滤档 + 一个设置档（安装与钥匙）。“安装与钥匙”不参与审批单过滤。
+assert(
+  JSON.stringify([...APPROVAL_VIEWS]) ===
+    JSON.stringify(["pending", "approved", "all", "setup"]),
+  `页顶 tab 应为 pending/approved/all/setup，现为 ${APPROVAL_VIEWS.join("/")}`,
+);
+for (const tab of APPROVAL_TABS) {
+  assert(isApprovalTab(tab), `过滤档 ${tab} 必须被认作审批单 tab`);
+}
+assert(!isApprovalTab("setup"), "setup 不是审批单过滤档（不能让 matchesTab 去筛它）");
 
 // ── tab 过滤 ────────────────────────────────────────────────────────────────
 // `all` 收全部（含未知状态：宁可显示出来，也不要藏起来）。

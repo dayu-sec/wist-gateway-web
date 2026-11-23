@@ -5,10 +5,13 @@ import { dateLocale, t } from "../i18n";
 import { describeApprovalError } from "../lib/approvalError";
 import {
   APPROVAL_TABS,
+  APPROVAL_VIEWS,
   approvedCount,
+  isApprovalTab,
   matchesTab,
   shortDigest,
   type ApprovalTab,
+  type ApprovalView,
 } from "../lib/approvalState";
 import styles from "./SubsystemAgentApprovalPage.module.css";
 import { ApproverInstallHint } from "./ApproverInstallHint";
@@ -18,11 +21,12 @@ import { ApproverKeysSection } from "./ApproverKeysSection";
  * 「响应审批」页（路由 `/approvals`）：把「这台机器上可以做什么」的**决策**摊开。
  *
  * **本页是只读的**（外部签发之后）：投票与签名都在审批人的机器上用 `wist-approve` 完成。
- * 页面存在的理由变成三个：
+ * 页面存在的理由变成四个：
  *
  * 1. **看得见**：谁在申请、批的是什么（摘要 + 理由）、够不够人、签没签；
  * 2. **给得出命令**：每一行直接给出下一步该敲的命令（带真实审批单号）；
- * 3. **管得住信任锚**：登记 / 吊销审批公钥，并把指纹显示出来供人核对。
+ * 3. **装得上**：「安装与钥匙」tab 给出 CLI 的安装命令（基址取网关对外地址）；
+ * 4. **管得住信任锚**：同一 tab 里登记 / 吊销审批公钥，并显示指纹供人核对。
  *
  * 为什么不在页面上留「通过 / 签发」按钮：私钥在客户手上，浏览器的页面由我们运维的网关提供，
  * 留着按钮只会让人以为「点一下就等于签了」。两条审批路径必然有一条会漂。
@@ -34,6 +38,19 @@ import { ApproverKeysSection } from "./ApproverKeysSection";
 interface TabSpec {
   label: string;
   hint: string;
+}
+
+/** 「安装与钥匙」tab：放的是装 CLI 与登记公钥，不是审批单的过滤结果。 */
+const SETUP_TAB = "setup" as const;
+
+function setupTabCopy(): TabSpec {
+  return {
+    label: t("安装与钥匙", "Setup & keys"),
+    hint: t(
+      "先把审批终端装到审批机上，再把它的公钥登记到这里。签名发生在审批机，本页只登记公钥、显示指纹。",
+      "Install the approval CLI on the approver's machine, then register its public key here. Signing happens on that machine; this page only registers the key and shows its fingerprint.",
+    ),
+  };
 }
 
 /**
@@ -126,12 +143,14 @@ function approvalErrorMessage(error: unknown): string {
 export function SubsystemAgentApprovalPage() {
   const query = useActionApprovals();
 
-  const [tab, setTab] = useState<ApprovalTab>("pending");
+  const [view, setView] = useState<ApprovalView>("pending");
 
   const tabCopy = approvalTabCopy();
+  const setupCopy = setupTabCopy();
   const approvals = query.data ?? [];
 
   // 计数从 `APPROVAL_TABS` 生成：与 tab 列表同一来源，加 tab 时不会漏掉计数。
+  // `setup` 不参与 —— 它不是审批单的过滤条件。
   const counts = useMemo(() => {
     const result = {} as Record<ApprovalTab, number>;
     for (const key of APPROVAL_TABS) {
@@ -141,11 +160,14 @@ export function SubsystemAgentApprovalPage() {
   }, [approvals]);
 
   const visible = useMemo(
-    () => approvals.filter((item) => matchesTab(item, tab)),
-    [approvals, tab],
+    () =>
+      isApprovalTab(view)
+        ? approvals.filter((item) => matchesTab(item, view))
+        : [],
+    [approvals, view],
   );
 
-  const currentHint = tabCopy[tab].hint;
+  const currentHint = isApprovalTab(view) ? tabCopy[view].hint : setupCopy.hint;
 
   /** 给这一行算出「下一步该敲什么」。签发只能由审批机发起（页面没有私钥）。 */
   function nextStepCommand(approval: {
@@ -180,35 +202,45 @@ export function SubsystemAgentApprovalPage() {
 
         <p className={styles.note}>
           {t(
-            "本页只读：投票与签名都在审批人的机器上用 wist-approve 完成（私钥不在网关）。每一行给出了可直接执行的命令；页面底部是「怎么装这个 CLI」和「登记/吊销审批公钥」。",
-            "This page is read-only: voting and signing happen on the approver's machine with wist-approve (the gateway holds no private key). Each row shows the exact command to run; at the bottom you can install the CLI and register or revoke approver keys.",
+            "本页只读：投票与签名都在审批人的机器上用 wist-approve 完成（私钥不在网关）。每一行给出了可直接执行的命令；装 CLI 与登记审批公钥在「安装与钥匙」标签页。",
+            "This page is read-only: voting and signing happen on the approver's machine with wist-approve (the gateway holds no private key). Each row shows the exact command to run; install the CLI and register approver keys under “Setup & keys”.",
           )}
         </p>
 
         <div className={styles.tabs}>
-          {APPROVAL_TABS.map((tabKey) => {
-            const active = tabKey === tab;
+          {APPROVAL_VIEWS.map((key) => {
+            const active = key === view;
+            const spec = isApprovalTab(key) ? tabCopy[key] : setupCopy;
             return (
               <button
-                key={tabKey}
+                key={key}
                 type="button"
                 aria-pressed={active}
                 className={
                   active ? `${styles.tab} ${styles.tabActive}` : styles.tab
                 }
                 onClick={() => {
-                  setTab(tabKey);
+                  setView(key);
                 }}
               >
-                {tabCopy[tabKey].label}
-                <span className={styles.tabCount}>{counts[tabKey]}</span>
+                {spec.label}
+                {isApprovalTab(key) ? (
+                  <span className={styles.tabCount}>{counts[key]}</span>
+                ) : null}
               </button>
             );
           })}
         </div>
         <p className={styles.tabHint}>{currentHint}</p>
 
-        {query.isError ? (
+        {view === SETUP_TAB ? (
+          // 「安装与钥匙」：不拉审批单的过滤结果，所以不参与上面的 isError/isLoading 分支
+          //（两个区块自己处理自己的读取失败）。
+          <>
+            <ApproverInstallHint />
+            <ApproverKeysSection />
+          </>
+        ) : query.isError ? (
           // 读取失败时不再往下渲染空态：“加载失败”与“这里没有审批单”同时出现，
           // 会让人以为“真的没有待批”。
           <p className={styles.errorBanner} role="alert">
@@ -222,7 +254,7 @@ export function SubsystemAgentApprovalPage() {
           <div className={styles.empty}>
             <strong>{t("这里没有审批单", "No approvals here")}</strong>
             <span>
-              {tab === "pending"
+              {view === "pending"
                 ? t(
                     "没有等着批的计划。需要处置机器时，由响应发起流程提交计划后才会出现在这里。",
                     "No plan is waiting for approval. Plans appear here only after the response flow submits them.",
@@ -385,9 +417,6 @@ export function SubsystemAgentApprovalPage() {
             </tbody>
           </table>
         )}
-        {/* 顺序就是实际流程：装 CLI → 生成钥匙 → 登记公钥（下方区块）。 */}
-        <ApproverInstallHint />
-        <ApproverKeysSection />
       </main>
     </div>
   );
