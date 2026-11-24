@@ -1,0 +1,110 @@
+/* 审批终端档：栅格与行外观逐项对齐 agentd 档（`SubsystemAgentPackages.module.css` 的
+   `.registryHeader` / `.registryRow`），只换列宽 —— 这里「平台」只有 1 个 chip，宽度让给
+   「来源」，末列是行内操作。 */
+
+.header {
+  display: grid;
+  grid-template-columns:
+    minmax(96px, 0.6fr) minmax(108px, 0.75fr) minmax(150px, 0.9fr)
+    minmax(88px, 0.5fr) minmax(220px, 1.8fr) minmax(84px, 0.45fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 10px;
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.row {
+  display: grid;
+  grid-template-columns:
+    minmax(96px, 0.6fr) minmax(108px, 0.75fr) minmax(150px, 0.9fr)
+    minmax(88px, 0.5fr) minmax(220px, 1.8fr) minmax(84px, 0.45fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  font-size: 12px;
+}
+
+.loading {
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* 来源 + 一行附注（摘要 · 录入时间）：来源是长 URL，整行省略、完整值放 title。 */
+.source {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sourceUrl {
+  overflow: hidden;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceMeta {
+  color: var(--text-4);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* 行内操作：agentd 档没有这一列，所以按钮做小一号，别把栅格撑高。 */
+.danger {
+  margin-right: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--crit);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.plain {
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.danger:disabled,
+.plain:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+/* 窄屏：与 agentd 档一样把栅格压成两列（组件/版本 一行，其余堆下面）。 */
+@media (max-width: 1040px) {
+  .header {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .source,
+  .row > span:last-child {
+    grid-column: 1 / -1;
+  }
+}

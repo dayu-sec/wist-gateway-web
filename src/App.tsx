@@ -8,6 +8,7 @@ import { SubsystemGatewayInfoPage } from "./components/SubsystemGatewayInfoPage"
 import { SubsystemGatewayStatusPage } from "./components/SubsystemGatewayStatusPage";
 import { SubsystemAgentPackageListPage } from "./components/SubsystemAgentPackageListPage";
 import { SubsystemAgentPackageAddPage } from "./components/SubsystemAgentPackageAddPage";
+import { SubsystemApproverPackagePage } from "./components/SubsystemApproverPackagePage";
 import { SubsystemKnowledgePage } from "./components/SubsystemKnowledgePage";
 import { SubsystemKafkaAccessPage } from "./components/SubsystemKafkaAccessPage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
@@ -44,6 +45,10 @@ export function App() {
         <Route
           path="/install-package/add"
           element={<SubsystemAgentPackageAddPage />}
+        />
+        <Route
+          path="/install-package/approver"
+          element={<SubsystemApproverPackagePage />}
         />
         <Route path="/knowledge" element={<SubsystemKnowledgePage />} />
         <Route

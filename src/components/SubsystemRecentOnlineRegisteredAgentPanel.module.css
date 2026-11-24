@@ -21,13 +21,6 @@
   font-weight: 700;
 }
 
-.summary {
-  margin-top: 4px;
-  color: var(--text-2);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
 .count {
   flex: 0 0 auto;
   padding: 3px 9px;

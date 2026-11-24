@@ -32,13 +32,6 @@
   letter-spacing: -0.01em;
 }
 
-.pageSummary {
-  max-width: var(--prose-max);
-  margin-top: 6px;
-  color: var(--text-3);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-}
 
 .pageHeaderActions {
   flex: 0 0 auto;
@@ -121,13 +114,6 @@
   font-weight: 700;
 }
 
-.selectorHint {
-  max-width: 760px;
-  margin-top: 4px;
-  color: var(--text-3);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
 
 .selectorSearch {
   flex: 0 0 auto;
@@ -838,12 +824,6 @@
   min-width: 0;
 }
 
-.refreshLead {
-  color: var(--text-2);
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.5;
-}
 
 .refreshSummary {
   display: flex;
@@ -1349,12 +1329,6 @@
   font-weight: 700;
 }
 
-.welcomeText {
-  max-width: 560px;
-  color: var(--text-3);
-  font-size: 12.5px;
-  line-height: 1.65;
-}
 
 .welcomeSteps {
   display: flex;

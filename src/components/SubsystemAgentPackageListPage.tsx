@@ -1,6 +1,10 @@
 import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
-import { useAgentInstallPackage, useInstallPackages } from "../hooks";
+import {
+  useAgentInstallPackage,
+  useApproverPackages,
+  useInstallPackages,
+} from "../hooks";
 import { t } from "../i18n";
 import { AGENTD_PLATFORMS, platformLabel } from "./agentPackagePlatforms";
 import {
@@ -12,6 +16,7 @@ import {
 import { CompatibilityBadge, CompatibilityDetail } from "./Compatibility";
 import { compatSummary } from "./compatReport";
 import { LoadNotice, timestampText } from "./agentPackageUi";
+import { ApproverPackageRegistry } from "./ApproverPackageRegistry";
 import styles from "./SubsystemAgentPackages.module.css";
 
 /** 网关只托管 agentd 这一个组件（中心的「已托管包」表有五个组件，这里只有一行的那一个）。 */
@@ -57,8 +62,11 @@ function statusClass(status: ManagedPackageStatus): string {
 export function SubsystemAgentPackageListPage() {
   const installPackage = useAgentInstallPackage();
   const packages = useInstallPackages();
+  const approverPackages = useApproverPackages();
   // 展开的兼容性详情（key = 版本）：一行一个版本。
   const [expanded, setExpanded] = useState<string | null>(null);
+  // 「已托管包」的两档：agentd 按版本托管，审批终端只有「当前那一份」，行语义不同，所以分档看。
+  const [kind, setKind] = useState<"agentd" | "approver">("agentd");
 
   const current = installPackage.data?.packages ?? [];
   const history = packages.data ?? [];
@@ -75,13 +83,9 @@ export function SubsystemAgentPackageListPage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>{t("安装包管理", "Install packages")}</h1>
-          <p className={styles.pageSummary}>
-            {t(
-              "网关已托管的安装包一览：组件、版本、平台、状态与录入时间。录入新版本见「安装包录入」。",
-              "Packages hosted by this gateway: component, version, platforms, status and record time. Use Install package entry for a new version.",
-            )}
-          </p>
+          <h1 className={styles.pageTitle}>
+            {t("安装包管理", "Install packages")}
+          </h1>
         </header>
 
         <div className={`${styles.pageActions} ${styles.pageActionsEnd}`}>
@@ -93,27 +97,83 @@ export function SubsystemAgentPackageListPage() {
           <Link className={styles.actionLink} to="/install-package/add">
             {t("安装包录入", "Install package entry")}
           </Link>
+          <Link className={styles.actionLink} to="/install-package/approver">
+            {t("审批终端安装包", "Approval CLI packages")}
+          </Link>
         </div>
 
-        <section className={styles.card} aria-labelledby="install-package-registry">
+        <section
+          className={styles.card}
+          aria-labelledby="install-package-registry"
+        >
           <header className={styles.cardHead}>
-            <h2 id="install-package-registry">{t("已托管包", "Hosted packages")}</h2>
+            <h2 id="install-package-registry">
+              {t("已托管包", "Hosted packages")}
+            </h2>
             <p>
-              {t(
-                "共 {n} 个版本，在用 {m} 个。",
-                "{n} versions, {m} in use.",
-                { n: rows.length, m: activePackageCount(rows) },
-              )}
+              {kind === "agentd"
+                ? t(
+                    "共 {n} 个版本，在用 {m} 个。",
+                    "{n} versions, {m} in use.",
+                    {
+                      n: rows.length,
+                      m: activePackageCount(rows),
+                    },
+                  )
+                : approverPackages.isLoading
+                  ? t("正在读取…", "Loading…")
+                  : t("共 {n} 个平台。", "{n} platform(s).", {
+                      n: approverPackages.data?.length ?? 0,
+                    })}
             </p>
           </header>
 
-          {loading || error ? (
+          {/* 两档放在同一张卡里：都是「网关现在托管着什么」这个问题，只是包的类型不同。 */}
+          <div
+            className={styles.cardTabs}
+            role="tablist"
+            aria-label={t("包类型", "Package kind")}
+          >
+            {(
+              [
+                { id: "agentd", label: "WistAgentd" },
+                {
+                  id: "approver",
+                  label: t(
+                    "审批终端（wist-approve）",
+                    "Approval CLI (wist-approve)",
+                  ),
+                },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={kind === item.id}
+                className={
+                  kind === item.id
+                    ? `${styles.cardTab} ${styles.cardTabActive}`
+                    : styles.cardTab
+                }
+                onClick={() => setKind(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {kind === "approver" ? (
+            <ApproverPackageRegistry />
+          ) : loading || error ? (
             <div className={styles.noticeBlock}>
               <LoadNotice loading={loading} error={error} />
             </div>
           ) : rows.length === 0 ? (
             <div className={styles.packageEmpty}>
-              <strong>{t("包目录还是空的", "The package catalog is still empty")}</strong>
+              <strong>
+                {t("包目录还是空的", "The package catalog is still empty")}
+              </strong>
               <span>
                 {t(
                   "在「安装包录入」填一次来源，网关就会把制品读进这里。",
@@ -138,7 +198,9 @@ export function SubsystemAgentPackageListPage() {
                       <strong className={styles.registryComponent}>
                         {COMPONENT_NAME}
                       </strong>
-                      <span className={styles.registryVersion}>{row.version}</span>
+                      <span className={styles.registryVersion}>
+                        {row.version}
+                      </span>
                       <span className={styles.registryPlatform}>
                         {row.platforms.map((platform, index) => (
                           <span
@@ -209,7 +271,9 @@ export function SubsystemAgentPackageListPage() {
                       "Platforms without a package in use: ",
                     )}
                     <span className={styles.registryMissing}>
-                      {missing.map((platform) => platformLabel(platform)).join(" / ")}
+                      {missing
+                        .map((platform) => platformLabel(platform))
+                        .join(" / ")}
                     </span>
                     {t(
                       " —— 这些平台上新签发的安装命令会明确报错（不会默默给旧包）。",

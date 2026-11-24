@@ -121,12 +121,6 @@ export function SubsystemAgentFleetPage() {
       <main className={styles.main}>
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>{t("Agent 列表", "Agent fleet")}</h1>
-          <p className={styles.pageSummary}>
-            {t(
-              "网关在册的 Agent（含离线）。离线机器可以删除 —— 删除不可恢复，会连同它的实例、凭据与所有派生态数据一起清掉，所以要两次确认。",
-              "Agents enrolled with the gateway (including offline ones). Offline machines can be deleted — deletion is irreversible and clears the instance, credentials and all derived-state data along with it, hence the double confirmation.",
-            )}
-          </p>
         </header>
 
         {agents.isLoading || agents.isError ? (

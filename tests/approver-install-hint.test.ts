@@ -26,7 +26,10 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 function readSource(relative: string): string {
-  return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
+  return readFileSync(
+    fileURLToPath(new URL(relative, import.meta.url)),
+    "utf8",
+  );
 }
 
 // ── 1. triple 表 ────────────────────────────────────────────────────────────
@@ -75,9 +78,10 @@ assert(
   "基址末尾的 / 必须被消掉",
 );
 assert(
-  approverInstallCommand("  https://gw.example//  ", "aarch64-apple-darwin").includes(
-    "'https://gw.example/api/v1/approver/install/",
-  ),
+  approverInstallCommand(
+    "  https://gw.example//  ",
+    "aarch64-apple-darwin",
+  ).includes("'https://gw.example/api/v1/approver/install/"),
   "基址两端的空白与多余斜杠都要去掉",
 );
 
@@ -89,13 +93,15 @@ assert(
   "Mac 应预选 darwin（本版只出 Apple 芯片制品）",
 );
 assert(
-  detectApproverPlatform("Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36") ===
-    "aarch64-unknown-linux-musl",
+  detectApproverPlatform(
+    "Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36",
+  ) === "aarch64-unknown-linux-musl",
   "Linux arm64 应预选 aarch64 musl",
 );
 assert(
-  detectApproverPlatform("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36") ===
-    "x86_64-unknown-linux-musl",
+  detectApproverPlatform(
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+  ) === "x86_64-unknown-linux-musl",
   "Linux x86_64 应预选 x86_64 musl",
 );
 assert(
@@ -123,14 +129,37 @@ assert(
   page.includes("<ApproverInstallHint />"),
   "审批页没有渲染 ApproverInstallHint（组件是死的，界面上看不到）",
 );
-// 安装与公钥是**独立 tab**，不能又挂回表格下面（那会变成两个入口/两块滚动区）。
+// 「安装与钥匙」是**页面顶部**的独立入口：不能混进审批单过滤 tab 条（它不是一种状态，
+// 也不该带计数），也不能又挂回表格下面（那会变成两个入口/两块滚动区）。
 assert(
   page.includes("view === SETUP_TAB"),
-  "「安装与钥匙」必须作为独立 tab 渲染（找不到 SETUP_TAB 分支）",
+  "「安装与钥匙」必须切换到独立视图（找不到 SETUP_TAB 分支）",
+);
+assert(
+  page.includes("styles.viewTab"),
+  "「安装与钥匙」必须是页面级 tab（styles.viewTab），与「响应审批」同一条 tab 栏",
+);
+assert(
+  page.includes("styles.viewTabs"),
+  "页面级 tab 栏需要 viewTabs 容器（否则两个 tab 不成栏）",
+);
+assert(
+  page.includes("APPROVAL_TABS.map("),
+  "tab 条只能渲染审批单过滤档（APPROVAL_TABS），不能把 setup 混进去",
 );
 assert(
   page.includes("<ApproverKeysSection />"),
-  "审批公钥区块也应在同一个 tab 里",
+  "审批公钥区块应在同一个设置视图里",
+);
+// 审批终端安装包的**录入**在「安装包」页（/install-package），不在审批页 ——
+// 审批页只负责“装得上 + 有命令”，包本身是包管理对象。
+assert(
+  !page.includes("<ApproverPackageSection />"),
+  "审批终端安装包的录入入口在「安装包」页，不该再出现在审批页",
+);
+assert(
+  hint.includes('to="/install-package/approver"'),
+  "审批页必须给出「审批终端安装包」页的交叉入口（否则 503 时现场无处可修）",
 );
 // 只读的约束仍然成立（与 approver-keys 那条源码闸同一理由）。
 for (const forbidden of [
@@ -148,8 +177,12 @@ const pkg = JSON.parse(readSource("../package.json")) as {
   scripts: Record<string, string>;
 };
 assert(
-  pkg.scripts["test:approver-install"]?.includes("approver-install-hint.test.ts"),
+  pkg.scripts["test:approver-install"]?.includes(
+    "approver-install-hint.test.ts",
+  ),
   "package.json 缺 test:approver-install 脚本",
 );
 
-console.log("ok: 审批终端安装提示（triple 白名单 / 命令形状 / 基址来源 / 页面挂载）");
+console.log(
+  "ok: 审批终端安装提示（triple 白名单 / 命令形状 / 基址来源 / 页面挂载）",
+);

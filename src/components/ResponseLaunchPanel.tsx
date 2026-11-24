@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
   dispatchActionPlan,
   getAdminApiToken,
   submitActionApproval,
-  type ActionPlanPayload,
-  type PlanTargetView,
+  type ActionResultView,
 } from "../api";
 import {
   useActionResult,
@@ -17,6 +16,12 @@ import {
 } from "../hooks";
 import { t, dateLocale } from "../i18n";
 import { MIN_EXEC_AGENTD, execGate } from "../lib/agentdVersion";
+import {
+  RESULT_LIST_LIMIT,
+  buildResponsePlan,
+  isResponseGrantError,
+  pinnedActionId,
+} from "../lib/responseLaunch";
 import styles from "./ResponseLaunchPanel.module.css";
 
 /**
@@ -50,6 +55,24 @@ function targetLabel(target: CleanupTarget): string {
   return target === "tmp"
     ? t("临时目录（/tmp、/var/tmp）", "Temp dirs (/tmp, /var/tmp)")
     : t("已轮转日志（/var/log）", "Rotated logs (/var/log)");
+}
+
+/**
+ * 失败的两种形态：可自解释的文字，和「得先去签一张授权单」这一类。
+ *
+ * `needsGrant` 的判定在 `lib/responseLaunch`（判 code，不判文案），这里只负责把
+ * 它和渲染期才能算的文案拼起来。
+ */
+interface LaunchError {
+  message: string;
+  needsGrant: boolean;
+}
+
+function toLaunchError(error: unknown): LaunchError {
+  return {
+    message: launchErrorMessage(error),
+    needsGrant: isResponseGrantError(error),
+  };
 }
 
 function launchErrorMessage(error: unknown): string {
@@ -119,59 +142,6 @@ function launchErrorMessage(error: unknown): string {
 
 function shortActionId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}`;
-}
-
-function buildPlan(input: {
-  target: PlanTargetView;
-  op: string;
-  risk: "R0" | "R2";
-  args: Record<string, unknown>;
-  actionId: string;
-  reason: string | null;
-}): ActionPlanPayload {
-  const now = new Date();
-  const expires = new Date(now.getTime() + 30 * 60 * 1000);
-  return {
-    api_version: "v1",
-    kind: "action_plan",
-    meta: {
-      action_id: input.actionId,
-      request_id: input.actionId,
-      template_id: null,
-      tenant_id: "tenant-default",
-      environment_id: "env-default",
-      plan_version: 1,
-      compiled_at: now.toISOString(),
-      expires_at: expires.toISOString(),
-    },
-    target: {
-      agent_id: input.target.agentId,
-      instance_id: input.target.instanceId,
-      node_id: input.target.nodeId,
-      host_name: input.target.hostName,
-      platform: input.target.platform,
-      arch: input.target.arch,
-      selectors: {},
-    },
-    constraints: {
-      risk_level: input.risk,
-      approval_ref: null,
-      approval_mode: "not_required",
-      requested_by: "admin-ui",
-      reason: input.reason,
-      max_total_duration_ms: 60_000,
-      step_timeout_default_ms: 30_000,
-      execution_profile: "agent_exec_v1",
-      required_capabilities: [input.op],
-    },
-    program: {
-      entry: "s1",
-      steps: [
-        { id: "s1", kind: "invoke", op: input.op, args: input.args },
-        { id: "s2", kind: "output", op: null },
-      ],
-    },
-  };
 }
 
 export function ResponseLaunchPanel({
@@ -279,7 +249,7 @@ function CleanupForm({
   const [submitting, setSubmitting] = useState<"preview" | "apply" | null>(
     null,
   );
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<LaunchError | null>(null);
   const [submittedApprovalId, setSubmittedApprovalId] = useState<string | null>(
     null,
   );
@@ -313,7 +283,7 @@ function CleanupForm({
     setSubmitting("preview");
     try {
       const actionId = shortActionId("act_preview");
-      const plan = buildPlan({
+      const plan = buildResponsePlan({
         target,
         op: "disk.cleanup.preview",
         risk: "R0",
@@ -327,7 +297,7 @@ function CleanupForm({
       await dispatchActionPlan(agentId, plan);
       setPreviewActionId(actionId);
     } catch (err) {
-      setError(launchErrorMessage(err));
+      setError(toLaunchError(err));
     } finally {
       setSubmitting(null);
     }
@@ -340,7 +310,7 @@ function CleanupForm({
     setSubmitting("apply");
     try {
       const actionId = shortActionId("act_apply");
-      const plan = buildPlan({
+      const plan = buildResponsePlan({
         target,
         op: "disk.cleanup.apply",
         risk: "R2",
@@ -360,7 +330,7 @@ function CleanupForm({
       );
       setSubmittedApprovalId(approval.approvalId);
     } catch (err) {
-      setError(launchErrorMessage(err));
+      setError(toLaunchError(err));
     } finally {
       setSubmitting(null);
     }
@@ -509,7 +479,15 @@ function CleanupForm({
 
       {error ? (
         <p className={styles.error} role="alert">
-          {error}
+          {error.message}
+          {error.needsGrant ? (
+            <>
+              {" "}
+              <Link className={styles.errorAction} to="/authorization?tab=response">
+                {t("去签响应授权单 →", "Issue a response grant →")}
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
 
@@ -784,9 +762,25 @@ function CleanupListing({
  * 用户执行成功后找不到任何反馈。结果恰恰是复核与审计要反复看的东西。
  */
 function RecentResults({ agentId }: { agentId: string }) {
-  const query = useActionResults(agentId);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  // 列表默认只取 10 条（网关默认），而「详情」里链接的可能是更早的一次执行。
+  // 取到网关允许的最大值，剩下的用下面那条单条读取兜底。
+  const query = useActionResults(agentId, RESULT_LIST_LIMIT);
+  const [searchParams] = useSearchParams();
+  // `?action=<id>`：任务队列行的「详情」跳进来时，直接展开那一条。
+  // 同一台机器可能跑过很多次，落到哪一条必须由调用方指定，不能靠“最新一条”猜。
+  const requestedAction = (searchParams.get("action") ?? "").trim();
+  const [expanded, setExpanded] = useState<string | null>(
+    requestedAction || null,
+  );
+  useEffect(() => {
+    if (requestedAction) setExpanded(requestedAction);
+  }, [requestedAction]);
   const results = query.data?.results ?? [];
+  // 目标动作不在列表里（超出窗口 / 保留期）就单条读：
+  // 不这么做的话，「详情」点进来会是一个什么都不展开的空白页。
+  const pinnedId = pinnedActionId(results, requestedAction);
+  const pinnedQuery = useActionResult(agentId, pinnedId);
+  const pinned = pinnedQuery.data ?? null;
 
   return (
     <div className={styles.recent}>
@@ -812,7 +806,7 @@ function RecentResults({ agentId }: { agentId: string }) {
         <p className={styles.error}>{launchErrorMessage(query.error)}</p>
       ) : null}
 
-      {!query.isLoading && results.length === 0 ? (
+      {!query.isLoading && results.length === 0 && !pinned && !requestedAction ? (
         <p className={styles.note}>
           {t(
             "这台机器还没有执行结果。预览或清理命令执行完成后会出现在这里。",
@@ -821,51 +815,85 @@ function RecentResults({ agentId }: { agentId: string }) {
         </p>
       ) : null}
 
-      {results.length > 0 ? (
+      {results.length > 0 || pinned ? (
         <ul className={styles.recentList}>
-          {results.map((item) => {
-            const open = expanded === item.actionId;
-            return (
-              <li key={item.actionId} className={styles.recentItem}>
-                <button
-                  type="button"
-                  className={styles.recentToggle}
-                  aria-expanded={open}
-                  onClick={() => setExpanded(open ? null : item.actionId)}
-                >
-                  <span className={statusBadgeClass(item.finalStatus)}>
-                    {item.finalStatus}
-                  </span>
-                  <span className={styles.mono}>{item.actionId}</span>
-                  <span className={styles.recentTime}>
-                    {formatTimestamp(item.receivedAt)}
-                  </span>
-                  <span className={styles.recentChevron}>
-                    {open ? "▾" : "▸"}
-                  </span>
-                </button>
-                {open ? (
-                  <div className={styles.recentDetail}>
-                    <CleanupListing
-                      report={item.report}
-                      finalStatus={item.finalStatus}
-                    />
-                    <p className={styles.recentFoot}>
-                      {t("execution {exec}", "execution {exec}", {
-                        exec: item.executionId,
-                      })}
-                      {" · "}
-                      {t("plan {digest}", "plan {digest}", {
-                        digest: item.planDigest,
-                      })}
-                    </p>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
+          {/* 指定了 `?action=` 但它不在最近窗口里：把它钉在最上面，别让人对着一页空白。 */}
+          {pinned ? (
+            <ResultRow
+              item={pinned}
+              open={expanded === pinned.actionId}
+              onToggle={() =>
+                setExpanded(expanded === pinned.actionId ? null : pinned.actionId)
+              }
+            />
+          ) : null}
+          {results.map((item) => (
+            <ResultRow
+              key={item.actionId}
+              item={item}
+              open={expanded === item.actionId}
+              onToggle={() =>
+                setExpanded(expanded === item.actionId ? null : item.actionId)
+              }
+            />
+          ))}
         </ul>
       ) : null}
+
+      {pinnedId && pinnedQuery.isError ? (
+        <p className={styles.note}>
+          {t(
+            "没找到这条执行结果（{id}）：可能超出保留期，或这台机器还没回报。",
+            "No result for {id}: it may be past the retention window, or the agent has not reported yet.",
+            { id: pinnedId },
+          )}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+/** 单条执行结果的折叠行（列表项与「详情」钉住项共用同一套渲染）。 */
+function ResultRow({
+  item,
+  open,
+  onToggle,
+}: {
+  item: ActionResultView;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <li className={styles.recentItem}>
+      <button
+        type="button"
+        className={styles.recentToggle}
+        aria-expanded={open}
+        onClick={onToggle}
+      >
+        <span className={statusBadgeClass(item.finalStatus)}>
+          {item.finalStatus}
+        </span>
+        <span className={styles.mono}>{item.actionId}</span>
+        <span className={styles.recentTime}>
+          {formatTimestamp(item.receivedAt)}
+        </span>
+        <span className={styles.recentChevron}>{open ? "▾" : "▸"}</span>
+      </button>
+      {open ? (
+        <div className={styles.recentDetail}>
+          <CleanupListing report={item.report} finalStatus={item.finalStatus} />
+          <p className={styles.recentFoot}>
+            {t("execution {exec}", "execution {exec}", {
+              exec: item.executionId,
+            })}
+            {" · "}
+            {t("plan {digest}", "plan {digest}", {
+              digest: item.planDigest,
+            })}
+          </p>
+        </div>
+      ) : null}
+    </li>
   );
 }

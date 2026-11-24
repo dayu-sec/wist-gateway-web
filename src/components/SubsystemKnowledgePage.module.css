@@ -16,15 +16,6 @@
   margin-bottom: 22px;
 }
 
-/* 标题行：「更新知识库」主按钮常驻在这里 —— 它不能只在「录入」tab 里出现，
-   否则运维一进页看不到入口，会以为功能不存在。 */
-.pageHeaderRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 /* 出厂初始内容 / 空载时的引导条：状态说明 + 下一步 CTA。 */
 .updateGuide {
   display: flex;
@@ -61,14 +52,6 @@
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: -0.01em;
-}
-
-.pageSummary {
-  margin-top: 7px;
-  color: var(--text-3);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-  max-width: var(--prose-max);
 }
 
 /* 一张卡 = 一段内容：卡头（标题 + 一行说明）+ 卡体。卡与卡之间留 18px（同安装包页）。 */

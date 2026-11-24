@@ -98,11 +98,14 @@ import {
   fetchActionResult,
   fetchActionResults,
   fetchApproverKeys,
+  fetchApproverPackages,
   fetchPlanTarget,
   fetchResponseGrant,
   issueActionApproval,
   putResponseGrant,
   registerApproverKey,
+  registerApproverPackage,
+  removeApproverPackage,
   revokeApproverKey,
   revokeResponseGrant,
   voteActionApproval,
@@ -2148,6 +2151,43 @@ export function useRevokeApproverKey() {
     mutationFn: (keyId: string) => revokeApproverKey(keyId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["approver-keys"] });
+    },
+  });
+}
+
+/**
+ * 审批终端安装包（网关包管理）：三个平台各自的来源与缓存状态。
+ * 不轮询：录入 / 撤销成功后失效重取。
+ */
+export function useApproverPackages() {
+  const authenticated = useAdminQueryEnabled();
+  return useQuery({
+    queryKey: ["approver-packages"],
+    queryFn: () => fetchApproverPackages(),
+    enabled: authenticated,
+  });
+}
+
+export function useRegisterApproverPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      platform: string;
+      source: string;
+      packageSha256?: string;
+    }) => registerApproverPackage(input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["approver-packages"] });
+    },
+  });
+}
+
+export function useRemoveApproverPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (platform: string) => removeApproverPackage(platform),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["approver-packages"] });
     },
   });
 }

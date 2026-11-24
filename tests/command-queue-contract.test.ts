@@ -3,16 +3,20 @@ import {
   normalizeAgentCommandQueue,
   setAdminApiToken,
 } from "../src/api/admin";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   commandAgeLabel,
   commandKindLabel,
   commandKindRoute,
+  commandResultRoute,
   commandSourceLabel,
   isAgentCommandQueueFilter,
   outcomeLabel,
   outcomeTone,
   queueStateLabel,
   queueStateTone,
+  receiptNote,
 } from "../src/lib/commandQueue";
 
 // 契约测试：「任务队列」的读写路径与响应形状（网关 0.44+ 的两条只读口）。
@@ -69,6 +73,7 @@ function item(overrides: Record<string, unknown> = {}) {
     acknowledged_at: null,
     outcome: null,
     detail: null,
+    action_id: null,
     ...overrides,
   };
 }
@@ -200,6 +205,37 @@ async function main() {
     assert(threw, `counts 不可读时应抛错：${JSON.stringify(broken)}`);
   }
 
+  // ③d 计划类命令的 `action_id`：队列行只有一行回执，删了什么 / 为什么失败
+  // 在执行结果里 —— 页面靠它跳过去，所以必须原样透传（其它种类恒为 null）。
+  const planView = normalizeAgentCommandQueue({
+    state: "acked",
+    counts: { queued: 0, claimed: 0 },
+    commands: [
+      item({
+        kind: "action_plan",
+        state: "acked",
+        outcome: "succeeded",
+        action_id: "act_canary_1",
+      }),
+    ],
+  });
+  assert(
+    planView.commands[0].actionId === "act_canary_1",
+    "action_id 应透传（否则队列页没有详情入口）",
+  );
+  // 旧网关（< 0.58.1）不返回 action_id：必须读成 null，不能整页报漂移。
+  const legacyItem: Record<string, unknown> = item();
+  delete legacyItem.action_id;
+  const legacy = normalizeAgentCommandQueue({
+    state: "queued",
+    counts: { queued: 1, claimed: 0 },
+    commands: [legacyItem],
+  });
+  assert(
+    legacy.commands[0].actionId === null,
+    "旧网关没有 action_id 时读成 null（前后端分开升级）",
+  );
+
   // ④ 闭集漂移：状态 / 来源 / 结论 / 过滤词
   const drifts: [string, unknown][] = [
     [
@@ -262,6 +298,32 @@ async function main() {
     "未知种类没有落地页",
   );
 
+  // 计划类命令的「详情」：必须落到**这一条执行**（同一台机器可能跑过很多次）
+  assert(
+    commandResultRoute({
+      kind: "action_plan",
+      agentId: "agent/x",
+      actionId: "act 1",
+    }) === "/agents/agent%2Fx/response?action=act%201",
+    "计划类命令要能跳到这次执行的详情（agent 与 action 都要编码）",
+  );
+  assert(
+    commandResultRoute({
+      kind: "action_plan",
+      agentId: "agent-x",
+      actionId: null,
+    }) === null,
+    "没有 action_id 就不给详情入口（空 id 会落到不存在的页）",
+  );
+  assert(
+    commandResultRoute({
+      kind: "investigate",
+      agentId: "agent-x",
+      actionId: "act-1",
+    }) === null,
+    "非计划类命令没有执行结果详情页",
+  );
+
   assert(outcomeLabel(null) === null, "未终态没有说法");
   assert(outcomeLabel("succeeded") === "成功", "成功");
   assert(
@@ -271,6 +333,30 @@ async function main() {
   assert(outcomeTone("succeeded") === "acked", "成功才绿");
   assert(outcomeTone("failed") === "queued", "失败要显眼（不是绿色）");
   assert(outcomeTone("expired") === "void", "过期是灰的");
+
+  // ⑤b 回执正文：成功时那句「执行完成（N 个步骤）」不显示（徽标已说成功，
+  // 真正的结果在「详情」里）；失败 / 过期一行字都不能丢。
+  assert(
+    receiptNote("succeeded", "执行完成（2 个步骤）") === "",
+    "成功的步骤数不是信息，不应占回执行",
+  );
+  assert(
+    receiptNote("succeeded", "facts uploaded") === "facts uploaded",
+    "成功但有实际内容（如调查结论）必须原样显示",
+  );
+  assert(
+    receiptNote(
+      "failed",
+      "执行结束：rejected（unsupported_platform）",
+    ) === "执行结束：rejected（unsupported_platform）",
+    "失败原因是唯一线索，不能滤",
+  );
+  assert(
+    receiptNote("expired", "超过待执行窗口，网关不再下发") ===
+      "超过待执行窗口，网关不再下发",
+    "过期也要说清为什么没跑",
+  );
+  assert(receiptNote(null, null) === "", "没有回执就是空");
 
   // ⑥ 「等了多久」：粗粒度、像一句话；坏时间戳返回 null（不渲染成 1970 年）
   const now = Date.parse("2026-11-10T10:05:00Z");
@@ -298,6 +384,57 @@ async function main() {
   assert(isAgentCommandQueueFilter("all"), "all 应通过");
   assert(!isAgentCommandQueueFilter("everything"), "闭集外应拒绝");
   assert(!isAgentCommandQueueFilter(null), "null 应拒绝");
+
+  // ⑧ 回执详情必须能**读完**：单行省略会把“为什么失败”藏在 tooltip 里。
+  const page = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../src/components/SubsystemAgentCommandQueuePage.tsx",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  const css = readFileSync(
+    fileURLToPath(
+      new URL(
+        "../src/components/SubsystemAgentCommandQueuePage.module.css",
+        import.meta.url,
+      ),
+    ),
+    "utf8",
+  );
+  assert(page.includes("resultDetailExpanded"), "回执详情要能展开看全文");
+  assert(
+    page.includes("aria-expanded={detailExpanded}"),
+    "展开按钮要带 aria-expanded（读屏器要知道当前状态）",
+  );
+  assert(page.includes("title={detail}"), "收起时也要能 hover 看全文");
+  const detailStart = css.indexOf(".resultDetail {");
+  const detailEnd = css.indexOf(".resultDetailExpanded");
+  assert(
+    detailStart >= 0 && detailEnd > detailStart,
+    "找不到 .resultDetail 样式块",
+  );
+  const detailBlock = css.slice(detailStart, detailEnd);
+  assert(
+    !detailBlock.includes("nowrap"),
+    "回执详情不能单行省略：长错误码会被截断，用户读不到失败原因",
+  );
+  assert(
+    detailBlock.includes("line-clamp"),
+    "回执详情要折行显示多行（默认三行）",
+  );
+
+  // ⑨ 回执栏要有「详情」入口：回执行只有一行字，删除明细与失败原因在结果页。
+  assert(
+    page.includes("commandResultRoute") && page.includes("styles.resultLink"),
+    "计划类命令的回执栏必须给「详情」入口（commandResultRoute + resultLink）",
+  );
+  assert(
+    css.includes(".resultLink {"),
+    "「详情」需要自己的样式类（不要和「展开」混用）",
+  );
 
   console.log("command queue contract: OK");
 }

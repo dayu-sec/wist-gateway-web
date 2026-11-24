@@ -24,24 +24,6 @@
   letter-spacing: -0.01em;
 }
 
-.pageSummary,
-.pageThresholds {
-  color: var(--text-2);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-  max-width: var(--prose-max);
-}
-
-.pageSummary strong,
-.pageThresholds strong {
-  color: var(--text);
-  font-weight: 700;
-}
-
-.pageThresholds {
-  color: var(--text-3);
-}
-
 /* 行内标识（字段名 / 文件名 / shell 子命令）：等宽，避免被读成普通词。 */
 .code {
   padding: 1px 5px;

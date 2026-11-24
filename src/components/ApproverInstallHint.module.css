@@ -73,8 +73,16 @@
   line-height: 1.8;
 }
 
-.steps code {
+.steps code,
+.hint code {
   font-family: var(--font-mono);
+}
+
+/* 交叉入口：审批页不负责录入安装包，但 503 时要能一跳就到「安装包」页。 */
+.hintLink {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .warning {

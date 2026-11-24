@@ -14,7 +14,6 @@ import {
   formatCount,
   formatRate,
   formatRelativeSeconds,
-  formatShare,
 } from "../lib/format";
 
 type LayerKey = "sources" | "parses" | "sinks";
@@ -144,18 +143,6 @@ export function SubsystemPipelinePage() {
     <>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("数据面链路", "Data pipeline")}</h1>
-        <p className={styles.pageSummary}>
-          {t(
-            "数据面（wparse）三层的实时吞吐：来源接入 → 规则解析 → 落存储。点击任意节点，下方会画出它的速率与累计量曲线。",
-            "Live throughput of the three data plane (wparse) layers: source ingress → rule parsing → storage egress. Click any node to plot its rate and total below.",
-          )}
-        </p>
-        <p className={styles.pageNote}>
-          {t(
-            "聚合粒度 1 分钟 —— 数据面写入 VictoriaMetrics 的间隔实测为 60 秒，指标按 2 个周期（120 秒）计算速率。所以这里是「近一分钟的平均吞吐」，不是逐秒瞬时值。",
-            "Aggregation granularity is 1 minute — the data plane writes to VictoriaMetrics every 60 seconds in practice, and rates are computed over 2 periods (120 seconds). So these are average throughputs over the last minute, not per-second instantaneous values.",
-          )}
-        </p>
       </header>
 
       <div className={styles.pageTabs} role="tablist">
@@ -245,48 +232,24 @@ export function SubsystemPipelinePage() {
         <MetricTile
           label={t("入流速率", "Ingress rate")}
           value={formatRate(summary?.ingressRate)}
-          hint={t(
-            "所有来源合计；这是采集实际收到的量",
-            "Sum over all sources; this is what collection actually received",
-          )}
           tone="accent"
           loading={isLoading}
         />
         <MetricTile
           label={t("解析速率", "Parse rate")}
           value={formatRate(summary?.parseRate)}
-          hint={t(
-            "进入解析规则的速率（含未通过的行）",
-            "Rate entering the parse rules (including rows that fail them)",
-          )}
           tone="unknown"
           loading={isLoading}
         />
         <MetricTile
           label={t("落存储速率", "Storage rate")}
           value={formatRate(summary?.egressRate)}
-          hint={t(
-            "各输出口写入速率合计；同一分组写多个目标会重复计入",
-            "Sum of write rates across sinks; one group writing to several targets is counted more than once",
-          )}
           tone="ok"
           loading={isLoading}
         />
         <MetricTile
           label={t("未落存储", "Not stored")}
           value={formatRate(summary?.lossRate)}
-          hint={
-            summary
-              ? t(
-                  "占入流 {share}，期望 ≤0.1 e/s",
-                  "{share} of ingress; expected ≤0.1 e/s",
-                  { share: formatShare(summary.lossRate, summary.ingressRate) },
-                )
-              : t(
-                  "miss / residue / error 三路合计",
-                  "miss / residue / error combined",
-                )
-          }
           tone={lossTone}
           loading={isLoading}
         />
@@ -307,12 +270,6 @@ export function SubsystemPipelinePage() {
               <h2 className={styles.sectionTitle}>
                 {t("接入与输出", "Ingress and egress")}
               </h2>
-              <p className={styles.sectionNote}>
-                {t(
-                  "来源接入与落盘出口；两者数量通常稳定。",
-                  "Source ingress and storage egress; both counts are usually stable.",
-                )}
-              </p>
             </header>
             <div className={`${styles.board} ${styles.boardPair}`}>
               <PipelineLayer
@@ -368,16 +325,13 @@ export function SubsystemPipelinePage() {
                     ? t("选中项", "Selected")
                     : t("来源汇总", "Source total")}
                 </span>
-                <span className={styles.chartNote}>
-                  {selected
-                    ? t("{label} · 速率与累计量", "{label} · rate and total", {
-                        label: selected.label,
-                      })
-                    : t(
-                        "所有来源的合计；点上方任意条目即可切成单项（再点一次回到汇总）",
-                        "Total across all sources; click any entry above to switch to a single one (click again to return to the total)",
-                      )}
-                </span>
+                {selected ? (
+                  <span className={styles.chartNote}>
+                    {t("{label} · 速率与累计量", "{label} · rate and total", {
+                      label: selected.label,
+                    })}
+                  </span>
+                ) : null}
               </div>
               <SelectionCharts
                 selected={sectionTarget}
@@ -392,12 +346,6 @@ export function SubsystemPipelinePage() {
               <h2 className={styles.sectionTitle}>
                 {t("解析规则", "Parse rules")}
               </h2>
-              <p className={styles.sectionNote}>
-                {t(
-                  "按可用宽度自动分栏；规则多时在节内滚动。",
-                  "Columns adapt to the available width; with many rules the section scrolls.",
-                )}
-              </p>
             </header>
             <div className={`${styles.board} ${styles.boardSingle}`}>
               <PipelineLayer

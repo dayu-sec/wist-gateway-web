@@ -209,44 +209,6 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("采集日志", "Collection logs")}</h1>
-        <p className={styles.pageSummary}>
-          {t(
-            "数据面（warp-parse）写出的日志文件，按 ",
-            "Log files written by the data plane (warp-parse), followed like ",
-          )}
-          <code className={styles.code}>tail -f</code>
-          {t(
-            " 的方式跟随。链路是 agentd → 数据面 → file sink 落盘，最终文件在 ",
-            ". The path is agentd → data plane → file sink, ending up in ",
-          )}
-          <strong>{t("宿主 data-plane-run/data/out_dat", "host data-plane-run/data/out_dat")}</strong>
-          {t(
-            "（没有数据库表）—— 这里直接读文件，看到的就是采集输出的原文。",
-            " (no database table) — this page reads the file directly, so what you see is exactly what was collected.",
-          )}
-        </p>
-        <p className={styles.pageThresholds}>
-          {t("只列可读文本：", "Only readable text is listed: ")}
-          <code className={styles.code}>*.log</code>
-          {" / "}
-          <code className={styles.code}>*.json</code>
-          {" / "}
-          <code className={styles.code}>*.jsonl</code>
-          {t(
-            " 等；二进制 sink 的产物不出现。首次打开只取文件尾部窗口（不会把整份日志拉进浏览器），之后每次只追加新写入的字节。",
-            " and similar; binary sink outputs are excluded. The first load takes a tail window (the whole file is not pulled into the browser); after that only newly written bytes are appended.",
-          )}
-          {" "}
-          {t(
-            "「暂停」只停页面轮询，不动数据面；文件被轮转 / 截断时页面会自动从头重新跟随。顶部下拉选择要跟随的输出文件（数量有限，不占侧栏），过滤输入框按行做字面包含匹配（等价 ",
-            "“Pause” only stops page polling, not the data plane; when the file is rotated or truncated the page automatically restarts from the top of the new file. Pick the output file to follow from the dropdown at the top (a small finite set, no sidebar), and use the filter input for a per-line literal substring match (equivalent to ",
-          )}
-          <code className={styles.code}>tail -f … | grep "xxx"</code>
-          {t(
-            "），只在已加载窗口内生效。",
-            "), within the loaded window only.",
-          )}
-        </p>
       </header>
 
       {error ? (

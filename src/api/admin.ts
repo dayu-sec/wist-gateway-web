@@ -6099,6 +6099,12 @@ export interface AgentCommandQueueItem {
   acknowledgedAt: string | null;
   outcome: AgentFactRefreshOutcome | null;
   detail: string | null;
+  /**
+   * `action_plan` 命令才有：计划里的 `action_id`（其它种类恒为 `null`）。
+   *
+   * 队列行只有一行回执摘要；删了什么 / 为什么失败在执行结果里，页面靠它跳过去。
+   */
+  actionId: string | null;
 }
 
 /**
@@ -6166,6 +6172,9 @@ function normalizeAgentCommandQueueItem(
         ? null
         : requiredAgentFactRefreshOutcome(outcome, `${at}.outcome`),
     detail: nullableStringField(record, ["detail"], `${at}.detail`),
+    // `action_id` 是**后加**的字段（网关 0.58.1+）：旧网关不下发时要读成 null，
+    // 而不是整页报契约漂移 —— 前端与网关是分开升级的。
+    actionId: optionalStringField(record, ["action_id"], `${at}.action_id`),
   };
 }
 
@@ -7000,7 +7009,11 @@ export function normalizeApproverKey(payload: unknown): ApproverKeyView {
 export async function fetchApproverKeys(): Promise<ApproverKeyView[]> {
   const payload = await requestJson<unknown>("/api/v1/admin/approver-keys");
   const record = requiredRecord(payload, "approverKeys");
-  return requiredArrayOf(record.keys, "approverKeys.keys", normalizeApproverKey);
+  return requiredArrayOf(
+    record.keys,
+    "approverKeys.keys",
+    normalizeApproverKey,
+  );
 }
 
 export async function registerApproverKey(input: {
@@ -7027,4 +7040,86 @@ export async function revokeApproverKey(keyId: string): Promise<void> {
     `/api/v1/admin/approver-keys/${encodeURIComponent(keyId)}`,
     { method: "DELETE" },
   );
+}
+
+/**
+ * 审批终端（`wist-approve`）安装包：网关的**包管理**（与 agent 安装包同一套）。
+ *
+ * 三个平台各自一条记录：`source` 是**网关能读到的**地址（`https://…` 或容器内绝对路径
+ * 如 `/packages/<文件名>`），录入时网关会立刻拉取并缓存，之后分发端点只读缓存。
+ * `available=false` 表示记录还在但缓存的副本没了（重新录入即可）。
+ */
+export interface ApproverPackageView {
+  platform: string;
+  source: string;
+  packageSha256: string;
+  version: string;
+  updatedBy: string;
+  updatedAt: string;
+  available: boolean;
+}
+
+export function normalizeApproverPackage(
+  payload: unknown,
+  at: string,
+): ApproverPackageView {
+  const record = requiredRecord(payload, at);
+  return {
+    platform: requiredString(record.platform, `${at}.platform`),
+    source: requiredString(record.source, `${at}.source`),
+    packageSha256: requiredString(
+      record.package_sha256 ?? record.packageSha256,
+      `${at}.packageSha256`,
+    ),
+    version: optionalStringValue(record.version),
+    updatedBy: optionalStringValue(record.updated_by ?? record.updatedBy),
+    updatedAt: optionalStringValue(record.updated_at ?? record.updatedAt),
+    available: record.available === true,
+  };
+}
+
+export async function fetchApproverPackages(): Promise<ApproverPackageView[]> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/approver/install-package",
+  );
+  const record = requiredRecord(payload, "approverPackages");
+  return requiredArrayOf(
+    record.packages,
+    "approverPackages.packages",
+    normalizeApproverPackage,
+  );
+}
+
+export async function registerApproverPackage(input: {
+  platform: string;
+  source: string;
+  /** 可选：网关拿它核对拉下来的字节，不符即拒。 */
+  packageSha256?: string;
+}): Promise<ApproverPackageView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/approver/install-package",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        platform: input.platform,
+        source: input.source,
+        ...(input.packageSha256?.trim()
+          ? { package_sha256: input.packageSha256.trim() }
+          : {}),
+      }),
+    },
+  );
+  return normalizeApproverPackage(payload, "approverPackage");
+}
+
+/** 撤销某平台的来源。只删记录、不删网关缓存的副本（现场回滚不必重新拉）。 */
+export async function removeApproverPackage(
+  platform: string,
+): Promise<boolean> {
+  const payload = await requestJson<unknown>(
+    `/api/v1/admin/approver/install-package/${encodeURIComponent(platform)}`,
+    { method: "DELETE" },
+  );
+  const record = requiredRecord(payload, "approverPackageRemoval");
+  return record.removed === true;
 }

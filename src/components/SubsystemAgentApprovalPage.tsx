@@ -5,7 +5,6 @@ import { dateLocale, t } from "../i18n";
 import { describeApprovalError } from "../lib/approvalError";
 import {
   APPROVAL_TABS,
-  APPROVAL_VIEWS,
   approvedCount,
   isApprovalTab,
   matchesTab,
@@ -37,19 +36,21 @@ import { ApproverKeysSection } from "./ApproverKeysSection";
 
 interface TabSpec {
   label: string;
-  hint: string;
+  /** 可选：没写就不渲染 tab 下方那条提示。 */
+  hint?: string;
 }
 
-/** 「安装与钥匙」tab：放的是装 CLI 与登记公钥，不是审批单的过滤结果。 */
+/**
+ * 「安装与钥匙」：装 CLI 与登记公钥，不是审批单的过滤档。
+ *
+ * 它是页面**顶部**的一个独立入口（与三个过滤 tab 分开），因为这两件事是「开工前的一次性设置」：
+ * 放进过滤 tab 条会让人以为它是第五种审批单状态（带着计数在筛列表）。
+ */
 const SETUP_TAB = "setup" as const;
 
 function setupTabCopy(): TabSpec {
   return {
     label: t("安装与钥匙", "Setup & keys"),
-    hint: t(
-      "先把审批终端装到审批机上，再把它的公钥登记到这里。签名发生在审批机，本页只登记公钥、显示指纹。",
-      "Install the approval CLI on the approver's machine, then register its public key here. Signing happens on that machine; this page only registers the key and shows its fingerprint.",
-    ),
   };
 }
 
@@ -167,8 +168,6 @@ export function SubsystemAgentApprovalPage() {
     [approvals, view],
   );
 
-  const currentHint = isApprovalTab(view) ? tabCopy[view].hint : setupCopy.hint;
-
   /** 给这一行算出「下一步该敲什么」。签发只能由审批机发起（页面没有私钥）。 */
   function nextStepCommand(approval: {
     approvalId: string;
@@ -188,50 +187,90 @@ export function SubsystemAgentApprovalPage() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        <header className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>
+        {/* 页面级 tab：两个平级的视图。「响应审批」本身也是 tab（不是标题 + 旁边的按钮），
+            两者同字号、同下划线选中态，读起来才是一条 tab 栏。
+            h1 仍保留给读屏器/文档大纲（视觉上由 tab 承担）。 */}
+        <h1 className={styles.srOnly}>{t("响应审批", "Action approvals")}</h1>
+
+        <div
+          className={styles.viewTabs}
+          role="tablist"
+          aria-label={t("响应审批视图", "Action approvals views")}
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view !== SETUP_TAB}
+            className={
+              view !== SETUP_TAB
+                ? `${styles.viewTab} ${styles.viewTabActive}`
+                : styles.viewTab
+            }
+            onClick={() => setView("pending")}
+          >
             {t("响应审批", "Action approvals")}
-          </h1>
-          <p className={styles.pageSummary}>
-            {t(
-              "一次「响应」的控制面链路：提交计划 → 审批 → 签发 → 下发。审批绑的是计划内容摘要，批的是这一份；签发之后计划才会真正到达机器，并可由机器本地验签。",
-              "The control-plane path of one response: submit plan → approve → sign → dispatch. Approval is bound to the plan digest (this exact content); only after signing does the plan reach the machine, where it is verified locally.",
-            )}
-          </p>
-        </header>
-
-        <p className={styles.note}>
-          {t(
-            "本页只读：投票与签名都在审批人的机器上用 wist-approve 完成（私钥不在网关）。每一行给出了可直接执行的命令；装 CLI 与登记审批公钥在「安装与钥匙」标签页。",
-            "This page is read-only: voting and signing happen on the approver's machine with wist-approve (the gateway holds no private key). Each row shows the exact command to run; install the CLI and register approver keys under “Setup & keys”.",
-          )}
-        </p>
-
-        <div className={styles.tabs}>
-          {APPROVAL_VIEWS.map((key) => {
-            const active = key === view;
-            const spec = isApprovalTab(key) ? tabCopy[key] : setupCopy;
-            return (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={active}
-                className={
-                  active ? `${styles.tab} ${styles.tabActive}` : styles.tab
-                }
-                onClick={() => {
-                  setView(key);
-                }}
-              >
-                {spec.label}
-                {isApprovalTab(key) ? (
-                  <span className={styles.tabCount}>{counts[key]}</span>
-                ) : null}
-              </button>
-            );
-          })}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === SETUP_TAB}
+            className={
+              view === SETUP_TAB
+                ? `${styles.viewTab} ${styles.viewTabActive}`
+                : styles.viewTab
+            }
+            onClick={() => setView(SETUP_TAB)}
+          >
+            {t("安装与钥匙", "Setup & keys")}
+          </button>
         </div>
-        <p className={styles.tabHint}>{currentHint}</p>
+
+        {view === SETUP_TAB ? null : (
+          <>
+            <p className={styles.pageSummary}>
+              {t(
+                "一次「响应」的控制面链路：提交计划 → 审批 → 签发 → 下发。审批绑的是计划内容摘要，批的是这一份；签发之后计划才会真正到达机器，并可由机器本地验签。",
+                "The control-plane path of one response: submit plan → approve → sign → dispatch. Approval is bound to the plan digest (this exact content); only after signing does the plan reach the machine, where it is verified locally.",
+              )}
+            </p>
+
+            <p className={styles.note}>
+              {t(
+                "本页只读：投票与签名都在审批人的机器上用 wist-approve 完成（私钥不在网关）。每一行给出了可直接执行的命令；装 CLI 与登记审批公钥在「安装与钥匙」tab。",
+                "This page is read-only: voting and signing happen on the approver's machine with wist-approve (the gateway holds no private key). Each row shows the exact command to run; install the CLI and register approver keys under the “Setup & keys” tab.",
+              )}
+            </p>
+
+            {/* 第二层：审批单的过滤档（带计数）。它与页面级 tab 不是同一层东西。 */}
+            <div className={styles.tabs}>
+              {APPROVAL_TABS.map((key) => {
+                const active = key === view;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={active}
+                    className={
+                      active ? `${styles.tab} ${styles.tabActive}` : styles.tab
+                    }
+                    onClick={() => {
+                      setView(key);
+                    }}
+                  >
+                    {tabCopy[key].label}
+                    <span className={styles.tabCount}>{counts[key]}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {(isApprovalTab(view) ? tabCopy[view].hint : setupCopy.hint) ? (
+          <p className={styles.tabHint}>
+            {isApprovalTab(view) ? tabCopy[view].hint : setupCopy.hint}
+          </p>
+        ) : null}
 
         {view === SETUP_TAB ? (
           // 「安装与钥匙」：不拉审批单的过滤结果，所以不参与上面的 isError/isLoading 分支
@@ -397,8 +436,7 @@ export function SubsystemAgentApprovalPage() {
                               </span>
                             </span>
                           ) : null}
-                          {approval.status === "pending" &&
-                          !approval.issued ? (
+                          {approval.status === "pending" && !approval.issued ? (
                             <span className={styles.detailItem}>
                               <span className={styles.detailKey}>
                                 {t("驳回", "Reject")}

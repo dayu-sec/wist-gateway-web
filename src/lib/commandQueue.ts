@@ -112,6 +112,23 @@ export function commandKindRoute(kind: string, agentId: string): string | null {
   }
 }
 
+/**
+ * 计划类命令的**执行结果详情**：队列行只有一行回执，删了什么 / 为什么失败在结果页。
+ *
+ * 与 `commandKindRoute` 分开：那条是「这类命令去哪儿」；这条依赖**这一行**的
+ * `actionId`（同一台机器可能跑过很多次，必须落到具体那一条），没有 `actionId` 就不给入口。
+ */
+export function commandResultRoute(item: {
+  kind: string;
+  agentId: string;
+  actionId: string | null;
+}): string | null {
+  if (item.kind !== "action_plan" || !item.actionId) return null;
+  return `/agents/${encodeURIComponent(item.agentId)}/response?action=${encodeURIComponent(
+    item.actionId,
+  )}`;
+}
+
 /** 终态结论的说法（`outcome` 是闭集；`null` = 还没到终态）。 */
 export function outcomeLabel(
   outcome: AgentFactRefreshOutcome | null,
@@ -152,6 +169,28 @@ export function outcomeTone(
     default:
       return "void";
   }
+}
+
+/**
+ * 回执正文该显示什么（**成功但没话可说**的那一句不显示）。
+ *
+ * 成功时网关写的是「执行完成（N 个步骤）」：徽标已经说了成功，步骤数对看队列的人
+ * 没有信息量 —— 真正要看的（删了什么 / 是否完整）在「详情」里。放在**显示层**而不是
+ * 网关，是因为已入库的旧行也一个样；改网关只能盖住新行。
+ *
+ * 失败 / 过期 / 被取代一律原文返回：那是「为什么没成」的唯一线索，不能滤。
+ */
+export function receiptNote(
+  outcome: AgentFactRefreshOutcome | null,
+  detail: string | null,
+): string {
+  const text = (detail ?? "").trim();
+  if (!text) return "";
+  // 网关 `compose_note` 在「无失败步、无 exit_reason」时的固定措辞。
+  if (outcome === "succeeded" && /^执行完成（\d+ 个步骤）$/.test(text)) {
+    return "";
+  }
+  return text;
 }
 
 /**

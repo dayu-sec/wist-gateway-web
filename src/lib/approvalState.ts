@@ -20,15 +20,21 @@ export const APPROVAL_TABS: readonly ApprovalTab[] = [
 ];
 
 /**
- * 页顶 tab 的完整集合：三个**过滤**档 + 一个**设置**档。
+ * 页面的全部视图：三个**过滤档** + 一个**设置**视图。
  *
  * 为什么要分开：`setup` 不是审批单的过滤条件（它不筛 `status`）。把它塞进 `ApprovalTab`
  * 就会让 `matchesTab` 多出一个分支、`counts` 多出一个永远为 0 的键 —— 那类“类型上对、语义上错”
  * 的东西迟早会被当真用。
+ *
+ * `setup` 也不在 tab 条里：它是页面**顶部**的独立入口（与标题同一行），因为装 CLI / 登记公钥
+ * 是开工前的一次性设置，混进过滤 tab 会被当成「第五种审批单状态」。
  */
 export type ApprovalView = ApprovalTab | "setup";
 
-export const APPROVAL_VIEWS: readonly ApprovalView[] = [...APPROVAL_TABS, "setup"];
+export const APPROVAL_VIEWS: readonly ApprovalView[] = [
+  ...APPROVAL_TABS,
+  "setup",
+];
 
 /** 这个 view 是不是一个审批单过滤档（即：要不要渲染表格 / 算票数）。 */
 export function isApprovalTab(view: ApprovalView): view is ApprovalTab {

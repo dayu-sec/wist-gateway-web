@@ -136,6 +136,14 @@ function describeRoute(pathname: string): RouteMeta {
           t("安装包录入", "Install package entry"),
         ],
       };
+    case "/install-package/approver":
+      return {
+        section: "fleet",
+        crumbs: [
+          t("安装包管理", "Install packages"),
+          t("审批终端安装包", "Approval CLI packages"),
+        ],
+      };
     case "/knowledge":
       return { section: "collection", crumbs: [t("知识库", "Knowledge base")] };
     case "/collection-guide":

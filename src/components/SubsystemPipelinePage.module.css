@@ -25,20 +25,6 @@
   letter-spacing: -0.01em;
 }
 
-.pageSummary {
-  max-width: var(--prose-max);
-  color: var(--text-3);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-}
-
-.pageNote {
-  max-width: 860px;
-  color: var(--text-4);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
 /* 页面内视图切换（实时吞吐 / 配置与规则）：与页面同宽，下边框把 tab 与内容分开。 */
 .pageTabs {
   display: flex;
@@ -161,12 +147,6 @@
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
-}
-
-.sectionNote {
-  color: var(--text-3);
-  font-size: 12.5px;
-  line-height: 1.55;
 }
 
 .board {

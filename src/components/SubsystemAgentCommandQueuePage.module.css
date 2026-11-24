@@ -23,14 +23,6 @@
   letter-spacing: -0.01em;
 }
 
-.pageSummary {
-  margin-top: 7px;
-  color: var(--text-3);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-  max-width: var(--prose-max);
-}
-
 .headerLinks {
   display: flex;
   flex-wrap: wrap;
@@ -157,13 +149,6 @@
 .tabCountActive {
   background: var(--accent);
   color: #ffffff;
-}
-
-.tabHint {
-  flex: 1 1 320px;
-  color: var(--text-4);
-  font-size: 12px;
-  line-height: 1.55;
 }
 
 .notice {
@@ -311,14 +296,6 @@
   text-decoration: underline;
 }
 
-.agentId {
-  margin-top: 2px;
-  color: var(--text-4);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 400;
-}
-
 .tdTime {
   color: var(--text-2);
   font-size: 12.5px;
@@ -338,14 +315,59 @@
 }
 
 .resultDetail {
-  margin-top: 3px;
+  /* 回执详情要能**读完**：折行、最多三行，超长可展开（不要单行省略）。
+     `overflow-wrap: anywhere` 是为了接住没有空格的错误码 / URL。 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  max-width: 220px;
+  margin-top: 3px;
+  max-width: 320px;
   color: var(--text-3);
   font-size: 11.5px;
   line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* 展开：显示全文（不再限高、不再省略）。 */
+.resultDetailExpanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.detailToggle {
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.detailToggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* 「详情」：跳到这次执行的完整结果（删除明细 / 失败原因）。
+   与「展开」同一栏放：展开看的是**回执文字**，详情看的是**执行结果**。 */
+.resultLink {
+  display: inline-block;
+  margin-top: 3px;
+  margin-left: 8px;
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.resultLink:hover {
+  color: var(--text);
 }
 
 .badge {

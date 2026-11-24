@@ -73,7 +73,9 @@
     "test:data-plane-output": "tsx tests/data-plane-output-contract.test.ts",
     "test:log-filter": "tsx tests/log-filter.test.ts",
     "test:live": "tsx tests/live-gateway-check.ts",
-    "test:approver-install": "tsx tests/approver-install-hint.test.ts"
+    "test:approver-install": "tsx tests/approver-install-hint.test.ts",
+    "test:approver-package": "tsx tests/approver-package-contract.test.ts",
+    "test:response-launch": "tsx tests/response-launch-contract.test.ts"
   },
   "dependencies": {
     "@dayu-sec/wist-web-core": "github:dayu-sec/wist-web-core#v0.2.0",

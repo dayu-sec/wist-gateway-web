@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ApiError } from "../api";
 import type {
@@ -12,12 +12,14 @@ import {
   commandAgeLabel,
   commandKindLabel,
   commandKindRoute,
+  commandResultRoute,
   commandSourceLabel,
   isAgentCommandQueueFilter,
   outcomeLabel,
   outcomeTone,
   queueStateLabel,
   queueStateTone,
+  receiptNote,
   type QueueTone,
 } from "../lib/commandQueue";
 import styles from "./SubsystemAgentCommandQueuePage.module.css";
@@ -36,44 +38,15 @@ import styles from "./SubsystemAgentCommandQueuePage.module.css";
 interface QueueTab {
   filter: AgentCommandQueueFilter;
   label: string;
-  hint: string;
 }
 
 /** 四个 tab：前两个是「还没结束」，`acked` 只算真正执行过的。 */
 function queueTabs(): QueueTab[] {
   return [
-    {
-      filter: "queued",
-      label: t("待执行", "Queued"),
-      hint: t(
-        "还没被 agentd 取走。排太久说明那台机器没在跑（或 agentd 没在报状态）。",
-        "Not picked up by agentd yet. A long wait means the machine (or agentd) is not reporting.",
-      ),
-    },
-    {
-      filter: "claimed",
-      label: t("执行中", "Running"),
-      hint: t(
-        "已经被取走、还在跑。调查最长 120 秒，超过就该怀疑机器侧卡住了。",
-        "Claimed and still running. Investigations take up to 120s; longer means the machine side is likely stuck.",
-      ),
-    },
-    {
-      filter: "acked",
-      label: t("已回执", "Reported"),
-      hint: t(
-        "真正执行过并回了结论。过期 / 被取代的命令不在这里（它们没跑），请看「全部」。",
-        "Executed and reported. Expired / superseded commands are not here (they never ran) — see All.",
-      ),
-    },
-    {
-      filter: "all",
-      label: t("全部", "All"),
-      hint: t(
-        "最近 100 条，新 → 旧。含过期与被取代 —— 这两种写了回执时刻，但**没有执行过**。",
-        "The latest 100, newest first. Includes expired and superseded — those carry a receipt time but never ran.",
-      ),
-    },
+    { filter: "queued", label: t("待执行", "Queued") },
+    { filter: "claimed", label: t("执行中", "Running") },
+    { filter: "acked", label: t("已回执", "Reported") },
+    { filter: "all", label: t("全部", "All") },
   ];
 }
 
@@ -200,7 +173,15 @@ function CommandRow({
   hostname: string;
   now: number;
 }) {
+  // 回执详情可以很长（如 `rejected（unsupported_platform）`、整段 JSON）。
+  // 单行省略会让人读不到关键原因，所以默认折行显示前三行，可展开看全。
+  const [detailExpanded, setDetailExpanded] = useState(false);
+  // 成功时那一句「执行完成（N 个步骤）」不显示：徽标已说成功，结果看「详情」。
+  const detail = receiptNote(command.outcome, command.detail);
+  const detailIsLong = detail.length > 60;
   const route = commandKindRoute(command.kind, command.agentId);
+  // 计划类命令的「详情」：回执只有一行，删除明细 / 失败原因在结果页。
+  const resultRoute = commandResultRoute(command);
   const stateLabel = queueStateLabel(command.state);
   const outcome = outcomeLabel(command.outcome);
   const requestedAtText = command.requestedAt
@@ -244,11 +225,6 @@ function CommandRow({
         >
           {hostname || command.agentId}
         </Link>
-        {hostname ? (
-          <div className={styles.agentId} title={command.agentId}>
-            {command.agentId}
-          </div>
-        ) : null}
       </td>
       <td>
         <span
@@ -287,10 +263,33 @@ function CommandRow({
         ) : (
           <span className={styles.resultMeta}>—</span>
         )}
-        {command.detail ? (
-          <div className={styles.resultDetail} title={command.detail}>
-            {command.detail}
+        {detail ? (
+          <div
+            className={
+              detailExpanded
+                ? `${styles.resultDetail} ${styles.resultDetailExpanded}`
+                : styles.resultDetail
+            }
+            // 展开后已经是全文；收起时仍保留 hover 能看全（不依赖用户发现“展开”）。
+            title={detail}
+          >
+            {detail}
           </div>
+        ) : null}
+        {detailIsLong ? (
+          <button
+            type="button"
+            className={styles.detailToggle}
+            aria-expanded={detailExpanded}
+            onClick={() => setDetailExpanded((value) => !value)}
+          >
+            {detailExpanded ? t("收起", "Collapse") : t("展开", "Expand")}
+          </button>
+        ) : null}
+        {resultRoute ? (
+          <Link className={styles.resultLink} to={resultRoute}>
+            {t("详情", "Details")}
+          </Link>
         ) : null}
       </td>
     </tr>
@@ -348,12 +347,6 @@ export function SubsystemAgentCommandQueuePage() {
       <main className={styles.main}>
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>{t("任务队列", "Command queue")}</h1>
-          <p className={styles.pageSummary}>
-            {t(
-              "网关给 agentd 排的一次性命令：调查、重采事实、刷新指标标签。命令不是推送的 —— 机器在下一个状态上报里认领（≤3s），执行完再回一条回执。中心下发的命令也走这一队，来源标在每一行上。",
-              "One-shot commands the gateway queues for agentd: investigations, fact refreshes, metric-label updates. Commands are not pushed — a machine claims them on its next status report (≤3s) and reports back when done. Commands dispatched by the center run through the same queue; each row shows its source.",
-            )}
-          </p>
           <div className={styles.headerLinks}>
             <Link className={styles.crossLink} to="/fleet">
               {t("Agent 列表", "Agent fleet")} <span aria-hidden="true">→</span>
@@ -415,9 +408,6 @@ export function SubsystemAgentCommandQueuePage() {
               </button>
             );
           })}
-          <span className={styles.tabHint}>
-            {tabs.find((item) => item.filter === tab)?.hint}
-          </span>
         </nav>
 
         {queue.isError ? (

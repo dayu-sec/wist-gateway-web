@@ -122,9 +122,10 @@ export function truncationNotice(options: {
 }): string | null {
   if (!options.truncated) return null;
   // 与上表同理：调用方在渲染期调用本函数，取词放这里；条数走占位符（语序不同，不拼串）。
+  // 只留「截断了 / 截到多少」这一句：具体怎么判断在卡片上一眼就能看出来。
   return t(
-    "已截断：清单里还有更多软件键没显示 —— 这里只是前 {returned} 条（当前上限 {limit} 条，后端最多接受 500）。这不是全量清单，请按上面的键判断，不要当成「机队里只有这些软件」。",
-    "Truncated: more software keys exist but are not listed — these are only the first {returned} entries (current limit {limit}; the backend accepts at most 500). This is not the full inventory, so judge by the keys above rather than assuming the fleet has only this software.",
+    "已截断：仅显示前 {returned} 条（上限 {limit}）。",
+    "Truncated: showing only the first {returned} (limit {limit}).",
     { returned: options.returned, limit: options.limit },
   );
 }

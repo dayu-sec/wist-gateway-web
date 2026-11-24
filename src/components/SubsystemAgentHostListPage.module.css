@@ -22,22 +22,6 @@
   letter-spacing: -0.01em;
 }
 
-.pageSummary {
-  max-width: var(--prose-max);
-  margin-top: 6px;
-  color: var(--text-3);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-}
-
-.pageThresholds {
-  max-width: var(--prose-max);
-  margin-top: 5px;
-  color: var(--text-4);
-  font-size: var(--page-summary);
-  line-height: 1.65;
-}
-
 .errorBanner {
   width: calc(100% - 48px);
   max-width: calc(var(--content-max) - 48px);
@@ -232,10 +216,11 @@
 }
 
 /* 固定列宽：主机名 / Agent ID 很长，auto 布局会把主机列压到「一字一行」，
-   同时把磁盘列撑满整行。这里按列给明确宽度，长文本只在主机列内换行。 */
+   同时把磁盘列撑满整行。这里按列给明确宽度，长文本只在主机列内换行。
+   操作列要放下 5 个链接（~220px），给到 20% 才能不折行；三段指标各让出 1%。 */
 .table thead th:nth-child(1),
 .table tbody td:nth-child(1) {
-  width: 27%;
+  width: 25%;
 }
 
 .table thead th:nth-child(2),
@@ -249,12 +234,12 @@
 .table tbody td:nth-child(3),
 .table tbody td:nth-child(4),
 .table tbody td:nth-child(5) {
-  width: 17%;
+  width: 16%;
 }
 
 .table thead th:nth-child(6),
 .table tbody td:nth-child(6) {
-  width: 15%;
+  width: 20%;
 }
 
 .table thead th {
@@ -393,22 +378,31 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+  /* 固定列宽下，子元素必须允许收缩，否则长挂载点会把整格撑到下一列去。 */
+  min-width: 0;
 }
 
 .metricTop {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  min-width: 0;
 }
 
 .metricValue {
+  flex: 0 0 auto;
   font-family: var(--font-mono);
   font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
 
+/* 挂载点路径：一格内省略（完整值在 `title`）。
+   这里绝不能 `nowrap` + 不截断 —— 它曾经直接压在操作列上。 */
 .metricDetail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-4);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -471,13 +465,15 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  /* 列宽不够时换行也要像两排按钮，而不是挤成一团。 */
+  gap: 6px 12px;
 }
 
 .detailLink {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   color: var(--text-3);
   font-size: 12.5px;
   font-weight: 700;

@@ -24,13 +24,6 @@
   letter-spacing: -0.01em;
 }
 
-.pageSummary {
-  max-width: var(--prose-max);
-  color: var(--text-3);
-  font-size: var(--page-summary);
-  line-height: 1.7;
-}
-
 .main {
   display: flex;
   flex-direction: column;

@@ -96,6 +96,9 @@ jobs:
       - name: Contract tests (approver install hint)
         run: npm run test:approver-install
 
+      - name: Contract tests (approver package registry)
+        run: npm run test:approver-package
+
       - name: Test (agentd version gate)
         run: npm run test:agentd-version
 

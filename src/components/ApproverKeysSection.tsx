@@ -50,12 +50,6 @@ export function ApproverKeysSection() {
   return (
     <section className={styles.section}>
       <h2 className={styles.title}>{t("审批公钥", "Approver keys")}</h2>
-      <p className={styles.hint}>
-        {t(
-          "签名发生在审批机（wist-approve）上，这里只登记它的公钥。导入后请把显示的指纹与审批机上 `wist-approve key show` 的指纹核对一致；agentd 侧还要把同一份公钥钉到 [attestation] trusted_keys，否则机器只会记录「不认识这把钥匙」。",
-          "Signing happens on the approval machine (wist-approve); this page only registers its public key. After importing, compare the fingerprint shown here with `wist-approve key show`. The same PEM must also be pinned in agentd's [attestation] trusted_keys, otherwise the agent only records “unknown signing key”.",
-        )}
-      </p>
 
       <form
         className={styles.form}

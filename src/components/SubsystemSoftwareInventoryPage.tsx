@@ -132,45 +132,6 @@ export function SubsystemSoftwareInventoryPage({}: SubsystemSoftwareInventoryPag
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("资产清单", "Software inventory")}</h1>
-        <p className={styles.pageSummary}>
-          {t(
-            "网关把每台机器上报的事实摘要",
-            "The gateway ",
-          )}
-          <strong>{t("机械归并", "mechanically merges")}</strong>
-          {t(
-            "成「这台机器上有什么」。条目只有名字，而名字来自路径归并（",
-            " each machine's reported fact digest into “what is on this machine”. Entries carry a name only, and that name comes from path merging (",
-          )}
-          <code className={styles.code}>.app</code>
-          {t(
-            " 取包名、其余取路径末段）：",
-            " uses the bundle name, everything else uses the last path segment): ",
-          )}
-          <strong>{t("没有版本、没有 vendor", "no version, no vendor")}</strong>
-          {t(
-            " —— 识别需要在被管机器上读 ",
-            " — identification requires reading ",
-          )}
-          <code className={styles.code}>Info.plist</code>
-          {t(
-            " / 包管理器，属下一层（L1b）尚未实现，所以「没版本」不等于「采集失败」。",
-            " / the package manager on the managed machine, which belongs to the next layer (L1b) and is not implemented yet, so “no version” does not mean “collection failed”.",
-          )}
-        </p>
-        <p className={styles.pageThresholds}>
-          {t("清单是", "The inventory is a ")}
-          <strong>{t("当前快照", "current snapshot")}</strong>
-          {t(
-            "：它是事实摘要的投影，随每次上报覆盖式重建，",
-            ": a projection of the fact digest, rebuilt from scratch on every report. ",
-          )}
-          <strong>{t("不保留历史", "No history is kept")}</strong>
-          {t(
-            "，也翻不到「上周还有哪些软件」。",
-            ", so there is no way to look back at “what software was installed last week”.",
-          )}
-        </p>
 
         {/* 两个视图不是「筛选」而是两种读法：用分段控件表达，并且同样是按下的状态。 */}
         <div
@@ -244,14 +205,6 @@ function FleetInventory({
     <section className={styles.section}>
       <div className={styles.sectionHead}>
         <h2 className={styles.sectionTitle}>{t("按软件看机器", "By software")}</h2>
-        <span className={styles.sectionHint}>
-          {t("按", "Sorted by ")}
-          <strong>{t("持有机器数", "number of holding machines")}</strong>
-          {t(
-            "降序；同一个键下会列出持有它的每台机器，以及那台机器上的具体路径（一台机器可以有多条）。机器状态取自 Agent 概览 —— 那份概览只覆盖「最近在线」与「异常」的机器，所以「不在当前台账」不等于这台机器没注册。",
-            ", descending; under each key every machine that holds it is listed along with the exact paths on that machine (one machine may have several). Machine status comes from the agent overview — that overview covers only recently online and abnormal machines, so “not in the current ledger” does not mean the machine is unregistered.",
-          )}
-        </span>
       </div>
 
       {isError ? (

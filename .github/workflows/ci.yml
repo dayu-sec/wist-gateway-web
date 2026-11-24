@@ -143,6 +143,12 @@ jobs:
       - name: Test (launch contract)
         run: npm run test:launch
 
+      # 「发起响应」的纯逻辑：计划窗口（≥ 审批 TTL）/ 计划形状（不带 attestation、
+      # required_capabilities 就是这一步的 op）/ 授权单类错误的识别（页面据此给去签入口）/ 
+      # 深链接指向的动作不在最近列表时要单条读取。
+      - name: Test (response launch contract)
+        run: npm run test:response-launch
+
       - name: Contract tests (action-results)
         run: npm run test:action-results
 
@@ -151,6 +157,9 @@ jobs:
 
       - name: Contract tests (approver install hint)
         run: npm run test:approver-install
+
+      - name: Contract tests (approver package registry)
+        run: npm run test:approver-package
 
       - name: Test (agentd version gate)
         run: npm run test:agentd-version

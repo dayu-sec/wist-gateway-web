@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useAgentAdvertiseUrl } from "../hooks";
 import { t } from "../i18n";
 import {
@@ -22,7 +23,8 @@ import styles from "./ApproverInstallHint.module.css";
  */
 export function ApproverInstallHint() {
   const advertise = useAgentAdvertiseUrl();
-  const base = (advertise.data?.url ?? "") || (advertise.data?.fallbackUrl ?? "");
+  const base =
+    (advertise.data?.url ?? "") || (advertise.data?.fallbackUrl ?? "");
 
   const [triple, setTriple] = useState<ApproverTriple>(() =>
     detectApproverPlatform(
@@ -38,12 +40,6 @@ export function ApproverInstallHint() {
       <h2 className={styles.title}>
         {t("安装审批终端", "Install the approval CLI")}
       </h2>
-      <p className={styles.hint}>
-        {t(
-          "第一次用？这台审批机上还没有 wist-approve 的话，用下面这条命令装（装到 ~/bin，不需要 sudo；该目录通常已在 PATH 上，脚本会告诉你下一步）。二进制从本网关下载、不含任何凭据；私钥由你自己在这台机器上生成，不会离开本机。",
-          "First time here? If wist-approve is not on this approval machine yet, install it with the command below (into ~/bin, no sudo; that directory is usually already on PATH, and the script tells you the next step). The binary is downloaded from this gateway and carries no credentials; the private key is generated on this machine and never leaves it.",
-        )}
-      </p>
 
       <div
         className={styles.platforms}
@@ -58,7 +54,9 @@ export function ApproverInstallHint() {
               type="button"
               aria-pressed={active}
               className={
-                active ? `${styles.platform} ${styles.platformActive}` : styles.platform
+                active
+                  ? `${styles.platform} ${styles.platformActive}`
+                  : styles.platform
               }
               onClick={() => {
                 setTriple(platform.triple);
@@ -99,7 +97,10 @@ export function ApproverInstallHint() {
 
       <ol className={styles.steps}>
         <li>
-          {t("生成审批钥匙（私钥只留在本机，权限 0600）：", "Generate the approval key (private key stays here, mode 0600):")}{" "}
+          {t(
+            "生成审批钥匙（私钥只留在本机，权限 0600）：",
+            "Generate the approval key (private key stays here, mode 0600):",
+          )}{" "}
           <code>wist-approve key generate --out ~/.wist/approver.key</code>
         </li>
         <li>
@@ -116,6 +117,17 @@ export function ApproverInstallHint() {
           )}
         </li>
       </ol>
+
+      <p className={styles.hint}>
+        {t(
+          "这条命令回 503 approver_package_unavailable，说明本网关还没登记审批终端安装包：到",
+          "If this command returns 503 approver_package_unavailable, this gateway has no approval CLI package registered yet: open the",
+        )}{" "}
+        <Link className={styles.hintLink} to="/install-package/approver">
+          {t("审批终端安装包", "Approval CLI packages")}
+        </Link>{" "}
+        {t("页登记三个平台。", "page and register the three platforms.")}
+      </p>
     </section>
   );
 }

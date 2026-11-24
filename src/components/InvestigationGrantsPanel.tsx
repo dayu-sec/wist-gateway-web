@@ -95,12 +95,6 @@ export function InvestigationGrantsPanel() {
           <h1 className={styles.title}>
             {t("调查授权", "Investigation grants")}
           </h1>
-          <p className={styles.summary}>
-            {t(
-              "按调查面授权：**默认全关**（与采集面一致，不授权就不查）。选面 → 勾选可授权主机 → 批量开启；已开启主机只读，行内可关闭当前这一面。网关的 allowed_topics 是上界。",
-              "Grant by investigation surface. Grants are **deny-by-default** (same as collection families: nothing is read until granted). Pick a surface, select grantable hosts, and enable them in batch; enabled hosts are read-only and can turn off the current surface in-row. The gateway's allowed_topics is the ceiling.",
-            )}
-          </p>
         </div>
       </header>
 
@@ -355,12 +349,6 @@ function SurfaceGrantsView({
             </h2>
             <span className={styles.selectorCount}>{TOPICS.length}</span>
           </div>
-          <p className={styles.selectorHint}>
-            {t(
-              "选面 → 勾选可授权主机 → 批量开启；已开启主机只读，行内可关闭当前这一面。默认全关，Agent 能力只作提示。",
-              "Pick a surface, select grantable hosts, and enable them in batch; enabled hosts are read-only and can turn off the current surface in-row. Default is off; agent capability is a hint, not a gate.",
-            )}
-          </p>
           <div
             className={styles.surfaceTabs}
             role="tablist"

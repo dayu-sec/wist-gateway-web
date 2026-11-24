@@ -45,6 +45,42 @@
   margin-top: 18px;
 }
 
+/* 「已托管包」卡内的两档（agentd / 审批终端）：下划线 tab，与知识库 / 采集面同一套视觉。
+   行语义不同（agentd 按版本托管，审批终端只有当前那一份），所以是两档而不是一张混表。 */
+.cardTabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cardTab {
+  margin-bottom: -1px;
+  padding: 9px 12px 10px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cardTab:hover {
+  color: var(--text);
+}
+
+.cardTab:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.cardTabActive {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+
 /* 卡头只留两层：标题 + 一行说明。原先还在标题上挂一个 accent 小标签，三张卡堆出九行文字，
    而标签基本是标题的同义复述（「当前安装包」/「网关当前分发包」）。底色也一并去掉 ——
    卡头是分隔与命名，不是要读的内容。 */
@@ -684,7 +720,9 @@
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .actionLink:hover {
@@ -743,7 +781,9 @@
   background: transparent;
   color: inherit;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
 .compatToggle:hover {

@@ -45,6 +45,14 @@
   line-height: 1.6;
 }
 
+/* 错误里的「去处理」入口（如：去签响应授权单）。与正文同色但可点。 */
+.errorAction {
+  color: var(--accent-strong);
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
 .success {
   margin: 10px 0 0;
   padding: 9px 12px;

@@ -48,12 +48,6 @@ export function SubsystemKafkaAccessPage() {
         <h1 className={styles.pageTitle}>
           {t("采集指南", "Collection guide")}
         </h1>
-        <p className={styles.pageSummary}>
-          {t(
-            "每一类采集面都要两拨人配合：agentd 侧把只读凭据放到它读得到的位置，目标系统侧把那个身份授权成只读。指标由 agentd 的协议探针直接采集，不依赖 Prometheus、也不要求部署 exporter。",
-            "Every collection family needs two teams: the agentd side drops a read-only credential where the agent can read it, and the target system grants that identity read-only access. Metrics are collected by the agentd protocol probe directly — no Prometheus, no exporter.",
-          )}
-        </p>
       </header>
 
       <main className={styles.main}>

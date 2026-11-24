@@ -19,12 +19,6 @@ export function SubsystemAdminHomePage({}: SubsystemAdminHomePageProps) {
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("Agent 总览", "Agent overview")}</h1>
-        <p className={styles.pageSummary}>
-          {t(
-            "查看已接入 Agent 的在线状态、健康状态和需要处理的异常节点。",
-            "See the online status and health of enrolled agents, and the abnormal nodes that need attention.",
-          )}
-        </p>
       </header>
       {isError ? (
         isRateLimitedError(error) ? (

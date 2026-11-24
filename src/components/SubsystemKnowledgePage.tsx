@@ -234,28 +234,7 @@ export function SubsystemKnowledgePage() {
     <div className={styles.container}>
       <main className={styles.main}>
         <header className={styles.pageHeader}>
-          <div className={styles.pageHeaderRow}>
-            <h1 className={styles.pageTitle}>{t("知识库", "Knowledge base")}</h1>
-            {/* 「更新」的入口必须**不藏在 tab 里**：运维找的是「怎么换一版内容」，
-                先进来看不到入口就会以为这个功能不存在。点它直接跳到录入表单。 */}
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => selectTab("record")}
-              title={t(
-                "录入新包 → 激活后生效（不重启网关）",
-                "Record a new package, then activate it — no gateway restart",
-              )}
-            >
-              {t("更新知识库", "Update knowledge base")}
-            </button>
-          </div>
-          <p className={styles.pageSummary}>
-            {t(
-              "网关装载的策展内容（采集目录 / 包 / 模板 + 用途规则 + 发现策略）。 内容以包为单位发布（来自 wist-knowledge 的 Release 附件），在这里录入并切换生效版本 —— 切换不重启网关。",
-              "Curated content loaded by the gateway (collection catalog / packages / templates + purpose rules + discovery policy). Content is published in packages (Release assets from wist-knowledge); record them here and switch the active version — switching does not restart the gateway.",
-            )}
-          </p>
+          <h1 className={styles.pageTitle}>{t("知识库", "Knowledge base")}</h1>
         </header>
 
         {/* 出厂初始内容 / 空载时，把「下一步该干什么」摆在最上面：
@@ -274,13 +253,13 @@ export function SubsystemKnowledgePage() {
               <span>
                 {sourceKind === "initial"
                   ? t(
-                      "网关装载的是部署时自带的初始包（[knowledge] source_dir），没有经过管理面登记 —— 它不在「录入历史」里，也没法回滚。要换到新版本：点右侧「更新知识库」录入新包，再到「知识包」标签页激活。",
-                      "The gateway loaded the initial package shipped with the deployment ([knowledge] source_dir). It is not registered in the admin plane, so it does not appear in the record history and cannot be rolled back. To move to a newer version, click “Update knowledge base”, record the package, then activate it on the Packages tab.",
+                      "网关装载的是部署时自带的初始包（[knowledge] source_dir），没有经过管理面登记 —— 它不在「录入历史」里，也没法回滚。要换到新版本：到「录入知识库」标签页录入新包，再到「知识包」标签页激活。",
+                      "The gateway loaded the initial package shipped with the deployment ([knowledge] source_dir). It is not registered in the admin plane, so it does not appear in the record history and cannot be rolled back. To move to a newer version, record the package on the Record knowledge tab, then activate it on the Packages tab.",
                     )
                   : (current.hint ??
                     t(
-                      "还没有装载任何策展内容：点右侧「更新知识库」录入一个包并激活。",
-                      "No curated content is loaded yet: click “Update knowledge base” to record and activate a package.",
+                      "还没有装载任何策展内容：到「录入知识库」标签页录入一个包并激活。",
+                      "No curated content is loaded yet: record a package on the Record knowledge tab and activate it.",
                     ))}
               </span>
             </div>
@@ -347,12 +326,6 @@ export function SubsystemKnowledgePage() {
                     <h2 id="knowledge-current">
                       {t("当前生效", "Currently active")}
                     </h2>
-                    <p>
-                      {t(
-                        "事实入库用的目录 / 模板、用途推断用的规则、发现方向策略，都以这一版为准。",
-                        "The catalog / templates used for fact ingestion, the rules used for purpose inference and the discovery policy all follow this version.",
-                      )}
-                    </p>
                   </header>
 
                   {knowledge.isLoading || knowledge.isError ? (
@@ -511,13 +484,12 @@ export function SubsystemKnowledgePage() {
                                   "Roll back to previous version",
                                 )}
                           </button>
-                          <span className={styles.actionHint}>
-                            {rollback.blockedReason ??
-                              t(
-                                "把生效指针指回上一版；已经派出去的工作不跟着改。",
-                                "Points the active pointer back to the previous version; already-dispatched work does not follow.",
-                              )}
-                          </span>
+                          {/* 只在**回滚不可用**时说原因；正常时不再用一句泛泛的说明占位。 */}
+                          {rollback.blockedReason ? (
+                            <span className={styles.actionHint}>
+                              {rollback.blockedReason}
+                            </span>
+                          ) : null}
                         </div>
                       ) : null}
 
@@ -564,12 +536,6 @@ export function SubsystemKnowledgePage() {
                           "Work locked to an older catalog",
                         )}
                       </h2>
-                      <p>
-                        {t(
-                          "换版不追改在跑的工作 —— 采集范围是合规边界，不能因为换了内容就悄悄扩大。这些工作会一直按它们派出去时那一版目录跑。",
-                          "Switching versions does not rewrite running work — the collection scope is a compliance boundary and must not silently widen because the content changed. This work keeps running against the catalog it was dispatched with.",
-                        )}
-                      </p>
                     </header>
                     <div className={styles.lockBody}>
                       <div className={styles.lockTotal}>
@@ -754,7 +720,9 @@ export function SubsystemKnowledgePage() {
                                   </span>
                                 </td>
                                 <td>
-                                  <CompatibilityBadge report={pkg.compatibility} />
+                                  <CompatibilityBadge
+                                    report={pkg.compatibility}
+                                  />
                                   <details className={styles.compatDetails}>
                                     <summary className={styles.compatSummary}>
                                       {t("范围与检查", "Ranges & checks")}

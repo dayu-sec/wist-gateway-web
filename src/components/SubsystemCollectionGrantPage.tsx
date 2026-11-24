@@ -817,12 +817,6 @@ export function SubsystemCollectionGrantPage() {
           <h1 className={styles.pageTitle}>
             {t("采集授权", "Collection grants")}
           </h1>
-          <p className={styles.pageSummary}>
-            {t(
-              "从采集面出发：选面，勾选可授权主机，批量下发同一份常驻工作。已经授权/暂停这个面的主机在这一页只读。",
-              "Family first: pick a collection family, select grantable hosts, and dispatch the standing work in batch. Hosts already granted or paused for this family are read-only.",
-            )}
-          </p>
         </div>
         <div className={styles.pageHeaderActions}>
           <Link className={styles.secondaryLink} to="/work">
@@ -891,13 +885,6 @@ export function SubsystemCollectionGrantPage() {
                     {familyRows.length}
                   </span>
                 </div>
-                <p className={styles.selectorHint}>
-                  {t(
-                    "选面后自动检查当前筛选的前 {limit} 台；就绪度来自本机知识库。",
-                    "The first {limit} in the current filter are checked automatically; readiness comes from the local catalog.",
-                    { limit: HOST_LIMIT },
-                  )}
-                </p>
               </div>
               <input
                 className={styles.selectorSearch}
@@ -994,12 +981,6 @@ export function SubsystemCollectionGrantPage() {
                 拿过期事实做判断会把主机误判成不可授权（或反过来）。 */}
             <div className={styles.refreshBar}>
               <div className={styles.refreshCopy}>
-                <p className={styles.refreshLead}>
-                  {t(
-                    "授权前先重采事实：用途与可授权判定来自事实摘要。",
-                    "Refresh facts before granting: purpose and grantability come from the fact summary.",
-                  )}
-                </p>
                 {refreshSummaryParts.length > 0 ||
                 refreshRequestFailures > 0 ? (
                   <p className={styles.refreshSummary}>
@@ -1137,12 +1118,6 @@ export function SubsystemCollectionGrantPage() {
                 <h2 className={styles.welcomeTitle}>
                   {t("先选一个采集面", "Pick a collection family first")}
                 </h2>
-                <p className={styles.welcomeText}>
-                  {t(
-                    "上方每个面都会告诉你在 Linux / macOS 上的就绪度、绑定哪些机器类别。选中后，这一页会列出可以授权的主机。",
-                    "Each family above shows its Linux / macOS readiness and the machine classes it is bound to. Once selected, this page lists the hosts it can be granted to.",
-                  )}
-                </p>
                 <ol className={styles.welcomeSteps}>
                   <li>{t("选面", "Choose a family")}</li>
                   <li>{t("检查可授权主机", "Check grantable hosts")}</li>

@@ -216,18 +216,6 @@ export function SubsystemAgentHostListPage({}: SubsystemAgentHostListPageProps) 
     <div className={styles.container}>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>{t("主机指标", "Host metrics")}</h1>
-        <p className={styles.pageSummary}>
-          {t(
-            "机队实时负载视图：一行一台已接入主机，按严重度排序，优先暴露需要处理的主机。数据每 5 秒刷新。",
-            "Live load view of the fleet: one row per enrolled host, sorted by severity, surfacing the hosts that need attention first. Refreshes every 5 seconds.",
-          )}
-        </p>
-        <p className={styles.pageThresholds}>
-          {t(
-            "分级口径：内存 / 磁盘使用率 ≥90% 为危急、≥75% 为偏高；1 分钟负载按 8 核基准折算。",
-            "Thresholds: memory / disk usage ≥90% is critical, ≥75% is elevated; 1-minute load is normalized to 8 cores.",
-          )}
-        </p>
       </header>
 
       {isError ? (
@@ -541,7 +529,11 @@ function MetricBar({
         >
           {value}
         </span>
-        {detail ? <span className={styles.metricDetail}>{detail}</span> : null}
+        {detail ? (
+          <span className={styles.metricDetail} title={detail}>
+            {detail}
+          </span>
+        ) : null}
       </div>
       {percent !== undefined ? (
         <div className={styles.barTrack}>

@@ -20,6 +20,7 @@ export { SubsystemAgentInstallPage } from "./SubsystemAgentInstallPage";
 export { SubsystemGatewayInfoPage } from "./SubsystemGatewayInfoPage";
 export { SubsystemAgentPackageListPage } from "./SubsystemAgentPackageListPage";
 export { SubsystemAgentPackageAddPage } from "./SubsystemAgentPackageAddPage";
+export { SubsystemApproverPackagePage } from "./SubsystemApproverPackagePage";
 export { SubsystemKnowledgePage } from "./SubsystemKnowledgePage";
 export { SubsystemKafkaAccessPage } from "./SubsystemKafkaAccessPage";
 export { SubsystemKafkaAclHelp } from "./SubsystemKafkaAclHelp";
