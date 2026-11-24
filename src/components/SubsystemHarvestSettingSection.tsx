@@ -208,19 +208,13 @@ export function SubsystemHarvestSettingSection() {
     <section className={styles.card} aria-labelledby="harvest-setting">
       <header className={styles.cardHead}>
         <div className={styles.cardTitleRow}>
-          <h2 id="harvest-setting">{t("云资产采集", "Cloud asset harvest")}</h2>
+          <h2 id="harvest-setting">{t("Worker 与采集计划", "Workers and plans")}</h2>
           <span className={styles.cardChip}>
             {loading
               ? t("读取中", "Loading")
               : t(`${activeWorkers} 个 worker`, `${activeWorkers} worker(s)`)}
           </span>
         </div>
-        <p className={styles.cardNote}>
-          {t(
-            "采集指令由网关下发：worker 拉取 standing（采集面 / 区域 / 节奏 / 凭据引用），应用后确认；「漂移」= 确认过的版本落后于期望。云账号凭据只存在于宿主 .wist/sec-value.yml，本页不读取也不保存。",
-            "Work instructions come from the gateway: a worker polls its standing (assets / regions / cadence / credential reference), applies it and acks. Drift means the acknowledged version lags the desired one. Cloud credentials live only in the host's .wist/sec-value.yml — this page neither reads nor stores them.",
-          )}
-        </p>
       </header>
 
       <div className={styles.body}>

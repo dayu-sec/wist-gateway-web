@@ -494,6 +494,29 @@ function IconGuide() {
   );
 }
 
+function IconHarvest() {
+  return (
+    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+      <path
+        d="M4.6 11.4a2.6 2.6 0 0 1-.3-5.18 3.6 3.6 0 0 1 6.9.6 2.9 2.9 0 0 1 .2 5.78"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 13.4V9.6m0 0L6.7 10.9M8 9.6l1.3 1.3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function IconKnowledge() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -580,7 +603,7 @@ function navGroups(): { label: string; items: NavItem[] }[] {
   // 分组按**任务阶段**（观测 → 采集 → 机器 → 网关），不按技术模块：
   //   · 采集组内部就是一条工作流：知识库（有什么可采）→ 采集指南（目标系统怎么授权）
   //     → 采集授权（派给哪些机器）→ 采集工作（在采吗）→ 采集日志（为什么没采到）；
-  //   · 「网关状态 / Gateway 信息 / 链接上级」都是**网关自己**（活着吗 / 对外是什么 / 连到谁），
+  //   · 「网关状态 / 网关配置 / 链接上级」都是**网关自己**（活着吗 / 对外是什么 / 连到谁），
   //     不再拆在「监控」与「设置」两组。
   return [
     {
@@ -605,13 +628,13 @@ function navGroups(): { label: string; items: NavItem[] }[] {
         // 数据面（wparse）的吞吐与规则；不叫「数据采集」，免得和「采集」组撞词。
         {
           to: "/pipeline",
-          label: t("数据面链路", "Data pipeline"),
+          label: t("数据链路", "Data pipeline"),
           icon: <IconPipeline />,
         },
         // agentd 的采集日志：读的是"采下来/没采下来"的证据，属于观测而非配置动作。
         {
           to: "/logs",
-          label: t("采集日志", "Collection logs"),
+          label: t("日志观测", "Log observation"),
           icon: <IconLogs />,
         },
       ],
@@ -638,6 +661,13 @@ function navGroups(): { label: string; items: NavItem[] }[] {
           to: "/work",
           label: t("采集工作", "Collection work"),
           icon: <IconWork />,
+        },
+        // 云资产采集：宿主 harvest worker 拉取采集计划、手动触发与记录。
+        // 它原先嵌在「网关配置」页里（那是本网关的对外地址/上送），对象不同。
+        {
+          to: "/harvest",
+          label: t("云资产采集", "Cloud asset harvest"),
+          icon: <IconHarvest />,
         },
       ],
     },
@@ -668,11 +698,6 @@ function navGroups(): { label: string; items: NavItem[] }[] {
           icon: <IconInstall />,
         },
         {
-          to: "/install-package",
-          label: t("安装包", "Install packages"),
-          icon: <IconPackage />,
-        },
-        {
           to: "/upgrade",
           label: t("Agent 升级", "Agent upgrade"),
           icon: <IconUpgrade />,
@@ -694,13 +719,20 @@ function navGroups(): { label: string; items: NavItem[] }[] {
         },
         {
           to: "/gateway-info",
-          label: t("Gateway 信息", "Gateway info"),
+          label: t("网关配置", "Gateway info"),
           icon: <IconGatewayInfo />,
         },
         {
           to: "/link-upstream",
           label: t("链接上级", "Link upstream"),
           icon: <IconLinkUpstream />,
+        },
+        // 安装包是网关**托管并分发**的制品（网关读 /packages、按 /packages/<文件名> 登记来源），
+        // 放在网关组更贴合它实际的职责；机器侧只管“装/升/剔”。
+        {
+          to: "/install-package",
+          label: t("安装包", "Install packages"),
+          icon: <IconPackage />,
         },
       ],
     },

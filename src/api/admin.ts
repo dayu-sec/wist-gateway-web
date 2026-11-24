@@ -2882,7 +2882,7 @@ export async function fetchDataPlaneTree(): Promise<DataPlaneTree> {
  * 数据面输出文件（wparse file sink 的落点）
  *
  * 输出目录 `data/out_dat`（宿主 `data-plane-run/data`）由栈只读挂到网关
- * `/data-plane/data`，网关按 `work_dir/data/out_dat` 推导。页面「采集日志」
+ * `/data-plane/data`，网关按 `work_dir/data/out_dat` 推导。页面「日志观测」
  * 用它做 tail -f：列文本文件 + 按字节偏移增量取新内容。
  *
  * 不列二进制输出（`file_arrow_sink` 等）：浏览器里没有可读性。

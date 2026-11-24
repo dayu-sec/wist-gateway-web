@@ -20,7 +20,6 @@ import {
   uplinkFormState,
 } from "./uplinkForm";
 import { SubsystemDiscoverySnapshotSection } from "./SubsystemDiscoverySnapshotSection";
-import { SubsystemHarvestSettingSection } from "./SubsystemHarvestSettingSection";
 import styles from "./SubsystemGatewayInfoPage.module.css";
 
 /** 关于「未设置」：不是「用默认值」，而是压根没有上送目标。
@@ -159,7 +158,7 @@ function LoadNotice({ loading, error }: { loading: boolean; error: unknown }) {
 }
 
 /**
- * 「Gateway 信息」页（路由 `/gateway-info`）。
+ * 「网关配置」页（路由 `/gateway-info`）。
  *
  * 信息按**用途**分三段，不再按「一个设置一张卡」：
  *
@@ -205,7 +204,7 @@ export function SubsystemGatewayInfoPage() {
       <main className={styles.main}>
         <header className={styles.pageHeader}>
           <h1 className={styles.pageTitle}>
-            {t("Gateway 信息", "Gateway info")}
+            {t("网关配置", "Gateway info")}
           </h1>
           <p className={styles.pageSummary}>
             {t(
@@ -375,8 +374,6 @@ export function SubsystemGatewayInfoPage() {
             />
           </section>
         ) : null}
-
-        <SubsystemHarvestSettingSection />
 
         <SubsystemDiscoverySnapshotSection />
 

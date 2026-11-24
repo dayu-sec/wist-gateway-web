@@ -96,7 +96,7 @@ function formatTimestamp(value: string | null): string {
 }
 
 /**
- * 采集日志页：**tail -f wparse 的输出文件**。
+ * 日志观测页：**tail -f wparse 的输出文件**。
  *
  * 链路是 agentd → 数据面（warp-parse）→ file sink 落盘到
  * 宿主 `data-plane-run/data/out_dat/*.json`。页面不再读网关自己那份 NDJSON 接入日志，
@@ -208,7 +208,7 @@ export function SubsystemAgentLogsPage({}: SubsystemAgentLogsPageProps) {
   return (
     <div className={styles.container}>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>{t("采集日志", "Collection logs")}</h1>
+        <h1 className={styles.pageTitle}>{t("日志观测", "Log observation")}</h1>
       </header>
 
       {error ? (

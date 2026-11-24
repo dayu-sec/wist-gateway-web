@@ -8,7 +8,7 @@ import { linkdSummary } from "../src/components/linkdStatus";
 // gwlinkd 状态行的**判定测试**。
 //
 // 为什么单独有这一份：本仓没有组件渲染环境（无 jsdom），而 `linkdSummary` 是「链接上级」与
-// 「Gateway 信息」两页共用的展示判定 —— 失联阈值、降级口径、等待接入的措辞若散在两处就会各自漂移。
+// 「网关配置」两页共用的展示判定 —— 失联阈值、降级口径、等待接入的措辞若散在两处就会各自漂移。
 // 抽成纯函数后这里逐条钉住每种状态映射，并用源码守卫防止有人再在页面里长出第二份实现。
 // 参考范式：`tests/uplink-form.test.ts`（`tsx` 跑的纯 node 脚本，失败即非零退出）。
 
@@ -188,24 +188,24 @@ function status(overrides: Partial<GatewayLinkdStatusView> = {}): GatewayLinkdSt
     "侧边栏缺 /gwlinkd 入口",
   );
 
-  // 「Gateway 信息」页只留一行状态 + 链，不再重复明细。
+  // 「网关配置」页只留一行状态 + 链，不再重复明细。
   const info = read("src/components/SubsystemGatewayInfoPage.tsx").replace(/\s+/g, " ");
   check(
     info.includes('id="gateway-info-linkd"'),
-    "「Gateway 信息」页缺 gwlinkd 摘要行（gateway-info-linkd）",
+    "「网关配置」页缺 gwlinkd 摘要行（gateway-info-linkd）",
   );
   check(
     info.includes('to="/gwlinkd"'),
-    "「Gateway 信息」页的 gwlinkd 行应链到独立页 /gwlinkd",
+    "「网关配置」页的 gwlinkd 行应链到独立页 /gwlinkd",
   );
   // 该页的既有纪律：数据没取到就不下结论（状态行要有门）。
   check(
     info.includes("linkdReady"),
-    "「Gateway 信息」的 gwlinkd 行缺“取到才下结论”的门",
+    "「网关配置」的 gwlinkd 行缺“取到才下结论”的门",
   );
   check(
     !info.includes("credentialExpiresAt") && !info.includes("lastCenterReportAt"),
-    "明细（证书到期 / 最近上报）应集中在独立页，不在 Gateway 信息重复",
+    "明细（证书到期 / 最近上报）应集中在独立页，不在网关配置页重复",
   );
 
   // 「链接上级」的一行摘要也链到独立页。

@@ -41,14 +41,6 @@
   white-space: nowrap;
 }
 
-.cardNote {
-  max-width: 780px;
-  margin-top: 6px;
-  color: var(--text-3);
-  font-size: 12.5px;
-  line-height: 1.6;
-}
-
 .body {
   display: flex;
   flex-direction: column;

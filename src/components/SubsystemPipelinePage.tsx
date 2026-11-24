@@ -142,7 +142,7 @@ export function SubsystemPipelinePage() {
   const header = (
     <>
       <header className={styles.pageHeader}>
-        <h1 className={styles.pageTitle}>{t("数据面链路", "Data pipeline")}</h1>
+        <h1 className={styles.pageTitle}>{t("数据链路", "Data pipeline")}</h1>
       </header>
 
       <div className={styles.pageTabs} role="tablist">

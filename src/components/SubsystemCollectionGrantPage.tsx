@@ -1003,7 +1003,7 @@ export function SubsystemCollectionGrantPage() {
                 {refreshSummary.counts.no_uplink > 0 ? (
                   <p className={styles.refreshHint}>
                     {t(
-                      "有 {n} 台没有上送通道：先到「Gateway 信息」页把数据面上送开起来。",
+                      "有 {n} 台没有上送通道：先到「网关配置」页把数据面上送开起来。",
                       "{n} host(s) have no uplink: turn on data plane reporting on the Gateway info page first.",
                       { n: refreshSummary.counts.no_uplink },
                     )}

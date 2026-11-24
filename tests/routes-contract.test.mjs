@@ -90,8 +90,8 @@ check(
 
 // ── ④ 页面名与组件名一起归位（别再出现旧页名）────────────────────────────────
 check(
-  infoPage.includes("Gateway 信息"),
-  "网关信息页缺少页名「Gateway 信息」",
+  infoPage.includes("网关配置"),
+  "网关配置页缺少页名「网关配置」（路由 /gateway-info 的 h1 应与菜单一致）",
 );
 check(
   !readme.includes("/gateway-init` | Gateway 初始化"),
@@ -171,6 +171,7 @@ const NAV_GROUPS = [
       "/collection-guide",
       "/collection-grants",
       "/work",
+      "/harvest",
     ],
   },
   {
@@ -179,14 +180,13 @@ const NAV_GROUPS = [
       "/fleet",
       "/commands",
       "/install",
-      "/install-package",
       "/upgrade",
       "/revocations",
     ],
   },
   {
     section: "gateway",
-    routes: ["/gwlinkd", "/gateway-info", "/link-upstream"],
+    routes: ["/gwlinkd", "/gateway-info", "/link-upstream", "/install-package"],
   },
 ];
 

@@ -10,6 +10,7 @@ import { SubsystemAgentPackageListPage } from "./components/SubsystemAgentPackag
 import { SubsystemAgentPackageAddPage } from "./components/SubsystemAgentPackageAddPage";
 import { SubsystemApproverPackagePage } from "./components/SubsystemApproverPackagePage";
 import { SubsystemKnowledgePage } from "./components/SubsystemKnowledgePage";
+import { SubsystemHarvestPage } from "./components/SubsystemHarvestPage";
 import { SubsystemKafkaAccessPage } from "./components/SubsystemKafkaAccessPage";
 import { SubsystemAgentHostMetricsPage } from "./components/SubsystemAgentHostMetricsPage";
 import { SubsystemAgentMetricsLabelsPage } from "./components/SubsystemAgentMetricsLabelsPage";
@@ -63,7 +64,7 @@ export function App() {
         <Route path="/link-upstream" element={<SubsystemLinkUpstreamPage />} />
         {/* 旧入口一律留重定向，外部链接与书签不至于落到 404：
             「Gateway 初始化 / /gateway-init」（与已并入它的 /uplink、/agent-init）已改名
-            「Gateway 信息 / /gateway-info」—— 网关对外地址**只读展示**，数据面上送地址与启用开关可改；
+            「网关配置 / /gateway-info」—— 网关对外地址**只读展示**，数据面上送地址与启用开关可改；
             「初始化 Gateway / /init」已改名「链接上级 / /link-upstream」。
             （安装包已从该页拆回独立页 /install-package，见上。）
             （知识库内容是独立页 /knowledge —— 它像安装包一样是「录入 + 切生效」的管理对象。）
@@ -89,6 +90,8 @@ export function App() {
         <Route path="/pipeline" element={<SubsystemPipelinePage />} />
         <Route path="/logs" element={<SubsystemAgentLogsPage />} />
         <Route path="/work" element={<SubsystemWorkListPage />} />
+        {/* 云资产采集：宿主 harvest worker + 采集计划 + 手动触发（从 网关配置页抽出来归到采集组）*/}
+        <Route path="/harvest" element={<SubsystemHarvestPage />} />
         <Route
           path="/collection-grants"
           element={<SubsystemAuthorizationPage />}

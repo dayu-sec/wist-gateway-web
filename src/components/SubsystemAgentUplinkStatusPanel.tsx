@@ -117,7 +117,7 @@ function describe(state: AgentUplinkStateView | null): Headline {
           "Uplink is not enabled by the control plane (normal standby)",
         ),
         detail: t(
-          "上送目标这边看起来是有的（Agent 侧记着 {target}）。两个条件里缺的多半是「生效工作」—— 到本页下方的「能派什么」派一份常驻工作即可；若确实已派过活，再回 Gateway 信息页看「数据面上送地址」一眼。",
+          "上送目标这边看起来是有的（Agent 侧记着 {target}）。两个条件里缺的多半是「生效工作」—— 到本页下方的「能派什么」派一份常驻工作即可；若确实已派过活，再回 网关配置页看「数据面上送地址」一眼。",
           "The uplink target appears to be in place (the agent has {target} on record). What is most likely missing is effective work — assign a piece of standing work from “What can be assigned” below. If work really has been assigned, take another look at “Data plane uplink address” on the Gateway info page.",
           { target: state.target },
         ),
@@ -131,7 +131,7 @@ function describe(state: AgentUplinkStateView | null): Headline {
         "Uplink is not enabled by the control plane (normal standby)",
       ),
       detail: t(
-        "Agent 侧还没记下上送目标 —— 网关没能给出目标（对外基址里取不出主机名，或本机拿的配置被改过）。到 Gateway 信息页看「数据面上送地址」一眼；派活后 ≤30 秒自动开，无需改配置或重装。",
+        "Agent 侧还没记下上送目标 —— 网关没能给出目标（对外基址里取不出主机名，或本机拿的配置被改过）。到 网关配置页看「数据面上送地址」一眼；派活后 ≤30 秒自动开，无需改配置或重装。",
         "The agent has no uplink target on record — the gateway could not provide one (no host name can be derived from the external base URL, or the config it received has been changed). Take a look at “Data plane uplink address” on the Gateway info page; after work is assigned it turns on within 30 seconds, with no config change or reinstall.",
       ),
     };

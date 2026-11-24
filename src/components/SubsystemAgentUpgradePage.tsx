@@ -342,7 +342,7 @@ export function SubsystemAgentUpgradePage() {
         <div className={styles.titleRow}>
           <h1 className={styles.pageTitle}>{t("Agent 升级", "Agent upgrade")}</h1>
           <Link className={styles.crossLink} to="/gateway-info">
-            {t("Gateway 信息", "Gateway info")} <span aria-hidden="true">→</span>
+            {t("网关配置", "Gateway info")} <span aria-hidden="true">→</span>
           </Link>
         </div>
         <p className={styles.pageSummary}>

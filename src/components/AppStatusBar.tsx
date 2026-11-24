@@ -83,17 +83,22 @@ function describeRoute(pathname: string): RouteMeta {
     case "/pipeline":
       return {
         section: "monitoring",
-        crumbs: [t("数据面链路", "Data pipeline")],
+        crumbs: [t("数据链路", "Data pipeline")],
       };
     case "/logs":
       return {
         section: "monitoring",
-        crumbs: [t("采集日志", "Collection logs")],
+        crumbs: [t("日志观测", "Log observation")],
       };
     case "/work":
       return {
         section: "collection",
         crumbs: [t("采集工作", "Collection work")],
+      };
+    case "/harvest":
+      return {
+        section: "collection",
+        crumbs: [t("云资产采集", "Cloud asset harvest")],
       };
     case "/collection-grants":
       return {
@@ -115,7 +120,7 @@ function describeRoute(pathname: string): RouteMeta {
     case "/gateway-info":
       return {
         section: "gateway",
-        crumbs: [t("Gateway 信息", "Gateway info")],
+        crumbs: [t("网关配置", "Gateway info")],
       };
     case "/gwlinkd":
       // 与侧边栏「网关」组一致：这一页看的是网关自己（两层谁活着）。
@@ -125,12 +130,12 @@ function describeRoute(pathname: string): RouteMeta {
       };
     case "/install-package":
       return {
-        section: "fleet",
+        section: "gateway",
         crumbs: [t("安装包管理", "Install packages")],
       };
     case "/install-package/add":
       return {
-        section: "fleet",
+        section: "gateway",
         crumbs: [
           t("安装包管理", "Install packages"),
           t("安装包录入", "Install package entry"),
@@ -138,7 +143,7 @@ function describeRoute(pathname: string): RouteMeta {
       };
     case "/install-package/approver":
       return {
-        section: "fleet",
+        section: "gateway",
         crumbs: [
           t("安装包管理", "Install packages"),
           t("审批终端安装包", "Approval CLI packages"),

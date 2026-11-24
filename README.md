@@ -4,7 +4,7 @@
 [![Release](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/release.yml/badge.svg)](https://github.com/dayu-sec/wist-gateway-web/actions/workflows/release.yml)
 [![Version](https://img.shields.io/github/v/tag/dayu-sec/wist-gateway-web?label=version&sort=semver)](https://github.com/dayu-sec/wist-gateway-web/releases)
 
-`wist-gateway` 的 Web 前端。提供 Agent 总览、主机指标、数据采集管线、Agent 安装与升级、Gateway 信息等管理界面，是 `wist-gateway-stack` 自托管栈的前端组件。
+`wist-gateway` 的 Web 前端。提供 Agent 总览、主机指标、数据采集管线、Agent 安装与升级、网关配置等管理界面，是 `wist-gateway-stack` 自托管栈的前端组件。
 
 前端与后端解耦，通过 `/api` 反向代理访问 `wist-gateway`；可独立构建、独立发布、独立升级。
 
@@ -116,7 +116,7 @@ React Query 缓存里，不会重新拉。
 | `/` | Agent 总览 |
 | `/install` | 安装 Agent |
 | `/link-upstream` | 链接上级（接入上级控制中心） |
-| `/gateway-info` | Gateway 信息（网关对外地址，只读 / 数据面上送地址与开关，可改） |
+| `/gateway-info` | 网关配置（网关对外地址，只读 / 数据面上送地址与开关，可改） |
 | `/install-package` | 安装包管理（已托管包：组件 / 版本 / 平台 / 状态 / 兼容性 / 录入时间） |
 | `/install-package/add` | 安装包录入（三平台一次录入 + GitHub Release 一键填充 + 最近录入） |
 | `/knowledge` | 知识库（策展内容：录入包 / 切换生效版本 / 锁旧版的工作 / 包兼容性） |
@@ -124,9 +124,10 @@ React Query 缓存里，不会重新拉。
 | `/gateway-init`、`/uplink`、`/agent-init` | 已改名 `/gateway-info`，保留重定向 |
 | `/hosts` | 主机列表 |
 | `/software` | 资产清单 |
-| `/pipeline` | 数据采集管线（吞吐 / 配置与规则） |
-| `/logs` | 采集日志（下拉选文件 + tail 数据面输出；支持 `grep` 式行过滤） |
+| `/pipeline` | 数据链路（吞吐 / 配置与规则） |
+| `/logs` | 日志观测（下拉选文件 + tail 数据面输出；支持 `grep` 式行过滤） |
 | `/work` | 采集工作（按主机查看在采什么、授权/暂停/撤回） |
+| `/harvest` | 云资产采集（host worker 状态 / 采集计划 / 手动触发与记录） |
 | `/collection-grants` | 授权（两个 tab：采集面授权 = 按面选主机批量下发；调查授权 = 按主机勾选调查面，即时生效） |
 | `/fleet` | Agent 机队（在册 Agent，含离线；删除离线机器，不可恢复） |
 | `/commands` | 任务队列（agentd 待执行 / 执行中 / 已回执的一次性命令，含中心下发；只读） |
