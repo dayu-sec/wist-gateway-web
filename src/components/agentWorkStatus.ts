@@ -538,6 +538,10 @@ export function isExecutableSource(kind: string, target: string): boolean {
   if (kind === "MetricInterval") return true;
   if (kind === "Exporter") return isKnownExporter(target);
   if (kind === "KeyProcessMetrics") return keyProcessTargetIssue(target) === null;
+  // 主机流记录：观测哪张网卡是**本机事实**，`target` 只认空或 `auto`
+  //（与 contracts 的 `auto_target_only` + `accepts_target` 逐条对齐；写死网卡名不可采）。
+  if (kind === "HostFlow")
+    return target.trim() === "" || target.trim().toLowerCase() === "auto";
   // 四个自探域：端点只来自 agentd 本机自探，`target` 只认空或 `auto`。
   // 与 `wist-contracts` 的 `auto_target_only` + `accepts_target` 逐条对齐 ——
   // 这里漏掉它们，页面会把本该可采的数据库/消息队列指标标成「未接」。

@@ -839,6 +839,14 @@ assert(
   "内核日志导出器可采（与 wist-contracts 的 EXPORTER_IDS 同口径）",
 );
 assert(!isExecutableSource("Exporter", "last,lastb"), "未知导出器 ID 不算可采");
+// 主机流记录：观测哪张网卡是本机事实，`target` 只认空 / `auto`
+//（与 wist-contracts 的 `auto_target_only` + `accepts_target` 同口径）。
+assert(isExecutableSource("HostFlow", "auto"), "HostFlow + auto 可采");
+assert(isExecutableSource("HostFlow", ""), "HostFlow + 空 target 可采（兼容旧网关）");
+assert(
+  !isExecutableSource("HostFlow", "eth0"),
+  "写死网卡名不算可采（平台不知道目标机器的接口名）",
+);
 assert(!isExecutableSource("UnifiedLogPredicate", "syspolicyd"), "统一日志谓词还没接");
 assert(isExplicitPath("/var/log/app.log"), "绝对路径无通配 = 显式路径");
 assert(!isExplicitPath("/var/log/app?.log"), "? 也是通配元字符");
