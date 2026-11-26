@@ -602,6 +602,11 @@ export function unsupportedSourceReason(
       keyProcessTargetIssue(target) ??
       t("关键进程签名列表不合法", "Invalid key-process signature list")
     );
+  if (kind === "HostFlow")
+    return t(
+      "流记录只观测 agent 本机判定的对外网卡（target 只认 auto）",
+      "Flow records watch the host-decided egress NIC (only `auto`)",
+    );
   if (kind === "UnifiedLogPredicate")
     return t("统一日志谓词", "Unified log predicate");
   return t("未知类型 {kind}", "Unknown kind {kind}", { kind });
