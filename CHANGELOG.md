@@ -5,6 +5,24 @@
 
 > 本文件自 0.1.7 起建立；更早版本请查 git 历史。
 
+## [0.45.3-alpha] - 2026-11-27
+
+**HostFlow（主机流）在工作授权页能正确判定：可采判据认得它，不可采时给出可操作的原因。**
+
+### 新增（可采判据）
+
+- **`isExecutableSource` 加 `HostFlow`**：`target` 只接受空或 `auto`（网卡是**本机事实**），
+  与 `contracts` 的 `auto_target_only` / `accepts_target` 同口径，避免页面放行一个 agentd 会拒的授权。
+
+### 修复
+
+- **HostFlow 的不可采原因不再落成「未知类型」**：`unsupportedSourceReason` 对已知 kind 给可操作的原因
+  （网卡只能由本机判定，写死接口名不是「未知类型」）。
+
+### 测试
+
+- `tests/agent-work-contract.test.ts`：补 `auto` / 空 / `eth0` 三条断言，与 agentd 判定保持一致。
+
 ## [0.45.2-alpha] - 2026-11-25
 
 **菜单与页面归位：云资产采集独立成页，安装包归「网关」，三处页名对齐职责。**
