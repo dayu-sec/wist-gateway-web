@@ -83,8 +83,8 @@ function describe(state: AgentUplinkStateView | null): Headline {
           )
         : t("已启用：按本机配置上送", "Enabled: sending per local config"),
       detail: t(
-        "有生效工作且目标可达时，采集日志会出现在「采集日志」页。",
-        "When effective work exists and the target is reachable, collection logs show up on the Collection logs page.",
+        "有生效工作且目标可达时，采集日志会出现在「日志观测」页。",
+        "When effective work exists and the target is reachable, collection logs show up on the Log observation page.",
       ),
     };
   }

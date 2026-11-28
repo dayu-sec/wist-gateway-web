@@ -542,14 +542,16 @@ export function isExecutableSource(kind: string, target: string): boolean {
   //（与 contracts 的 `auto_target_only` + `accepts_target` 逐条对齐；写死网卡名不可采）。
   if (kind === "HostFlow")
     return target.trim() === "" || target.trim().toLowerCase() === "auto";
-  // 四个自探域：端点只来自 agentd 本机自探，`target` 只认空或 `auto`。
+  // 四个自探域 + 容器指标：端点/目标只来自 agentd 本机自探，`target` 只认空或 `auto`。
   // 与 `wist-contracts` 的 `auto_target_only` + `accepts_target` 逐条对齐 ——
-  // 这里漏掉它们，页面会把本该可采的数据库/消息队列指标标成「未接」。
+  // 这里漏掉它们，页面会把本该可采的数据库/消息队列/容器指标标成「未接」。
   if (
     kind === "KafkaCluster" ||
     kind === "MysqlInstance" ||
     kind === "PostgresInstance" ||
-    kind === "DorisCluster"
+    kind === "DorisCluster" ||
+    // 容器：采哪些容器是本机发现的事实（运行时根目录 / Docker socket）。
+    kind === "ContainerMetrics"
   )
     return target.trim() === "" || target.trim().toLowerCase() === "auto";
   return false;
@@ -567,6 +569,7 @@ const METRICS_ONLY_KINDS: readonly string[] = [
   "PostgresInstance",
   "DorisCluster",
   "KeyProcessMetrics",
+  "ContainerMetrics",
 ];
 
 /** 一条来源在这份工作里今天到底会不会被采（kind + target + 单元能力）。 */
@@ -606,6 +609,11 @@ export function unsupportedSourceReason(
     return t(
       "流记录只观测 agent 本机判定的对外网卡（target 只认 auto）",
       "Flow records watch the host-decided egress NIC (only `auto`)",
+    );
+  if (kind === "ContainerMetrics")
+    return t(
+      "容器指标只采本机发现的容器（target 只认 auto，不能写容器 id 或运行时路径）",
+      "Container metrics collect locally discovered containers only (target must be `auto`)",
     );
   if (kind === "UnifiedLogPredicate")
     return t("统一日志谓词", "Unified log predicate");

@@ -938,6 +938,8 @@ for (const kind of [
   "MysqlInstance",
   "PostgresInstance",
   "DorisCluster",
+  // 容器指标：采哪些容器是本机发现的事实（target 只认 auto）。
+  "ContainerMetrics",
 ]) {
   assert(isExecutableSource(kind, "auto"), `${kind} 的 auto 可采`);
   assert(isExecutableSource(kind, ""), `${kind} 的空 target 可采（兼容旧网关）`);
@@ -946,6 +948,19 @@ for (const kind of [
     `${kind} 不接受手写地址`,
   );
 }
+assert(isExecutableSource("ContainerMetrics", " AUTO "), "大小写与空白容忍");
+for (const target of ["abc123", "/run/containerd", "docker:abc123"]) {
+  assert(
+    !isExecutableSource("ContainerMetrics", target),
+    `容器指标不接受手写容器/路径：${target}`,
+  );
+}
+assert(
+  (unsupportedSourceReason("ContainerMetrics", "/run/containerd") ?? "").includes(
+    "auto",
+  ),
+  "写错 target 要说清只认 auto，而不是笼统的未知类型",
+);
 
 // 指标专属来源只在 `collect_metrics` 单元里成立（网关 `is_collectable_source` 同口径）：
 // 挂在 `collect_logs` 下页面不能说可采，否则 agent 会把它归成 `collect_not_ready`。
@@ -983,6 +998,36 @@ assert(
 assert(
   unsupportedSourceCount(keyProcMetricsSpec) === 0,
   "指标单元里的关键进程来源不该被计成「采不到」",
+);
+
+// 容器指标同理：`ContainerMetrics` 只属于 `collect_metrics` 单元（网关/agentd 同一判据）。
+const containerUnit = (capability: string) => ({
+  unit_id: "u",
+  capability,
+  rule_ref: "r",
+  requires_privilege: "root",
+  sources: [{ kind: "ContainerMetrics", target: "auto" }],
+});
+const ctrMetricsSpec = parseWorkSpec(
+  JSON.stringify({ units: [containerUnit("collect_metrics")] }),
+);
+const ctrLogsSpec = parseWorkSpec(
+  JSON.stringify({ units: [containerUnit("collect_logs")] }),
+);
+assert(
+  sourceIsCollectable(
+    ctrMetricsSpec.units[0],
+    ctrMetricsSpec.units[0].sources[0],
+  ),
+  "指标单元里的容器目标可采",
+);
+assert(
+  !sourceIsCollectable(ctrLogsSpec.units[0], ctrLogsSpec.units[0].sources[0]),
+  "日志单元挂容器指标不算可采（容器日志 ∈ ContainerWorkload）",
+);
+assert(
+  unsupportedSourceCount(ctrLogsSpec) === 1,
+  "能力不对的容器来源要计入「采不到」",
 );
 
 // --- 6c. 「在采的日志文件」= work.json tasks 的来源 --------------------------
