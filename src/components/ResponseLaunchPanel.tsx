@@ -25,7 +25,7 @@ import {
 import styles from "./ResponseLaunchPanel.module.css";
 
 /**
- * 「发起响应」：把一次处置从**页面**走通（选机器 → 填参数 → 先预览 → 提交审批）。
+ * 「发起处置」：把一次处置从**页面**走通（选机器 → 填参数 → 先预览 → 提交审批）。
  *
  * 为什么第一版只开放 `disk.cleanup`：
  * 每个 opcode 的参数形状都不同，而契约里**没有**参数 schema（由 agentd 的执行侧校验）。
@@ -83,8 +83,8 @@ function launchErrorMessage(error: unknown): string {
       case "response_grant_expired":
       case "response_grant_not_yet_valid":
         return t(
-          "这台机器没有生效中的响应授权单（预览也属于响应）。到「采集授权 → 响应授权」先签一张，再回来。",
-          "This agent has no active response grant (preview counts as a response too). Issue one under Collection grants → Response grants, then come back.",
+          "这台机器没有生效中的处置授权单（预览也属于处置）。到「采集授权 → 处置授权」先签一张，再回来。",
+          "This agent has no active disposition grant (preview counts as a disposition too). Issue one under Collection grants → Disposition grants, then come back.",
         );
       case "response_grant_insufficient":
         return t(
@@ -169,10 +169,12 @@ export function ResponseLaunchPanel({
     <section className={embedded ? styles.containerEmbedded : styles.container}>
       {embedded ? null : (
         <header className={styles.header}>
-          <h1 className={styles.title}>{t("发起响应", "Launch response")}</h1>
+          <h1 className={styles.title}>
+            {t("发起处置", "Launch disposition")}
+          </h1>
           <p className={styles.summary}>
             {t(
-              "一次响应的两步：先预览（只读，扫出将被清理的文件），再提交清理（写入，进审批）。预览也走响应授权，所以这台机器需要有生效中的授权单。",
+              "一次处置的两步：先预览（只读，扫出将被清理的文件），再提交清理（写入，进审批）。预览也走处置授权，所以这台机器需要有生效中的授权单。",
               "Two steps: preview (read-only, lists what would be removed), then submit the cleanup (write, goes to approval). Preview is a response too, so the agent needs an active response grant.",
             )}
           </p>
@@ -483,8 +485,11 @@ function CleanupForm({
           {error.needsGrant ? (
             <>
               {" "}
-              <Link className={styles.errorAction} to="/authorization?tab=response">
-                {t("去签响应授权单 →", "Issue a response grant →")}
+              <Link
+                className={styles.errorAction}
+                to="/authorization?tab=response"
+              >
+                {t("去签处置授权单 →", "Issue a disposition grant →")}
               </Link>
             </>
           ) : null}
@@ -496,7 +501,7 @@ function CleanupForm({
           {t("已提交审批：", "Submitted for approval: ")}
           <Link to="/approvals">{submittedApprovalId}</Link>
           {t(
-            " —— 到「响应审批」批完才会下发。",
+            " —— 到「处置审批」批完才会下发。",
             " — it is dispatched only after approval.",
           )}
         </p>
@@ -756,7 +761,7 @@ function CleanupListing({
 }
 
 /**
- * 「最近的响应结果」：刷新页面后还能找回的历史入口。
+ * 「最近的处置结果」：刷新页面后还能找回的历史入口。
  *
  * 为什么必须有：发起页的预览只活在当次会话里（`actionId` 是组件 state，刷新即丢），
  * 用户执行成功后找不到任何反馈。结果恰恰是复核与审计要反复看的东西。

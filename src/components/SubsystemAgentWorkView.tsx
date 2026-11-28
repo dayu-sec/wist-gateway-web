@@ -1098,10 +1098,12 @@ function StandingWorkCard({
                 {t("恢复（沿用同一版本）", "Resume (same version)")}
               </button>
             ) : null}
+            {/* 撤回不走告警色：它是生命周期里的普通一步（要改这份采什么就撤回后重新授权），
+                不是故障，也不是不可逆的删数据 —— 红色留给漂移/失败这类真要看的东西。 */}
             {work.status !== "revoked" ? (
               <button
                 type="button"
-                className={styles.dangerButton}
+                className={styles.actionButton}
                 disabled={pending}
                 onClick={() =>
                   setRevokeTarget(
@@ -1130,7 +1132,7 @@ function StandingWorkCard({
               </label>
               <button
                 type="button"
-                className={styles.dangerButton}
+                className={styles.actionButton}
                 disabled={pending}
                 onClick={() => {
                   onAction({

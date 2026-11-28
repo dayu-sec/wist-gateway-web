@@ -54,16 +54,13 @@ function describeRoute(pathname: string): RouteMeta {
   if (matchPath("/agents/:agentId/response", pathname)) {
     return {
       section: "monitoring",
-      crumbs: [t("主机指标", "Host metrics"), t("响应", "Response")],
+      crumbs: [t("主机指标", "Host metrics"), t("处置", "Disposition")],
     };
   }
   if (matchPath("/agents/:agentId/investigations", pathname)) {
     return {
       section: "monitoring",
-      crumbs: [
-        t("主机指标", "Host metrics"),
-        t("一次性调查", "One-off investigation"),
-      ],
+      crumbs: [t("主机指标", "Host metrics"), t("调查", "Investigation")],
     };
   }
   if (matchPath("/upgrade/:planId", pathname)) {
@@ -112,7 +109,10 @@ function describeRoute(pathname: string): RouteMeta {
     case "/commands":
       return { section: "fleet", crumbs: [t("任务队列", "Command queue")] };
     case "/approvals":
-      return { section: "fleet", crumbs: [t("响应审批", "Action approvals")] };
+      return {
+        section: "fleet",
+        crumbs: [t("处置审批", "Disposition approvals")],
+      };
     case "/revocations":
       return { section: "fleet", crumbs: [t("吊销名单", "Revocations")] };
     case "/install":

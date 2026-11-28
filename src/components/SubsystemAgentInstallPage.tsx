@@ -42,7 +42,7 @@ export function SubsystemAgentInstallPage() {
   const reinstall = mode === "reinstall";
   const batch = mode === "batch";
 
-  // 批量码的有效期很短（默认 60 秒），**不能**像一次性码那样页面一打开就签发：
+  // 批量码的有效期很短（默认 5 分钟），**不能**像一次性码那样页面一打开就签发：
   // 那样等用户复制完命令，一半寿命已经烧掉了。批量码只由下面的按钮显式生成。
   const oneTime = useAgentInstallCode(!batch);
   const batchIssue = useIssueAgentBatchInstallCode();
@@ -91,8 +91,8 @@ export function SubsystemAgentInstallPage() {
       )
     : batch
       ? t(
-          "在一小段时间内（默认 60 秒）给多台新主机装 Agent：生成一张短时 Token，再用同一份命令在多台机器上执行。",
-          "Install the agent on many new hosts within a short window (60 seconds by default): generate one short-lived token, then run the same command on each machine.",
+          "在一小段时间内（默认 5 分钟）给多台新主机装 Agent：生成一张短时 Token，再用同一份命令在多台机器上执行。",
+          "Install the agent on many new hosts within a short window (5 minutes by default): generate one short-lived token, then run the same command on each machine.",
         )
       : t(
           "在目标主机上装一次采集 Agent，它就会把该主机的指标与日志持续上报到本网关。",
@@ -153,8 +153,8 @@ export function SubsystemAgentInstallPage() {
             <>
               <li>
                 {t(
-                  "生成批量 Token（短时有效，默认 60 秒）",
-                  "Generate a batch token (short-lived, 60 seconds by default)",
+                  "生成批量 Token（短时有效，默认 5 分钟）",
+                  "Generate a batch token (short-lived, 5 minutes by default)",
                 )}
               </li>
               <li>

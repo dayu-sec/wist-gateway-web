@@ -87,7 +87,7 @@ export function commandSourceLabel(source: AgentCommandSource): string {
 export function commandKindLabel(kind: string): string {
   switch (kind) {
     case "investigate":
-      return t("一次性调查", "One-off investigation");
+      return t("调查", "Investigation");
     case "refresh_facts":
       return t("重采事实", "Refresh facts");
     default:

@@ -17,7 +17,7 @@ import { ApproverInstallHint } from "./ApproverInstallHint";
 import { ApproverKeysSection } from "./ApproverKeysSection";
 
 /**
- * 「响应审批」页（路由 `/approvals`）：把「这台机器上可以做什么」的**决策**摊开。
+ * 「处置审批」页（路由 `/approvals`）：把「这台机器上可以做什么」的**决策**摊开。
  *
  * **本页是只读的**（外部签发之后）：投票与签名都在审批人的机器上用 `wist-approve` 完成。
  * 页面存在的理由变成四个：
@@ -31,7 +31,7 @@ import { ApproverKeysSection } from "./ApproverKeysSection";
  * 留着按钮只会让人以为「点一下就等于签了」。两条审批路径必然有一条会漂。
  * 设计：`docs/design/plan-external-signing.md` §7。
  *
- * 只做决策面，不发起：构造一份 `ActionPlan` 属于「响应发起」流程，不在这一页。
+ * 只做决策面，不发起：构造一份 `ActionPlan` 属于「发起处置」流程，不在这一页。
  */
 
 interface TabSpec {
@@ -187,15 +187,17 @@ export function SubsystemAgentApprovalPage() {
   return (
     <div className={styles.container}>
       <main className={styles.main}>
-        {/* 页面级 tab：两个平级的视图。「响应审批」本身也是 tab（不是标题 + 旁边的按钮），
+        {/* 页面级 tab：两个平级的视图。「处置审批」本身也是 tab（不是标题 + 旁边的按钮），
             两者同字号、同下划线选中态，读起来才是一条 tab 栏。
             h1 仍保留给读屏器/文档大纲（视觉上由 tab 承担）。 */}
-        <h1 className={styles.srOnly}>{t("响应审批", "Action approvals")}</h1>
+        <h1 className={styles.srOnly}>
+          {t("处置审批", "Disposition approvals")}
+        </h1>
 
         <div
           className={styles.viewTabs}
           role="tablist"
-          aria-label={t("响应审批视图", "Action approvals views")}
+          aria-label={t("处置审批视图", "Disposition approvals views")}
         >
           <button
             type="button"
@@ -208,7 +210,7 @@ export function SubsystemAgentApprovalPage() {
             }
             onClick={() => setView("pending")}
           >
-            {t("响应审批", "Action approvals")}
+            {t("处置审批", "Disposition approvals")}
           </button>
           <button
             type="button"
@@ -229,8 +231,8 @@ export function SubsystemAgentApprovalPage() {
           <>
             <p className={styles.pageSummary}>
               {t(
-                "一次「响应」的控制面链路：提交计划 → 审批 → 签发 → 下发。审批绑的是计划内容摘要，批的是这一份；签发之后计划才会真正到达机器，并可由机器本地验签。",
-                "The control-plane path of one response: submit plan → approve → sign → dispatch. Approval is bound to the plan digest (this exact content); only after signing does the plan reach the machine, where it is verified locally.",
+                "一次「处置」的控制面链路：提交计划 → 审批 → 签发 → 下发。审批绑的是计划内容摘要，批的是这一份；签发之后计划才会真正到达机器，并可由机器本地验签。",
+                "The control-plane path of one disposition: submit plan → approve → sign → dispatch. Approval is bound to the plan digest (this exact content); only after signing does the plan reach the machine, where it is verified locally.",
               )}
             </p>
 
@@ -295,8 +297,8 @@ export function SubsystemAgentApprovalPage() {
             <span>
               {view === "pending"
                 ? t(
-                    "没有等着批的计划。需要处置机器时，由响应发起流程提交计划后才会出现在这里。",
-                    "No plan is waiting for approval. Plans appear here only after the response flow submits them.",
+                    "没有等着批的计划。需要处置机器时，由处置发起流程提交计划后才会出现在这里。",
+                    "No plan is waiting for approval. Plans appear here only after the disposition flow submits them.",
                   )
                 : t(
                     "这一档暂时为空。切换上面的标签看看其它状态。",

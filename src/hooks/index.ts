@@ -251,7 +251,7 @@ export function useAgentInstallCode(enabled = true) {
   return useQuery({
     queryKey: ["agent-install-code"],
     queryFn: fetchAgentInstallCode,
-    // 批量安装模式**不自动签发**：一次性码有几分钟，而批量码只活一分钟，
+    // 批量安装模式**不自动签发**：一次性码有几分钟，而批量码只活 5 分钟，
     // 页面一打开就铸一张只会让它白等（真正的签发由「生成」按钮触发）。
     enabled,
   });

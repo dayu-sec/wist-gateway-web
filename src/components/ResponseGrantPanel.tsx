@@ -129,7 +129,7 @@ function grantErrorMessage(error: unknown): string {
 }
 
 /**
- * 响应授权（时间窗授权）。
+ * 处置授权（时间窗授权）。
  *
  * 为什么需要它：审批是「批了这一份」，一次一审；而看进程、读日志、清已轮转日志
  * 这类动作是重复的。授权单给一台机器一段**有期限**的窗口，窗口内满足风险上限的动作
@@ -153,7 +153,7 @@ export function ResponseGrantPanel() {
   return (
     <section className={styles.container}>
       <header className={styles.header}>
-        <h2 className={styles.title}>{t("响应授权", "Response grants")}</h2>
+        <h2 className={styles.title}>{t("处置授权", "Disposition grants")}</h2>
         <p className={styles.summary}>
           {t(
             "给一台机器签发一段有期限的授权窗口。窗口内、风险上限以内的动作可以直接下发，不必逐次审批；窗口一过就重新签发。高风险（R3）不允许走授权单，必须一次一议。",
@@ -162,7 +162,7 @@ export function ResponseGrantPanel() {
         </p>
         <p className={styles.note}>
           {t(
-            "没有授权单的机器，只读响应也发不出去 —— 这是刻意的：不留「永久免审」。授权单本身请当作一次审批动作对待。",
+            "没有授权单的机器，只读处置也发不出去 —— 这是刻意的：不留「永久免审」。授权单本身请当作一次审批动作对待。",
             "A machine without a grant cannot dispatch even read-only responses — that is intentional: there is no permanent exemption. Treat issuing a grant as an approval action.",
           )}
         </p>

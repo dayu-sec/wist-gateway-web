@@ -6,7 +6,7 @@ import { t } from "../i18n";
 import styles from "./SubsystemAuthorizationPage.module.css";
 
 /**
- * 授权页的三个 tab：**采集面**、**调查面**、**响应**。
+ * 授权页的三个 tab：**采集面**、**调查面**、**处置**。
  *
  * 前两个是「谁能读这台机器的什么」，第三个是「谁能动这台机器」—— 读与写分成两条轴，
  * 但都是「对某台机器的一次授权决定」，所以收在同一页。
@@ -63,7 +63,7 @@ export function SubsystemAuthorizationPage() {
           className={tab === "response" ? styles.tabActive : styles.tab}
           onClick={() => select("response")}
         >
-          {t("响应授权", "Response grants")}
+          {t("处置授权", "Disposition grants")}
         </button>
       </nav>
       {tab === "investigation" ? (

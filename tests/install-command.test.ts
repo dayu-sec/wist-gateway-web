@@ -201,7 +201,7 @@ assert(
     installPage.includes("writeInstallMode"),
   "安装页的用途要从 URL 读、并写回 URL（只读不写会让刷新丢模式，只写不读会让深链失效）",
 );
-// 批量 token 只活一分钟：页面不能用普通查询自动签发（等用户复制完命令，寿命已经烧掉一半）。
+// 批量 token 只活 5 分钟：页面不能用普通查询自动签发（等用户复制完命令，寿命已经烧掉一半）。
 // 真按下去要显式调用生成接口。
 assert(
   installPage.includes("useIssueAgentBatchInstallCode"),

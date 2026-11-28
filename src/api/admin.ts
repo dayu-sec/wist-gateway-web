@@ -1494,7 +1494,7 @@ export async function fetchAgentInstallCode(): Promise<AgentInstallCode> {
  * 签发**批量安装码**：`POST /api/v1/agent/install-code/batch`。
  *
  * 返回形状与一次性安装码完全相同（同一套命令/引导包），差异在 token 的语义：
- * 它在网关配置的短窗口（默认 60s）内可给**多台新主机**用，到点即失效。
+ * 它在网关配置的短窗口（默认 5 分钟）内可给**多台新主机**用，到点即失效。
  * 用 POST 而不是 GET：这是签发动作，不能因为预取/缓存就凭空铸出一把凭据。
  */
 export async function issueAgentBatchInstallCode(): Promise<AgentInstallCode> {

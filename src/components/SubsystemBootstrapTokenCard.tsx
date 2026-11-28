@@ -82,8 +82,8 @@ export function SubsystemBootstrapTokenCard({
         <p className={styles.countdown}>
           {remainingSeconds === undefined
             ? t(
-                "有效期以网关为准（默认 60 秒）",
-                "Validity is enforced by the gateway (60 seconds by default)",
+                "有效期以网关为准（默认 5 分钟）",
+                "Validity is enforced by the gateway (5 minutes by default)",
               )
             : remainingSeconds > 0
               ? t(

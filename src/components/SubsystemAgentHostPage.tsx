@@ -5,9 +5,9 @@ import { t } from "../i18n";
 import styles from "./SubsystemAuthorizationPage.module.css";
 
 /**
- * 主机页的 tab 壳：「主机清单」与「发起响应」。
+ * 主机页的 tab 壳：「主机清单」与「发起处置」。
  *
- * 为什么放这里：发起响应的**起点就是一台机器** —— 从主机清单看到"这台盘满了"，
+ * 为什么放这里：发起处置的**起点就是一台机器** —— 从主机清单看到"这台盘满了"，
  * 下一步就是"在这台上清一下"。拆成两个入口等于让人记住机器名再跳一次。
  *
  * tab 进 URL（`?tab=`）：刷新/分享都还能停在同一处，与授权页同一约定。
@@ -42,7 +42,7 @@ export function SubsystemAgentHostPage() {
           className={tab === "respond" ? styles.tabActive : styles.tab}
           onClick={() => select("respond")}
         >
-          {t("发起响应", "Launch response")}
+          {t("发起处置", "Launch disposition")}
         </button>
       </nav>
       {tab === "respond" ? (

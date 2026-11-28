@@ -465,7 +465,6 @@
 }
 
 .actionButton,
-.dangerButton,
 .grantButton,
 .primaryButton {
   min-height: 32px;
@@ -485,17 +484,6 @@
 .actionButton:hover:not(:disabled) {
   border-color: var(--accent-border);
   color: var(--text);
-}
-
-.dangerButton {
-  border: 1px solid var(--crit-border);
-  background: var(--crit-soft);
-  color: var(--crit);
-}
-
-.dangerButton:hover:not(:disabled) {
-  background: var(--crit);
-  color: #ffffff;
 }
 
 .primaryButton {
@@ -524,7 +512,6 @@
 }
 
 .actionButton:disabled,
-.dangerButton:disabled,
 .grantButton:disabled,
 .primaryButton:disabled {
   border-color: var(--border-strong);
@@ -534,22 +521,23 @@
 }
 
 .actionButton:focus-visible,
-.dangerButton:focus-visible,
 .grantButton:focus-visible,
 .primaryButton:focus-visible {
   box-shadow: var(--ring);
   outline: none;
 }
 
+/* 撤回是生命周期里的普通一步（改采什么 = 撤回后重新授权），不是故障也不是不可逆：
+   确认行只做「这一步打开了」的区分，不染告警色 —— 告警色留给漂移与部分失败。 */
 .revokeRow {
   display: flex;
   align-items: flex-end;
   gap: 10px;
   flex-wrap: wrap;
   padding: 10px 12px;
-  border: 1px solid var(--crit-border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: var(--crit-soft);
+  background: var(--surface-3);
 }
 
 /* ---------- 表单 ---------- */

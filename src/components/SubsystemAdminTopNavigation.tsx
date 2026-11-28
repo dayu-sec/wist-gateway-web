@@ -565,7 +565,7 @@ function IconGwlinkd() {
   );
 }
 
-/** 响应审批：一份带勾选的单子 —— 批的是「这一份」计划。 */
+/** 处置审批：一份带勾选的单子 —— 批的是「这一份」计划。 */
 function IconApproval() {
   return (
     <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
@@ -689,7 +689,7 @@ function navGroups(): { label: string; items: NavItem[] }[] {
         // 审批是下发的**前置**：先批、再签发、然后才排进任务队列。
         {
           to: "/approvals",
-          label: t("响应审批", "Action approvals"),
+          label: t("处置审批", "Disposition approvals"),
           icon: <IconApproval />,
         },
         {

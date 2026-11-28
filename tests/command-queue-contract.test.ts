@@ -277,7 +277,7 @@ async function main() {
   assert(commandSourceLabel("admin") === "页面", "页面发起的说法");
   assert(commandSourceLabel("system") === "系统", "系统自排的说法");
 
-  assert(commandKindLabel("investigate") === "一次性调查", "调查的说法");
+  assert(commandKindLabel("investigate") === "调查", "调查的说法");
   assert(commandKindLabel("refresh_facts") === "重采事实", "重采的说法");
   assert(
     commandKindLabel("something_new") === "something_new",
