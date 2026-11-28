@@ -30,3 +30,10 @@
   font-size: 12px;
   word-break: break-all;
 }
+
+/* 批量安装的倒计时：窗口很短，剩下多少秒要看得到。 */
+.countdown {
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}

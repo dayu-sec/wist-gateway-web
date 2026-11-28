@@ -241,3 +241,98 @@
   margin-top: 6px;
   font-weight: 600;
 }
+
+/* 批量安装：签发入口（短时 token 的寿命从点击开始算，所以入口要显眼、可重发）。 */
+.batchPanel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  width: calc(100% - 48px);
+  max-width: calc(var(--content-max) - 48px);
+  margin: 0 auto;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.batchPanelText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 260px;
+}
+
+.batchPanelHint {
+  max-width: var(--prose-max);
+  color: var(--text-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.batchButton {
+  height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.batchButton:hover {
+  filter: brightness(1.04);
+}
+
+.batchButton:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.batchButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+/* 批量码的两个动作放一组：重新生成（会作废旧码）与作废（泄露时切断）。 */
+.batchActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dangerButton {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--crit-border);
+  border-radius: var(--radius-sm);
+  background: var(--crit-soft);
+  color: var(--crit);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerButton:hover {
+  filter: brightness(1.04);
+}
+
+.dangerButton:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.dangerButton:focus-visible {
+  box-shadow: var(--ring);
+  outline: none;
+}
+
+.revokedNotice {
+  color: var(--warn);
+  font-size: 12.5px;
+  line-height: 1.6;
+}

@@ -279,6 +279,44 @@ export interface AgentInstallCode {
   armLinuxInstallCode: string;
   macosInstallCode: string;
   bootstrapEnrollmentToken: string;
+  /**
+   * 引导包（也就是这张 token）的到期时间（RFC3339）。
+   *
+   * 旧网关不返回 `bootstrap_bundle`，此时为 `undefined` —— 页面不能自己按常量编一个窗口，
+   * 真实有效期以网关为准（批量安装页的倒计时要读它）。
+   */
+  expiresAt?: string;
+  /**
+   * 批量码最多可注册的台数（仅批量接口返回，网关配置值）。
+   *
+   * 到上限后再拿这张码注册会被拒，且拒绝口径与其它 token 失败一致（不区分原因），
+   * 所以页面必须把上限先告诉运维。旧网关不返回时为 `undefined`（不编数字）。
+   */
+  maxUses?: number;
+}
+
+/**
+ * 批量安装码策略（管理面设置，`GET /api/v1/admin/agent/install-policy`）。
+ *
+ * `source=config` 表示管理面没设置过，生效值是部署配置的 `[agent] batch_bootstrap_*`。
+ * `limits` 是允许上限（后端下发，页面不另写一份）。
+ */
+export interface AgentInstallPolicyView {
+  batchTtlSeconds: number;
+  batchMaxUses: number;
+  source: string;
+  updatedBy: string;
+  updatedAt: string | null;
+  limits: {
+    batchTtlSeconds: number;
+    batchMaxUses: number;
+  };
+}
+
+export interface SetAgentInstallPolicyCommand {
+  batchTtlSeconds: number;
+  batchMaxUses: number;
+  requestedBy?: string;
 }
 
 /**
@@ -648,6 +686,9 @@ export function normalizeAgentInstallPackage(
 
 function normalizeInstallCode(payload: any): AgentInstallCode {
   const installCode = payload.install_code ?? payload.installCode ?? payload;
+  const bundle = installCode.bootstrap_bundle ?? installCode.bootstrapBundle;
+  const expiresAtRaw = bundle?.expires_at ?? bundle?.expiresAt;
+  const maxUsesRaw = installCode.max_uses ?? installCode.maxUses;
   return {
     x86LinuxInstallCode: requiredString(
       installCode.x86_linux_install_code ?? installCode.x86LinuxInstallCode,
@@ -666,6 +707,50 @@ function normalizeInstallCode(payload: any): AgentInstallCode {
         installCode.bootstrapEnrollmentToken,
       "installCode.bootstrapEnrollmentToken",
     ),
+    expiresAt:
+      typeof expiresAtRaw === "string" && expiresAtRaw.length > 0
+        ? expiresAtRaw
+        : undefined,
+    maxUses:
+      typeof maxUsesRaw === "number" &&
+      Number.isFinite(maxUsesRaw) &&
+      maxUsesRaw > 0
+        ? Math.floor(maxUsesRaw)
+        : undefined,
+  };
+}
+
+function normalizeAgentInstallPolicy(payload: any): AgentInstallPolicyView {
+  const view = payload.install_policy ?? payload.installPolicy ?? payload;
+  const limits = requiredRecord(view.limits, "agentInstallPolicy.limits");
+  return {
+    batchTtlSeconds: requiredNumber(
+      view.batch_ttl_seconds ?? view.batchTtlSeconds,
+      "agentInstallPolicy.batchTtlSeconds",
+    ),
+    batchMaxUses: requiredNumber(
+      view.batch_max_uses ?? view.batchMaxUses,
+      "agentInstallPolicy.batchMaxUses",
+    ),
+    source: requiredString(view.source, "agentInstallPolicy.source"),
+    updatedBy: requiredString(
+      view.updated_by ?? view.updatedBy ?? "",
+      "agentInstallPolicy.updatedBy",
+    ),
+    updatedAt: nullableString(
+      view.updated_at ?? view.updatedAt ?? null,
+      "agentInstallPolicy.updatedAt",
+    ),
+    limits: {
+      batchTtlSeconds: requiredNumber(
+        limits.batch_ttl_seconds ?? limits.batchTtlSeconds,
+        "agentInstallPolicy.limits.batchTtlSeconds",
+      ),
+      batchMaxUses: requiredNumber(
+        limits.batch_max_uses ?? limits.batchMaxUses,
+        "agentInstallPolicy.limits.batchMaxUses",
+      ),
+    },
   };
 }
 
@@ -1403,6 +1488,67 @@ export function normalizeAgentAdvertiseUrl(payload: any): AgentAdvertiseUrl {
 export async function fetchAgentInstallCode(): Promise<AgentInstallCode> {
   const payload = await requestJson<unknown>("/api/v1/agent/install-code");
   return normalizeInstallCode(payload);
+}
+
+/**
+ * 签发**批量安装码**：`POST /api/v1/agent/install-code/batch`。
+ *
+ * 返回形状与一次性安装码完全相同（同一套命令/引导包），差异在 token 的语义：
+ * 它在网关配置的短窗口（默认 60s）内可给**多台新主机**用，到点即失效。
+ * 用 POST 而不是 GET：这是签发动作，不能因为预取/缓存就凭空铸出一把凭据。
+ */
+export async function issueAgentBatchInstallCode(): Promise<AgentInstallCode> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/agent/install-code/batch",
+    { method: "POST" },
+  );
+  return normalizeInstallCode(payload);
+}
+
+/**
+ * 作废当前仍可用的批量安装码；返回被吊销张数（0 = 本来就没有）。
+ *
+ * 泄露时用它立即切断（不必干等窗口到期）。它只动批量码，一次性安装码不受影响；
+ * 「重新生成」也会在服务端隐式完成同样的作废。
+ */
+export async function revokeAgentBatchInstallCode(): Promise<number> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/agent/install-code/batch/revoke",
+    { method: "POST" },
+  );
+  const record = requiredRecord(payload, "revokeBatchInstallCode");
+  return requiredNumber(record.revoked, "revokeBatchInstallCode.revoked");
+}
+
+/** 批量安装码策略（生效值 + 允许上限）。 */
+export async function fetchAgentInstallPolicy(): Promise<AgentInstallPolicyView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/install-policy",
+  );
+  return normalizeAgentInstallPolicy(payload);
+}
+
+/**
+ * 保存批量安装码策略。
+ *
+ * 只影响**之后签发**的批量码：已经发出去的码按它自己的窗口 / 台数走，不会被提前作废，
+ * 也不会被放宽。越界值后端 400（`agent_install_policy_invalid`），页面也会先拦一道。
+ */
+export async function setAgentInstallPolicy(
+  command: SetAgentInstallPolicyCommand,
+): Promise<AgentInstallPolicyView> {
+  const payload = await requestJson<unknown>(
+    "/api/v1/admin/agent/install-policy",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        batch_ttl_seconds: command.batchTtlSeconds,
+        batch_max_uses: command.batchMaxUses,
+        requested_by: command.requestedBy,
+      }),
+    },
+  );
+  return normalizeAgentInstallPolicy(payload);
 }
 
 /**

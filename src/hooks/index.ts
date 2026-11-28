@@ -26,6 +26,11 @@ import {
   fetchAgentFactRefresh,
   fetchAgentHostMetrics,
   fetchAgentInstallCode,
+  fetchAgentInstallPolicy,
+  issueAgentBatchInstallCode,
+  revokeAgentBatchInstallCode,
+  setAgentInstallPolicy,
+  type SetAgentInstallPolicyCommand,
   fetchAgentInstallPackage,
   fetchAgentInvestigationReport,
   fetchAgentInvestigations,
@@ -242,10 +247,62 @@ export function useInstallPackages() {
   });
 }
 
-export function useAgentInstallCode() {
+export function useAgentInstallCode(enabled = true) {
   return useQuery({
     queryKey: ["agent-install-code"],
     queryFn: fetchAgentInstallCode,
+    // 批量安装模式**不自动签发**：一次性码有几分钟，而批量码只活一分钟，
+    // 页面一打开就铸一张只会让它白等（真正的签发由「生成」按钮触发）。
+    enabled,
+  });
+}
+
+/** 签发批量安装码（短时、窗口内可多机）。由页面上的「生成」按钮触发。 */
+export function useIssueAgentBatchInstallCode() {
+  return useMutation({
+    mutationFn: () => issueAgentBatchInstallCode(),
+  });
+}
+
+/** 作废当前批量码（泄露时立即切断；「重新生成」也会在服务端隐式作废旧码）。 */
+export function useRevokeAgentBatchInstallCode() {
+  return useMutation({
+    mutationFn: () => revokeAgentBatchInstallCode(),
+  });
+}
+
+/**
+ * 批量安装码策略（生效值 + 允许上限 + 来源）。
+ *
+ * 不轮询：只在管理面变更时变，保存成功后由 `useSetAgentInstallPolicy` 失效重取。
+ */
+export function useAgentInstallPolicy() {
+  const [, setAuthVersion] = useState(0);
+  useEffect(() => {
+    const onAuthChanged = () => setAuthVersion((version) => version + 1);
+    window.addEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+    return () =>
+      window.removeEventListener(ADMIN_AUTH_CHANGED_EVENT, onAuthChanged);
+  }, []);
+  const enabled = Boolean(getAdminApiToken());
+  return useQuery({
+    queryKey: ["agent-install-policy"],
+    queryFn: fetchAgentInstallPolicy,
+    enabled,
+  });
+}
+
+/** 保存批量安装码策略；成功后刷新生效值。只影响之后签发的批量码。 */
+export function useSetAgentInstallPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (command: SetAgentInstallPolicyCommand) =>
+      setAgentInstallPolicy(command),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["agent-install-policy"],
+      });
+    },
   });
 }
 
